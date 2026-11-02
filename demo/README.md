@@ -1,5 +1,8 @@
 # demo/ — scenariu și înregistrare de rezervă
 
+**Demo-ul curent:** [`run_sheet_browser.md`](run_sheet_browser.md) — 90 de secunde pe
+build-ul static, tot pipeline-ul în tab.
+
 > **Material istoric — scenariul demo-ului SafeSight pe implementarea de referință.**
 > Descrie run-ul de hackathon (trei camere, Slack, ack, raport de tură) pe `ml/` +
 > `backend/`; rămâne aici ca record al ce s-a construit, nu ca demo al produsului.

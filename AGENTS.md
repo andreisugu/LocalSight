@@ -127,4 +127,4 @@ Citește documentul relevant și fișierele atinse; propune un plan de 3 linii; 
 
 `docs/browser-engine.md` · `docs/media.md` · `docs/performance.md` · `docs/contract.md` ·
 `docs/qa/` · `docs/rewrite-backlog.md` · `frontend/README.md` ·
-`frontend/public/models/README.md` · `demo/run_sheet.md`
+`frontend/public/models/README.md` · `demo/run_sheet_browser.md` · `demo/run_sheet.md` (istoric)
