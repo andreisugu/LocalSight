@@ -28,17 +28,17 @@ doar ce cod a fost scris înainte de direcția LocalSight și cât de mult l-am 
 
 | Fișier | Proveniență | Stare | Decizie |
 |---|---|---|---|
-| `components/layout/Header.jsx` | VojuAriana (6/16) | moștenit, cu fix-uri de responsive | înlocuiește-l când îl atingi iar; e mic |
-| `components/views/IncidentDetailView.jsx` | muxxq (4/9) | moștenit, layout + raport/print | rescriere de layout într-un pass separat; păstrează legarea la date |
-| `components/views/IncidentsListView.jsx` | VojuAriana (1/3) | moștenit | înlocuiește-l când îl atingi; e listă simplă |
+| `components/layout/Header.jsx` | VojuAriana (6/16) | **rescris 2026-11-02**: meniuri accesibile (Escape/click-outside), căutare cu `/`, aceleași funcții | gata |
+| `components/views/IncidentDetailView.jsx` | muxxq (4/9) | parțial rescris: copiază link, descarcă dovada, etichete demo/local; layout-ul de bază e încă moștenit | restul layout-ului, într-un pass separat |
+| `components/views/IncidentsListView.jsx` | VojuAriana (1/3) | **rescris 2026-11-02**: căutarea globală din header filtrează lista, chip `local`, fără text de backend în mock | gata |
 | `components/views/SettingsView.jsx` | VojuAriana (3/7) | parțial rescris (onestitate) | rescrie ca „Sistem" de la zero la următorul pass de UI |
 | `components/layout/Sidebar.jsx` | andreisugu (8/17) | parțial rescris (responsive, footer) | refăcut la un design pass, nu înainte |
 | `components/common/Toast.jsx` | VojuAriana (2/4) | moștenit | mic; înlocuiește-l când umbli la notificări |
-| `components/common/ConfidenceBadge.jsx` | VojuAriana (1/1) | moștenit | 20 de linii; înlocuiește-l când îl atingi |
+| `components/common/ConfidenceBadge.jsx` | VojuAriana (1/1) | **rescris 2026-11-02**: nu mai inventează `0.90` / `14/15` când lipsesc datele; 6 teste pe formatter | gata |
 | `constants/theme.js` + `context/ThemeContext.jsx` | VojuAriana | moștenit (tokens) | nu atinge până la un design pass; e folosit peste tot |
-| `utils/polygon.js` | muxxq (1/1) | moștenit, folosit de editorul de zone | înlocuiește-l cu funcții testate când schimbi geometria editorului |
+| `utils/polygon.js` | muxxq (1/1) | **rescris 2026-11-02** cu 14 teste: crossing, collinear, open/closed, ordonare deterministă | gata |
 | `utils/print.js` | muxxq (1/1) | moștenit, folosit de 7 fișiere | înlocuiește-l cu un export CSV/PDF real, nu `window.print` |
-| `utils/sound.js` | VojuAriana (1/1) | moștenit, 1 consumator | rescrie în ~10 linii când atingi alerta critică |
+| `utils/sound.js` | VojuAriana (1/1) | **rescris 2026-11-02**: un singur `AudioContext` refolosit, resume pe gest; 4 teste | gata |
 | `constants/eventActions.js` | muxxq (1/1) | moștenit (matricea de acțiuni) | înlocuiește-l cu tabelul din contract la următoarea modificare de statusuri |
 | `main.jsx` | VojuAriana (1/2) | aproape tot al nostru (ErrorBoundary) | nu merită un pass separat |
 | `components/video/BoundingBox.jsx` | VojuAriana (2/2) | **mort** — 0 importuri | candidat la ștergere; cere confirmare înainte |
@@ -59,4 +59,6 @@ tracker, vest, blur, report, webgpu, decode), `LiveEngineCard`, `SafeImage`, `Er
 |---|---|---|
 | 2026-11-02 | `IncidentDetailView.jsx` | am adăugat doar eticheta „date demo" și copy-ul onest; layout-ul rămâne moștenit |
 | 2026-11-02 | `Header.jsx`, `IncidentsListView.jsx`, `Toast.jsx` | fix-uri punctuale de responsive/onestitate; rescrierea nu era în scope |
-| 2026-11-02 | `utils/polygon.js` | geometria editorului merge; o rescriere cere teste înainte |
+| 2026-11-02 | `IncidentDetailView.jsx` (layout) | am adăugat doar acțiunile noi; rescrierea de layout cere un pass separat |
+| 2026-11-02 | `Toast.jsx`, `eventActions.js`, `print.js` | mici și funcționale; le înlocuim când le atinge un feature |
+| 2026-11-02 | `BoundingBox.jsx` | cod mort (0 importuri); așteaptă confirmarea pentru ștergere |
