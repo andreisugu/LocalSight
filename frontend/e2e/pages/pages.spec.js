@@ -92,7 +92,7 @@ test('the page becomes crossOriginIsolated after the worker reloads it once', as
   // Isolation is what enables more than one WASM thread; without it the engine still runs,
   // just slower, which is why this is asserted separately from the engine test.
   expect(await page.evaluate(() => navigator.serviceWorker.controller?.scriptURL || '')).toMatch(
-    /\/LocalSight\/coi-serviceworker\.js$/
+    /\/LocalSight\/coi-serviceworker\.js\?v=.+$/
   );
 });
 

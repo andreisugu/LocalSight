@@ -8,11 +8,21 @@ import './index.css';
 // there. `public/coi-serviceworker.js` re-serves same-origin navigations with those two
 // headers; this registration is what turns it on. Nothing else in the app changes if it is
 // unavailable: dev, unsupported browsers and already-isolated hosts skip it entirely.
+//
+// The same worker owns the runtime cache (see the file header). The `?v=` parameter is
+// the cache namespace: a deploy with a new SHA activates a new worker, which deletes the
+// previous cache instead of silently serving the old bundle. A local build without a SHA
+// registers `v=dev`; hashed asset names still make it fetch whatever the new HTML asks for.
 const COI_RELOAD_KEY = 'localsight.coi.reload';
+const COI_CACHE_VERSION = String(import.meta.env.VITE_BUILD_SHA || 'dev');
 
 function registerIsolationWorker() {
   if (!('serviceWorker' in navigator) || !import.meta.env.PROD) return;
-  if (window.crossOriginIsolated) return;
+  // A host that already sends COOP/COEP itself (dev server, a real origin) needs no
+  // worker. But an isolated document *controlled by this worker* must still register:
+  // returning visitors on Pages are isolated precisely because the worker is running, and
+  // skipping registration there would pin them to the worker (and cache) they first got.
+  if (window.crossOriginIsolated && !navigator.serviceWorker.controller) return;
 
   // The first load is not isolated yet: the worker can only add headers to a document it
   // controls. Once it claims this page, reload exactly once so the document is re-fetched
@@ -30,7 +40,10 @@ function registerIsolationWorker() {
   });
 
   navigator.serviceWorker
-    .register(`${import.meta.env.BASE_URL}coi-serviceworker.js`, { scope: import.meta.env.BASE_URL })
+    .register(
+      `${import.meta.env.BASE_URL}coi-serviceworker.js?v=${encodeURIComponent(COI_CACHE_VERSION)}`,
+      { scope: import.meta.env.BASE_URL },
+    )
     .catch((error) => {
       // Isolation is an optimization: without it the engine still runs, just on one thread.
       console.warn('[coi] service worker registration failed:', error.message);
