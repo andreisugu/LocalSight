@@ -15,6 +15,15 @@ const INITIAL_STATS = {
 // The worker can return a frame every 16 ms; re-rendering the overlay that often is waste.
 const STATS_INTERVAL_MS = 250;
 
+// A <video> fed by a MediaStream has no duration and never seeks: the only thing that says
+// "new frames are coming" is the media pipeline itself, so the loop is restarted from these
+// events instead of being started once. Swapping src/srcObject restarts it the same way.
+const LOOP_EVENTS = ['loadstart', 'loadedmetadata', 'loadeddata', 'canplay', 'play', 'playing', 'resize', 'seeked'];
+
+// Some browsers stay quiet after a device swap or a track mute: one cheap check keeps the
+// loop alive without polling frames.
+const LOOP_WATCHDOG_MS = 1000;
+
 /**
  * @param {{ videoRef: import('react').RefObject<HTMLVideoElement>,
  *           canvasRef: import('react').RefObject<HTMLCanvasElement>,
@@ -25,7 +34,11 @@ export function useEngine({ videoRef, canvasRef, enabled = true }) {
   const lastStatsRef = useRef(0);
 
   useEffect(() => {
-    if (!enabled) return undefined;
+    if (!enabled) {
+      // Nothing to feed: clear the old numbers so the overlay never claims a running engine.
+      setStats(INITIAL_STATS);
+      return undefined;
+    }
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return undefined;
@@ -34,7 +47,7 @@ export function useEngine({ videoRef, canvasRef, enabled = true }) {
       setStats({
         ...INITIAL_STATS,
         status: 'unsupported',
-        message: 'This browser has no module workers or OffscreenCanvas.',
+        message: 'Acest browser nu are module workers sau OffscreenCanvas.',
       });
       return undefined;
     }
@@ -50,6 +63,9 @@ export function useEngine({ videoRef, canvasRef, enabled = true }) {
 
     let disposed = false;
     let inFlight = false;
+    // The worker outlives a source swap on purpose: recreating it would reload the ONNX
+    // graphs. Only the frame loop is torn down and restarted.
+    let loopActive = false;
     let videoFrameHandle = 0;
     let rafHandle = 0;
 
@@ -68,6 +84,7 @@ export function useEngine({ videoRef, canvasRef, enabled = true }) {
     };
 
     worker.onmessage = (event) => {
+      if (disposed) return;
       const message = event.data || {};
       if (message.type === 'result') {
         inFlight = false;
@@ -108,25 +125,28 @@ export function useEngine({ videoRef, canvasRef, enabled = true }) {
     };
 
     worker.onerror = (event) => {
+      if (disposed) return;
       inFlight = false;
       setStats((previous) => ({
         ...previous,
         status: 'error',
-        message: event.message || 'engine worker failed',
+        message: event.message || 'worker-ul motorului a picat',
       }));
     };
 
-    const schedule = () => {
-      if (disposed) return;
-      if (typeof video.requestVideoFrameCallback === 'function') {
-        videoFrameHandle = video.requestVideoFrameCallback(tick);
-      } else {
-        rafHandle = requestAnimationFrame(tick);
+    const cancelLoopHandles = () => {
+      if (videoFrameHandle && typeof video.cancelVideoFrameCallback === 'function') {
+        video.cancelVideoFrameCallback(videoFrameHandle);
       }
+      videoFrameHandle = 0;
+      if (rafHandle) cancelAnimationFrame(rafHandle);
+      rafHandle = 0;
     };
 
     const tick = () => {
-      if (disposed) return;
+      videoFrameHandle = 0;
+      rafHandle = 0;
+      if (disposed || !loopActive) return;
       schedule();
       // Drop the frame while the worker is busy: latency must not grow without bound.
       if (inFlight || !video.videoWidth || video.readyState < 2) return;
@@ -145,16 +165,72 @@ export function useEngine({ videoRef, canvasRef, enabled = true }) {
         });
     };
 
+    const schedule = () => {
+      if (disposed || !loopActive || videoFrameHandle || rafHandle) return;
+      // A MediaStream-backed video presents frames to requestVideoFrameCallback exactly like
+      // a file-backed one; the only difference is that there is no duration or seek target.
+      if (typeof video.requestVideoFrameCallback === 'function') {
+        videoFrameHandle = video.requestVideoFrameCallback(tick);
+      } else {
+        rafHandle = requestAnimationFrame(tick);
+      }
+    };
+
+    const startLoop = () => {
+      if (disposed || loopActive) return;
+      loopActive = true;
+      schedule();
+    };
+
+    const stopLoop = () => {
+      loopActive = false;
+      cancelLoopHandles();
+    };
+
+    // A new source means the counters on screen belong to the previous one.
+    const resetCounters = () => {
+      if (disposed) return;
+      setStats((previous) => {
+        const broken = previous.status === 'error' || previous.status === 'unsupported';
+        return {
+          ...previous,
+          fps: 0,
+          persons: 0,
+          faces: 0,
+          ms: 0,
+          status: broken ? previous.status : 'loading',
+          message: broken ? previous.message : 'se așteaptă primele cadre',
+        };
+      });
+    };
+
+    const onLoopHint = () => startLoop();
+    const onSourceReset = () => {
+      stopLoop();
+      resetCounters();
+    };
+
+    LOOP_EVENTS.forEach((name) => video.addEventListener(name, onLoopHint));
+    video.addEventListener('emptied', onSourceReset);
+
+    const watchdog = setInterval(() => {
+      if (disposed || loopActive) return;
+      if (video.videoWidth && video.readyState >= 2) startLoop();
+    }, LOOP_WATCHDOG_MS);
+
     worker.postMessage({ type: 'init' });
-    schedule();
+    startLoop();
 
     return () => {
       disposed = true;
-      if (videoFrameHandle && typeof video.cancelVideoFrameCallback === 'function') {
-        video.cancelVideoFrameCallback(videoFrameHandle);
-      }
-      if (rafHandle) cancelAnimationFrame(rafHandle);
+      stopLoop();
+      clearInterval(watchdog);
+      LOOP_EVENTS.forEach((name) => video.removeEventListener(name, onLoopHint));
+      video.removeEventListener('emptied', onSourceReset);
       worker.terminate();
+      // Do not let a remount (or a source switch that disables the engine) inherit numbers
+      // from the video that was just detached.
+      setStats((previous) => ({ ...INITIAL_STATS, providers: previous.providers }));
     };
   }, [enabled, videoRef, canvasRef]);
 
