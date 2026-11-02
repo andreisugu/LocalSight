@@ -183,6 +183,26 @@ export const INITIAL_CAMERAS = [
       },
     ],
   },
+  {
+    // Singura cameră care nu vine din rețea: fluxul e deschis de browser cu getUserMedia,
+    // pe dispozitivul vizitatorului. Nu are RTSP și nu are clip demo; Live o tratează
+    // separat, iar zona ei se desenează ca orice altă zonă configurată.
+    id: 'webcam-live',
+    code: 'CAM-LOCAL',
+    name: 'CAM-LOCAL • Cameră browser',
+    subtitle: 'Camera laptopului — flux local, procesat în browser',
+    category: 'Local & Browser',
+    zone_id: 'webcam-view',
+    rtsp_url: null,
+    status: 'online',
+    engine_on: false,
+    fps: 30,
+    resolution: '720p',
+    // Accent cian (aceeași culoare ca motorul din browser): se citește ca sursă locală,
+    // nu ca un feed de aeroport.
+    previewBg: 'from-[#0B2B33] via-[#0E3A45] to-[#111111]',
+    boxes: [],
+  },
 ];
 
 export const AVAILABLE_OPERATORS = [
@@ -496,6 +516,30 @@ export const INITIAL_ZONES = [
       { x: 0.92, y: 0.3 },
       { x: 0.92, y: 0.86 },
       { x: 0.08, y: 0.86 },
+    ],
+  },
+  {
+    // Zona camerei locale: cadrul vizibil al laptopului, ca motorul să aibă pe ce rula
+    // din prima. E configurație, nu detecție; editorul de zone o poate muta sau șterge
+    // ca pe orice altă zonă.
+    zone_id: 'webcam-view',
+    camera_id: 'webcam-live',
+    name: 'Cameră browser — cadru vizibil',
+    rule_type: 'RESTRICTED',
+    active_when: 'always',
+    required_ppe: [],
+    severity: 'WARNING',
+    debounce_s: 1.0,
+    notify_channel: 'slack',
+    // Fără escaladare automată: o cameră de laptop nu trebuie să sune turnul.
+    escalate_after_s: null,
+    // Aproape tot cadrul: o cameră de laptop vede omul de aproape, iar regula numără
+    // picioarele cutiei, deci o zonă mică n-ar prinde niciodată pe nimeni.
+    polygon: [
+      { x: 0.02, y: 0.18 },
+      { x: 0.98, y: 0.18 },
+      { x: 0.98, y: 0.97 },
+      { x: 0.02, y: 0.97 },
     ],
   },
 ];
