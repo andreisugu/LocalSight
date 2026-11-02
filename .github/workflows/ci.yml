@@ -1,8 +1,8 @@
-# CI for LocalSight: backend API, ML edge pipeline, frontend build and the
-# browser smoke test of the static build.
+# CI for LocalSight: backend API, ML edge pipeline, frontend build, the browser
+# smoke test of the static build, and the GitHub Pages subpath (base) check.
 #
-# The four jobs are independent on purpose: a red backend does not cancel or
-# hide the ML, frontend and e2e results.
+# The five jobs are independent on purpose: a red backend does not cancel or
+# hide the ML, frontend, e2e and pages-base results.
 #
 # Model-dependent tests skip on their own when the weights or demo clips are
 # missing (see ml/tests/test_privacy.py: `skipif(not MODEL.is_file())` and
@@ -119,3 +119,38 @@ jobs:
       # dist with `vite preview`, so what is tested is what Pages would deploy.
       - name: Run e2e smoke tests
         run: npm run test:e2e
+
+  pages-base:
+    name: frontend / Pages base
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Build exactly like pages.yml (mock mode, served under /LocalSight/), then
+      # mirror its SPA fallback so the check sees the artifact Pages would deploy.
+      - name: Build under the deploy base
+        run: npm run build
+        env:
+          VITE_USE_MOCK: "true"
+          VITE_BASE: "/LocalSight/"
+
+      - name: SPA fallback
+        run: cp dist/index.html dist/404.html
+
+      # Fails if an internal src/href ignores VITE_BASE, if 404.html drifts from
+      # index.html, or if the browser models are not published.
+      - name: Verify the base subpath
+        run: node scripts/check-base.mjs
