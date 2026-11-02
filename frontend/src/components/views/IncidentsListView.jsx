@@ -3,7 +3,7 @@ import { AlertOctagon, Search, ChevronRight } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { STATUS_TOKENS } from '../../constants/theme';
-import { TYPE_LABELS } from '../../services/api';
+import { TYPE_LABELS, USE_MOCK } from '../../services/api';
 import SafeImage from '../common/SafeImage';
 
 // Status groups as an operator thinks about them; the values are the contract statuses.
