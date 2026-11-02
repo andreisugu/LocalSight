@@ -222,7 +222,8 @@ def write_markdown(report: dict, path: Path) -> None:
         "",
         "Doar cod de produs din `frontend/`: ≥60% linii de la colegi și ≥30 de linii, în",
         "ordinea proporției. `backend/`, `ml/` și `data/` sunt referință intenționată și nu",
-        "intră în listă.",
+        "intră în listă. Tokenurile de design (`theme.js`, `index.css`, `tailwind.config.js`)",
+        "apar aici din cauza liniei, nu pentru că ar conține logică de rescris.",
         "",
     ]
     if candidates:

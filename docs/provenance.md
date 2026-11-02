@@ -1,6 +1,6 @@
 # Proveniență — cine a scris codul rămas
 
-Generat cu `python3 scripts/provenance.py --write` la commit `b31e006`.
+Generat cu `python3 scripts/provenance.py --write` la commit `5afbb89`.
 Măsoară **ultima atingere a fiecărei linii** (`git blame -w`), nu commit-urile.
 Un rând rescris de tine apare ca al tău chiar dacă ideea era a altcuiva; un rând
 copiat dintr-un fișier al colegilor rămâne al lor până îl atingi. `-w` ignoră
@@ -8,7 +8,7 @@ schimbările doar de whitespace. Fișierele binare, lockfile-urile și asset-uri
 excluse. Codul scris de agenți în această sesiune e comis sub identitatea ta, deci
 intră la „tu”.
 
-**Total: 30787 linii** — tu 22398, colegi 8389, necunoscut 0.
+**Total: 30788 linii** — tu 22397, colegi 8389, necunoscut 2.
 
 | Fișier | Linii | Tu | Colegi | ? | Colegi % |
 |---|---:|---:|---:|---:|---:|
@@ -117,8 +117,8 @@ intră la „tu”.
 | `frontend/src/components/zones/ZoneCanvas.jsx` | 304 | 304 | 0 | 0 | 0.0% |
 | `frontend/src/engine/tracker.js` | 296 | 296 | 0 | 0 | 0.0% |
 | `backend/app/services/outbox.py` | 273 | 273 | 0 | 0 | 0.0% |
+| `scripts/provenance.py` | 267 | 265 | 0 | 2 | 0.0% |
 | `scripts/prepare-demo-media.sh` | 266 | 266 | 0 | 0 | 0.0% |
-| `scripts/provenance.py` | 266 | 266 | 0 | 0 | 0.0% |
 | `frontend/src/engine/pipeline.js` | 265 | 265 | 0 | 0 | 0.0% |
 | `frontend/src/engine/detectors.js` | 254 | 254 | 0 | 0 | 0.0% |
 | `frontend/src/constants/shiftReport.js` | 246 | 246 | 0 | 0 | 0.0% |
@@ -189,7 +189,8 @@ intră la „tu”.
 
 Doar cod de produs din `frontend/`: ≥60% linii de la colegi și ≥30 de linii, în
 ordinea proporției. `backend/`, `ml/` și `data/` sunt referință intenționată și nu
-intră în listă.
+intră în listă. Tokenurile de design (`theme.js`, `index.css`, `tailwind.config.js`)
+apar aici din cauza liniei, nu pentru că ar conține logică de rescris.
 
 - `frontend/src/index.css` — 100.0% din 67 linii
 - `frontend/tailwind.config.js` — 100.0% din 49 linii

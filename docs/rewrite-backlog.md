@@ -50,7 +50,7 @@ doar ce cod a fost scris înainte de direcția LocalSight și cât de mult l-am 
 | `components/layout/Sidebar.jsx` | andreisugu (8/17) | parțial rescris (responsive, footer) | refăcut la un design pass, nu înainte |
 | `components/common/Toast.jsx` | VojuAriana (2/4) | **înlocuit** (20→11; +27/−9), `role=status`/`aria-live`, audit: 0 logică | gata |
 | `components/common/ConfidenceBadge.jsx` | VojuAriana (1/1) | **logică nouă**: `utils/confidence.js` + 6 teste; 11 linii rămase sunt importuri/semnătură | parțial (markup-ul e încă aproape identic) |
-| `context/ThemeContext.jsx` | VojuAriana (1/1) | **înlocuit**: preferință persistentă, `utils/themePreference.js` + 6 teste | gata |
+| `context/ThemeContext.jsx` | VojuAriana (1/1) | **logică înlocuită**: persistență + `utils/themePreference.js` + 6 teste; rămân 24 de linii de schelet React (context/provider/hook) | parțial textual, complet pe logică |
 | `constants/theme.js` | VojuAriana | date pure (paletă/statusuri), fără logică | păstrat intenționat; o schimbare e design, nu proveniență |
 | `utils/polygon.js` | muxxq (1/1) | **rescris ca implementare** (63+/20−) + 14 teste; 45 de linii rămase sunt matematica identică și comentarii | înlocuit ca logică, nu ca text; nu pretindem altfel |
 | `utils/print.js` | muxxq (1/1) | moștenit, folosit de 7 fișiere | înlocuiește-l cu un export CSV/PDF real, nu `window.print` |
