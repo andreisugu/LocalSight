@@ -106,7 +106,7 @@ export const INITIAL_CAMERAS = [
     status: 'online',
     engine_on: true,
     fps: 30,
-    resolution: '4K (3840x2160)',
+    resolution: '1080p 30FPS',
     previewBg: 'from-[#1F1F1F] via-[#282828] to-[#181818]',
     boxes: [
       {
@@ -138,7 +138,7 @@ export const INITIAL_CAMERAS = [
     status: 'online',
     engine_on: false,
     fps: 30,
-    resolution: '1080p 30FPS',
+    resolution: '720p 30FPS',
     previewBg: 'from-zinc-900 to-neutral-800',
     boxes: [
       {
@@ -169,8 +169,8 @@ export const INITIAL_CAMERAS = [
     rtsp_url: 'rtsp://edge.airport.local/live/baggage-area',
     status: 'online',
     engine_on: false,
-    fps: 25,
-    resolution: '1080p 25FPS',
+    fps: 24,
+    resolution: '1080p 24FPS',
     previewBg: 'from-[#222222] to-[#181818]',
     boxes: [
       {
