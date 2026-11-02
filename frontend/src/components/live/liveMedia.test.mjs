@@ -209,9 +209,10 @@ test('readouts use measured numbers only', () => {
   assert.equal(idle.modelLabel, 'oprit');
   assert.equal(idle.latencyLabel, '—');
 
+  const engine = { status: 'running', fps: 5.5, actualProviders: ['webgpu'] };
   const running = engineReadout({
     ...base,
-    engine: { status: 'running', fps: 5.5, actualProviders: ['webgpu'] },
+    engine,
     browserEngineOn: true,
     engineSource: true,
     kpis: { detection_to_alert_latency_s: 12 },
@@ -220,6 +221,29 @@ test('readouts use measured numbers only', () => {
   assert.equal(running.pipelineLabel, '5.5 FPS • browser');
   assert.equal(running.modelLabel, 'YOLO26n · webgpu');
   assert.equal(running.latencyLabel, '12s');
+
+  // The spike flag names the graph that really ran; the default stays YOLO26n.
+  const lite0 = engineReadout({
+    ...base,
+    engine: { ...engine, detector: 'efficientdet' },
+    browserEngineOn: true,
+    engineSource: true,
+  });
+  assert.equal(lite0.modelLabel, 'EfficientDet-Lite0 · webgpu');
+  const lite2 = engineReadout({
+    ...base,
+    engine: { ...engine, detector: 'efficientdet-lite2' },
+    browserEngineOn: true,
+    engineSource: true,
+  });
+  assert.equal(lite2.modelLabel, 'EfficientDet-Lite2 · webgpu');
+  const unknown = engineReadout({
+    ...base,
+    engine: { ...engine, detector: 'bogus' },
+    browserEngineOn: true,
+    engineSource: true,
+  });
+  assert.equal(unknown.modelLabel, 'YOLO26n · webgpu');
 });
 
 test('zones are converted once, in contract shape', () => {

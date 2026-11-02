@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { useEngine } from '../../engine/useEngine';
+import { readDetectorFlag } from '../../engine/detectorFlag';
 import LiveEngineCard from '../live/LiveEngineCard';
 import CameraToolbar from '../live/CameraToolbar';
 import MediaStage from '../live/MediaStage';
@@ -115,6 +116,14 @@ export default function LiveView() {
   // exists.
   const engineEnabled = browserEngineOn && engineSource && displayMode !== 'fullscreen';
 
+  // Spike-only person detector, read once from the address bar: `?detector=efficientdet`
+  // (Lite0) or `?detector=efficientdet-lite2` (Lite2). Any other value, and the absent
+  // param, leaves the default YOLO26n. There is deliberately no toggle and no Setting.
+  const detector = useMemo(() => {
+    const value = readDetectorFlag();
+    return value === 'yolo' ? undefined : value;
+  }, []);
+
   // The background manager must skip exactly the camera whose frames this view feeds to
   // its worker. A selected-but-stopped camera is not owned: turning the engine off, leaving
   // Live or entering fullscreen releases it, and the background run may process it.
@@ -144,6 +153,8 @@ export default function LiveView() {
     // faces/blur do not need 1920; the bench measures ~5 fps at 1280 versus ~3.7 at 1080p
     // on the same 4 threads. `/bench` still lets a visitor compare sizes explicitly.
     inputSize: 1280,
+    // Spike-only: undefined keeps YOLO26n and is what every normal visit sends.
+    detector,
   });
 
   useEngineIncidents(engine.events, addEngineEvents);

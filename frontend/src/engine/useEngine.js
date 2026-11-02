@@ -16,6 +16,9 @@ const INITIAL_STATS = {
   message: '',
   providers: [],
   actualProviders: [],
+  // Person graph the worker loaded: `yolo` (default), `efficientdet` (Lite0) or
+  // `efficientdet-lite2`. Only the `?detector` spike flag can set the last two.
+  detector: 'yolo',
   events: [],
   totalEvents: 0,
   // Zone alignment for the last frame: `true` while the polygons follow the camera,
@@ -57,13 +60,16 @@ const ENGINE_READY_TIMEOUT_MS = 180_000;
  *           enabled?: boolean,
  *           provider?: 'webgpu'|'wasm',
  *           inputSize?: number,
+ *           detector?: 'yolo'|'efficientdet'|'efficientdet-lite2',
  *           trackFeed?: boolean,
  *           onSample?: (sample: {ms: number, fps: number, persons: number, faces: number,
  *                               error?: string|null, at: number}) => void }} options
  *
  * `provider`/`inputSize` are bench-only knobs. Omitting both sends the same init message
- * the spike always sent, so `/lab` is untouched. `onSample` sees every result frame; the
- * 250 ms state throttle above is for overlays, not for measurement.
+ * the spike always sent, so `/lab` is untouched. `detector` is the `?detector` spike flag
+ * read by LiveView: only `efficientdet` and `efficientdet-lite2` leave the default YOLO26n.
+ * `onSample` sees every result frame; the 250 ms state throttle above is for overlays, not
+ * for measurement.
  *
  * `trackFeed` is the `/lab` ground-plane prototype's opt-in: the worker then attaches the
  * tracker's boxes and the frame time to every result, and the state throttle is bypassed so
@@ -85,6 +91,7 @@ export function useEngine({
   enabled = true,
   provider,
   inputSize,
+  detector = 'yolo',
   trackFeed = false,
   onSample,
   zones,
@@ -270,6 +277,7 @@ export function useEngine({
           status: 'loading',
           providers: message.providers || [],
           actualProviders: message.actualProviders || [],
+          detector: message.detector || previous.detector,
         }));
         return;
       }
@@ -418,6 +426,11 @@ export function useEngine({
       init.providers = [effectiveProvider];
     }
     if (Number.isFinite(inputSize) && inputSize > 0) init.inputSize = inputSize;
+    // Spike flag. `yolo` is what every caller gets by default, so the init message is
+    // byte-for-byte the one the shipped engine always sent when the flag is absent.
+    if (detector === 'efficientdet' || detector === 'efficientdet-lite2') {
+      init.detector = detector;
+    }
     // Threads and the head-band blur are fixed for the life of the worker: ORT reads the
     // thread count when it starts its pool, so a change restarts the worker through the
     // dependencies below rather than being applied to a running session.
@@ -454,7 +467,7 @@ export function useEngine({
       // from the video that was just detached.
       setStats((previous) => ({ ...INITIAL_STATS, providers: previous.providers }));
     };
-  }, [enabled, effectiveProvider, inputSize, videoRef, canvasRef, wasmThreads, safetyBlur, trackFeed]);
+  }, [enabled, effectiveProvider, inputSize, detector, videoRef, canvasRef, wasmThreads, safetyBlur, trackFeed]);
 
   // Zonele editate ajung la worker fără restart. `zones` vine memoizat din LiveView, deci
   // efectul chiar pornește doar când configurația se schimbă; `/lab` nu trimite nimic.

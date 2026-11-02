@@ -5,6 +5,10 @@
 //   yolo26n.onnx - person detector, 640x640 letterboxed input, [1, 84, 8400] output
 //   yunet.onnx   - face detector, the same model the Python edge uses for blurring
 //
+// A spike-only third graph can replace the person detector behind `?detector=`:
+// EfficientDet-Lite0 (320) or Lite2 (448), uint8 NHWC input and 25 decoded detections.
+// The default path loads exactly the two graphs above.
+//
 // The wasm binary is bundled by Vite (`?url`) instead of being fetched from a CDN, so
 // the page works offline and from a static Pages build with no extra copy step.
 //
@@ -16,10 +20,38 @@
 // below to become its own chunk; an IIFE worker cannot code-split and would inline ORT.
 import ortWasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?url';
 import { webgpuAvailable, withTimeout } from './webgpu.js';
+import { matchEfficientDetOutputs } from './decode.js';
 
 const MODEL_BASE = `${import.meta.env.BASE_URL}models`;
 export const YOLO_MODEL_URL = `${MODEL_BASE}/yolo26n.onnx`;
 export const YUNET_MODEL_URL = `${MODEL_BASE}/yunet.onnx`;
+
+// Spike-only person detectors, selected with `?detector=efficientdet` (Lite0) or
+// `?detector=efficientdet-lite2`. They are the ONNX export of Google's EfficientDet-Lite
+// (Apache-2.0 weights), run on the same onnxruntime-web session as YOLO: uint8 NHWC input,
+// 320 / 448 px square, 25 detections out. The files are NOT committed; only the flag names
+// them, so the default build never downloads them.
+export const EFFICIENTDET_LITE0_MODEL_URL = `${MODEL_BASE}/efficientdet_lite0.onnx`;
+export const EFFICIENTDET_LITE2_MODEL_URL = `${MODEL_BASE}/efficientdet_lite2.onnx`;
+// The flag without a suffix means Lite0.
+export const EFFICIENTDET_MODEL_URL = EFFICIENTDET_LITE0_MODEL_URL;
+
+// `detector` values accepted by `loadModels`, mapped to the graph and its preprocessing.
+// Anything else (missing flag included) keeps YOLO26n: the default must not move because of
+// a typo in a query string.
+const PERSON_MODELS = Object.freeze({
+  yolo: { url: YOLO_MODEL_URL, kind: 'yolo' },
+  efficientdet: { url: EFFICIENTDET_LITE0_MODEL_URL, kind: 'efficientdet' },
+  'efficientdet-lite2': { url: EFFICIENTDET_LITE2_MODEL_URL, kind: 'efficientdet' },
+});
+
+/**
+ * Resolve the `?detector` flag to the person graph. Unknown values fall back to YOLO.
+ * @param {string} [detector]
+ */
+export function resolvePersonModel(detector) {
+  return PERSON_MODELS[detector] ?? PERSON_MODELS.yolo;
+}
 
 export const YOLO_INPUT_SIZE = 640;
 // Ultralytics pads with 114 grey; matching it keeps the detector in its training regime.
@@ -179,21 +211,40 @@ async function createSession(ort, url, providers) {
   }
 }
 
+/**
+ * Read the graph input metadata. Two layouts are supported:
+ *   NCHW `[1, 3, H, W]` - YOLO, YuNet (the historical shape)
+ *   NHWC `[1, H, W, 3]` - EfficientDet, whose channel axis is last
+ * A dynamic axis comes back as 0, exactly as before (YuNet's `yunetDynamic`).
+ *
+ * @param {{inputMetadata?: any[], inputs?: any[], inputNames?: string[]}} session
+ * @returns {{name: string, width: number, height: number,
+ *            layout: 'nchw'|'nhwc'}} width/height are the declared axes, 0 when symbolic
+ */
 function inputShape(session) {
   const input = session.inputMetadata?.[0] ?? session.inputs?.[0];
   const dims = input?.shape ?? input?.dims ?? [];
-  const height = Number(dims[2]) || 0;
-  const width = Number(dims[3]) || 0;
+  const second = Number(dims[1]) || 0;
+  const third = Number(dims[2]) || 0;
+  const fourth = Number(dims[3]) || 0;
   const name = input?.name ?? session.inputNames?.[0] ?? 'input';
-  return { name, width, height };
+  // The channel axis is the one fixed at 3; a 3-D `fourth` next to a spatial `second`
+  // means NHWC. NCHW keeps `second === 3` and reads H/W from axes 2 and 3.
+  const layout = fourth === 3 && second !== 3 ? 'nhwc' : 'nchw';
+  return layout === 'nhwc'
+    ? { name, width: third, height: second, layout }
+    : { name, width: fourth, height: third, layout };
 }
 
 /**
- * Load both sessions. Resolves with plain objects so the worker can pass them around.
+ * Load the person detector and the face detector. Resolves with plain objects so the
+ * worker can pass them around.
  *
  * @param {(stage: string) => void} [onProgress]
- * @param {{providers?: string[], threads?: number}} [options] explicit execution providers
- *   and wasm thread count. Omitting both keeps the spike behaviour: probe WebGPU, ask for
+ * @param {{providers?: string[], threads?: number, detector?: string}} [options]
+ *   explicit execution providers, wasm thread count and person detector. `detector` is the
+ *   `?detector` spike flag (`efficientdet`, `efficientdet-lite2`); omitted or unknown keeps
+ *   YOLO26n. Omitting `providers`/`threads` keeps the spike behaviour: probe WebGPU, ask for
  *   `['webgpu', 'wasm']`, and let ORT use the isolation-based default. The bench page
  *   passes a single provider so the returned `actualProviders` says what really ran.
  */
@@ -203,6 +254,7 @@ export async function loadModels(onProgress = () => {}, options = {}) {
   const providers = Array.isArray(options.providers) && options.providers.length
     ? options.providers
     : await preferredProviders();
+  const person = resolvePersonModel(options.detector);
   onProgress(providers[0] === 'webgpu' ? 'loading (webgpu)' : 'loading (wasm)');
 
   const [yolo, yunet] = providers[0] === 'webgpu'
@@ -210,11 +262,11 @@ export async function loadModels(onProgress = () => {}, options = {}) {
     // session is being created"), so build the graphs one after the other there. On wasm
     // the two loads are independent and run in parallel.
     ? [
-        await createSession(ort, YOLO_MODEL_URL, providers),
+        await createSession(ort, person.url, providers),
         await createSession(ort, YUNET_MODEL_URL, providers),
       ]
     : await Promise.all([
-        createSession(ort, YOLO_MODEL_URL, providers),
+        createSession(ort, person.url, providers),
         createSession(ort, YUNET_MODEL_URL, providers),
       ]);
 
@@ -223,8 +275,15 @@ export async function loadModels(onProgress = () => {}, options = {}) {
   const actualProviders = [...new Set([yolo.provider, yunet.provider])];
 
   return {
+    // Historical keys: `yolo` is the person graph whichever detector the flag picked, so
+    // every existing caller (`runYolo`, `/lab`) keeps working unchanged.
     yolo: yolo.session,
     yunet: yunet.session,
+    // Explicit aliases for code that does not want to call EfficientDet "yolo".
+    personDetector: yolo.session,
+    personInput: yoloInput,
+    // 'yolo' or 'efficientdet'. `yoloInput.layout` says how to build the tensor.
+    detector: person.kind,
     // What was asked for: `/lab` prints this list exactly as before.
     providers,
     // What ORT actually created. `fallback` marks a WebGPU request that ended on wasm.
@@ -251,6 +310,38 @@ export async function runYolo(models, blob, size = YOLO_INPUT_SIZE) {
   const results = await models.yolo.run({ [models.yoloInput.name]: tensor });
   const output = results[Object.keys(results)[0]];
   return output.data;
+}
+
+/**
+ * Run the EfficientDet person detector on an NHWC uint8 RGB input.
+ *
+ * The graph is the ONNX export of Google's EfficientDet-Lite: `uint8 [1, H, W, 3]` in
+ * (0..255, no normalisation), and four outputs - `[1, 25, 4]` normalized
+ * `[ymin, xmin, ymax, xmax]`, `[1, 25]` class ids, `[1, 25]` scores, `[1]` count.
+ * `matchEfficientDetOutputs` resolves the tensors by name, then by graph order, so a
+ * renamed export still works and a class-0 person is never mistaken for a low score.
+ *
+ * @param {object} models result of `loadModels`
+ * @param {Uint8Array} input size*size*3 RGB bytes
+ * @param {number} width model input width (square: 320 or 448)
+ * @param {number} height model input height
+ * @returns {Promise<{boxes: Float32Array, classes: Float32Array,
+ *                    scores: Float32Array, count: number}>}
+ */
+export async function runEfficientDet(models, input, width, height) {
+  const { Tensor } = await loadOrt();
+  const session = models.personDetector ?? models.yolo;
+  const meta = models.personInput ?? models.yoloInput ?? {};
+  const tensor = new Tensor('uint8', input, [1, height, width, 3]);
+  const results = await session.run({ [meta.name ?? 'input']: tensor });
+  const output = matchEfficientDetOutputs(results);
+  if (!output) {
+    const shapes = Object.entries(results)
+      .map(([name, value]) => `${name}:[${value?.dims?.join(',') ?? '?'}]`)
+      .join(' ');
+    throw new Error(`EfficientDet: unexpected output graph (${shapes})`);
+  }
+  return output;
 }
 
 /**

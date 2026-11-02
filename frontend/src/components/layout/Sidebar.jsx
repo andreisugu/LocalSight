@@ -12,6 +12,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { USE_MOCK } from '../../services/api';
+import { PERSON_DETECTOR_LABELS, readDetectorFlag } from '../../engine/detectorFlag';
 import { IconButton, Panel, Pill } from '../ui';
 
 // Below Tailwind's `sm` (640px) a 240px rail would leave ~135px of content on a 375px
@@ -29,6 +30,9 @@ const FOOTER_BUTTON =
 // a plain local build has no SHA and says `dev` instead of inventing one. Short form only:
 // the footer is 240 px wide and the point is comparing it with `git rev-parse --short HEAD`.
 const BUILD_SHA = String(import.meta.env.VITE_BUILD_SHA || 'dev').slice(0, 7);
+// Read once: the router rewrites the path to `/live` after the first render, which drops the
+// `?detector=` query. The footer must keep naming the graph the tab actually runs.
+const PERSON_DETECTOR = readDetectorFlag();
 
 const NAV_ITEMS = [
   {
@@ -265,7 +269,7 @@ function SidebarFooter({ collapsed, health, edgeLabel, edgeActive, edgeSuffix, o
           // runs in the tab, so the footer cannot look like a live connection.
           <StatusCard title="Motor local" tag="STATIC" tone="neutral">
             <p className="text-[10px] font-medium leading-tight text-slate-700 dark:text-slate-400">
-              YOLO26n + tracker local (IoU + distanță centru)
+              {PERSON_DETECTOR_LABELS[PERSON_DETECTOR]} + tracker local (IoU + distanță centru)
             </p>
             <p className="text-[10px] font-medium leading-tight text-slate-700 dark:text-slate-400">
               Blur YuNet în tab · fără backend sau edge

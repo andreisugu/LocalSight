@@ -14,10 +14,11 @@ import {
   letterbox,
   loadModels,
   rgbaToNchw,
+  runEfficientDet,
   runYolo,
   runYuNet,
 } from './detectors.js';
-import { decodeYolo, decodeYuNet } from './decode.js';
+import { decodeEfficientDet, decodeYolo, decodeYuNet } from './decode.js';
 import { clampRect, expandedRect, headBandRects } from './blur.js';
 import { SNAPSHOT_PENDING, createPipeline } from './pipeline.js';
 import { faceInputPlan, padToMultiple, scaleFaceBoxes } from './perf.js';
@@ -71,6 +72,10 @@ let safetyBlur = true;
 // Bench options. Defaults are the spike's: probe providers, process the frame at its own
 // resolution. `/lab` never sends an `init` payload, so it keeps exactly that behaviour.
 let initProviders = null;
+// Spike-only person detector: `?detector=efficientdet` (Lite0) or `efficientdet-lite2`.
+// `yolo` is the default and the only value `/lab`, `/bench` and Live send unless the page
+// was opened with the flag, so the shipped pipeline is unchanged.
+let personDetector = 'yolo';
 // Longest side of the frame handed to the detectors; 0 means "native size". The YOLO graph
 // is fixed at 640x640, so this limit changes the frame, not the YOLO tensor.
 let frameLimit = 0;
@@ -155,6 +160,14 @@ function resetVestState() {
   vestTracks = createTracker();
 }
 
+// Contract `model` string for the person graph. The flag must not leave `yolo26n` on an
+// event that EfficientDet actually produced; the default stays exactly as before.
+const PERSON_MODEL_NAMES = Object.freeze({
+  yolo: 'yolo26n',
+  efficientdet: 'efficientdet-lite0',
+  'efficientdet-lite2': 'efficientdet-lite2',
+});
+
 // Pipeline-ul se construiește din configurația primită la `init`. `/lab` și `/bench` nu
 // trimit nici cameră, nici zone, deci primesc fixture-ul de laborator. Pentru Live, lipsa
 // zonelor înseamnă „nu detecta nimic”: nu cădem niciodată pe zona pe tot cadrul.
@@ -172,6 +185,7 @@ function buildPipeline({ cameraId, zones, engineOn } = {}) {
     zones: resolvedZones,
     engineOn: typeof engineOn === 'boolean' ? engineOn : true,
     incidentCooldownS: 60,
+    model: PERSON_MODEL_NAMES[personDetector] ?? PERSON_MODEL_NAMES.yolo,
   });
 }
 
@@ -369,6 +383,7 @@ async function ensureModels() {
         {
           ...(initProviders ? { providers: initProviders } : {}),
           ...(Number.isFinite(modelThreads) && modelThreads >= 1 ? { threads: modelThreads } : {}),
+          detector: personDetector,
         },
       );
       models = loaded;
@@ -377,6 +392,9 @@ async function ensureModels() {
         providers: loaded.providers,
         actualProviders: loaded.actualProviders,
         fallback: loaded.fallback,
+        // Spike flag, so the card can name the graph that really loaded instead of
+        // repeating the default. Absent/`yolo` reads as YOLO26n.
+        detector: personDetector,
       });
       return loaded;
     } catch (error) {
@@ -417,6 +435,8 @@ function targetFrameSize(width, height) {
 }
 
 function yoloInputSize() {
+  // Name kept from the YOLO-only worker: this is the person graph's input side, which the
+  // EfficientDet flag moves to 320 (Lite0) or 448 (Lite2) through `inputMetadata`.
   return models?.yoloInput?.width || models?.yoloInput?.height || YOLO_INPUT_SIZE;
 }
 
@@ -437,6 +457,26 @@ function detectPersons(width, height, size) {
   const { data } = ctx.getImageData(0, 0, size, size);
   const blob = rgbaToNchw(data, size, size, { swapRB: false });
   return { blob, box };
+}
+
+// EfficientDet's ONNX export takes `uint8 [1, H, W, 3]` RGB 0..255 and pads the letterbox
+// with black, not Ultralytics' 114 grey. Same scratch canvas as the YOLO path: only one of
+// the two runs per frame.
+function detectPersonsEfficientDet(width, height, size) {
+  const box = letterbox(width, height, size);
+  const ctx = ensureLetterboxCanvas(size);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, size, size);
+  ctx.drawImage(frameCanvas, box.padX, box.padY, box.drawW, box.drawH);
+
+  const { data } = ctx.getImageData(0, 0, size, size);
+  const input = new Uint8Array(size * size * 3);
+  for (let pixel = 0, out = 0; out < input.length; pixel += 4, out += 3) {
+    input[out] = data[pixel];
+    input[out + 1] = data[pixel + 1];
+    input[out + 2] = data[pixel + 2];
+  }
+  return { input, box };
 }
 
 function detectFaces(width, height, plan = faceInputPlan({ safetyBlur, width, height })) {
@@ -942,17 +982,32 @@ async function handleFrame(message) {
   let detected = false;
   try {
     await ensureModels();
-    const yoloSize = yoloInputSize();
-    const yolo = detectPersons(width, height, yoloSize);
-    const scores = await runYolo(models, yolo.blob, yoloSize);
-    persons = decodeYolo(scores, {
-      numClasses: 80,
-      conf: PERSON_CONF,
-      iou: PERSON_NMS,
-      scale: yolo.box.scale,
-      padX: yolo.box.padX,
-      padY: yolo.box.padY,
-    });
+    const personSize = yoloInputSize();
+    if (personDetector === 'yolo') {
+      const yolo = detectPersons(width, height, personSize);
+      const scores = await runYolo(models, yolo.blob, personSize);
+      persons = decodeYolo(scores, {
+        numClasses: 80,
+        conf: PERSON_CONF,
+        iou: PERSON_NMS,
+        scale: yolo.box.scale,
+        padX: yolo.box.padX,
+        padY: yolo.box.padY,
+      });
+    } else {
+      // Spike-only path: same letterbox geometry, different tensor and decoder. The face
+      // detector, blur, PPE, tracker, zones and snapshots below are shared verbatim.
+      const efficientdet = detectPersonsEfficientDet(width, height, personSize);
+      const output = await runEfficientDet(models, efficientdet.input, personSize, personSize);
+      persons = decodeEfficientDet(output, {
+        size: personSize,
+        conf: PERSON_CONF,
+        iou: PERSON_NMS,
+        scale: efficientdet.box.scale,
+        padX: efficientdet.box.padX,
+        padY: efficientdet.box.padY,
+      });
+    }
 
     const facePlan = faceInputPlan({ safetyBlur, width, height });
     const face = detectFaces(width, height, facePlan);
@@ -1154,6 +1209,11 @@ self.onmessage = (event) => {
       modelThreads = Math.floor(message.wasmThreads);
     }
     if (typeof message.safetyBlur === 'boolean') safetyBlur = message.safetyBlur;
+    // Spike-only person detector. Anything other than the two flag values keeps YOLO, so a
+    // hand-written init message cannot silently swap the graph.
+    if (message.detector === 'efficientdet' || message.detector === 'efficientdet-lite2') {
+      personDetector = message.detector;
+    }
     // `/lab` ground-plane prototype only: forward the tracked boxes with each result.
     if (message.trackFeed === true) trackFeed = true;
     pipeline = buildPipeline({
