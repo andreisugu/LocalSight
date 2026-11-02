@@ -1,9 +1,10 @@
 # Background cameras — integration plan (OFF by default)
 
-Status: **core landed, application wiring pending.** This branch adds
-`frontend/src/engine/backgroundCameras.js` and its tests. Nothing imports it yet, so the
-app behaves exactly as before. This document is the exact plan for the wiring that follows
-and for how the option is measured and accepted.
+Status: **shipped behind an OFF toggle** on `prep/background-ui`. The manager core
+(`backgroundCameras.js`), the worker factory (`createBackgroundEngine.js`), the provider hook
+(`context/useBackgroundCameras.js`), the Live ownership signal and the Settings panel are now
+wired. Nothing starts until the operator enables the option; the default build behaves
+exactly as before. Measured numbers are in section 11.
 
 Read with `docs/contract.md` (event envelope wins) and `docs/browser-engine.md` (engine
 architecture). This plan adds no fields to the contract and no endpoint.
@@ -71,113 +72,96 @@ Rules already enforced by the core:
 
 ## 3. Settings toggle (OFF by default)
 
-`frontend/src/utils/engineSettings.js`:
+`frontend/src/context/useBackgroundCameras.js` owns the preference under its own key,
+`localsight.backgroundCameras` (`'1'` / `'0'`). Only the literal `'1'` enables it; a missing,
+corrupt or hand-edited value is OFF. There is no second storage key and no engine-settings
+migration: the engine settings blob is untouched.
 
-- add `backgroundCameras: false` to `DEFAULT_ENGINE_SETTINGS`;
-- `readEngineSettings()` accepts it only when `typeof value === 'boolean'` (same tolerance
-  as `safetyBlur`), so an old or hand-edited blob cannot enable it;
-- add `storeBackgroundCameras(value)` next to `storeSafetyBlur`, reusing
-  `storeEngineSettings` and the existing `localsight.engineSettings` key. No new storage
-  key, no new quota entry.
+`frontend/src/components/views/SettingsView.jsx`, in its own **Camere în fundal** section:
 
-`frontend/src/components/views/SettingsView.jsx`, in the existing **Motor & performanță**
-section, below the WASM/blur controls:
-
-- a checkbox labelled `Camere în fundal (toate camerele)` with the stored value;
-- the toggle writes through `storeBackgroundCameras` and immediately calls the context's
-  `setBackgroundEnabled(next)` (the host forwards it to `manager.setEnabled(next)`), so no
-  reload and no remount is needed;
+- a checkbox labelled `Toate camerele rulează în fundal (implicit OPRIT)` with the stored value;
+- the toggle writes the key and immediately calls the context's `setBackgroundEnabled(next)`
+  (the provider forwards it to `manager.setEnabled(next)`), so no reload and no remount;
 - a persistent warning block under the checkbox, not dismissible, with the honest copy:
 
-> Rulează un worker de inferență pentru fiecare cameră, nu doar pentru cea din Live.
-> 3 camere înseamnă aproximativ 3× memoria și CPU-ul unei singure camere (fiecare worker
-> are propria sesiune ONNX). Ritmul este redus intenționat (~1 cadru la 2 s), dar un laptop
-> mic va deveni lent. Într-un tab ascuns browserul suspendă redarea și temporizează
-> timer-ele, deci evenimentele pot întârzia; nu este o înregistrare 24/7. Incidentele din
-> toate camerele apar în listă și în raportul de tură. Implicit: OPRIT.
+> Pornește un worker de inferență separat pentru fiecare cameră, nu doar pentru cea din Live.
+> 3 camere înseamnă aproximativ 3× memoria și CPU-ul unei singure camere (fiecare worker are
+> propria sesiune ONNX). Ritmul este redus intenționat, ~1 cadru la 2 s (0,5 fps) per cameră —
+> nu 30 fps și nu o înregistrare 24/7. Într-un tab ascuns browserul suspendă redarea și
+> temporizează timer-ele, deci evenimentele pot întârzia sau lipsi. Incidentele din toate
+> camerele apar în listă și în raportul de tură. Implicit: OPRIT.
 
 - show the live state (`OPRIT`, `PORNIT — 2 camere`, `REFUZAT: …`) from `status()`, mapping
   `refusedReason` to Romanian copy:
   - `camera-limit`: `Prea multe camere pentru limita de siguranță (max. 3).`
   - `low-hardware`: `Mașina are prea puține nuclee pentru încă o sesiune ONNX per cameră.`
   - `hardware-unknown`: `Browserul nu raportează numărul de nuclee; guarda refuză.`
+- a per-camera row (`running`, `starting`, `preluată de Live`, `skipped`, `unsupported`,
+  `backoff`, `stopped`) with its incident count and the reason for a skip or failure; the
+  webcam row says it never runs in the background;
 - do not auto-enable it from WebGPU, from Live, or from a demo flag. The only writer is the
   operator.
 
 ## 4. Where the manager mounts
 
-New files (not in this branch):
+No separate host component: the manager hook is called from `SecurityProvider`, which sits
+above the routed screens in `App.jsx`. That is the composition root and the only place the
+manager survives a route change.
 
-- `frontend/src/components/background/BackgroundCamerasHost.jsx`
-- `frontend/src/engine/backgroundEngine.js` (worker factory, section 6)
-- optionally `frontend/src/context/useBackgroundCameras.js` if the host grows; not needed
-  for the first cut.
+New files shipped on this branch:
 
-Mount the host in `AppShell`, inside `SecurityProvider` and **outside** `ScreenOutlet`:
+- `frontend/src/engine/createBackgroundEngine.js` (worker + hidden video factory, section 6)
+- `frontend/src/context/useBackgroundCameras.js` (manager lifecycle + preference)
 
-```jsx
-<SecurityProvider>
-  <AppShell />
-</SecurityProvider>
-```
-
-```jsx
-// AppShell, next to <Toast />
-<BackgroundCamerasHost />
-```
-
-The host survives route changes, so switching from Live to Incidents does not tear down
-background workers. It reads `cameras`, `zones`, `addEngineEvents` through `useSecurity()`
-and renders only one hidden container plus, later, a status probe.
-
-The host owns the manager in a ref and creates it in one effect:
+The hook owns the manager in a ref and creates it in one effect:
 
 ```js
-const latest = useRef({ addEngineEvents, zones });
-latest.current = { addEngineEvents, zones };
+const latest = useRef({ addEngineEvents, zones, enabled, liveEngineCameraId });
+latest.current = { addEngineEvents, zones, enabled, liveEngineCameraId };
 
 useEffect(() => {
   const manager = createBackgroundCameras({
-    cameras: backgroundCameras,             // filtered, playable sources only
+    cameras: list,                          // clip cameras, webcam excluded
     zonesForCamera: (camera) => toEngineZones(latest.current.zones, camera.id),
     engineFactory: ({ cameraId, zones }) => createBackgroundEngine({
       cameraId,
       zones,
-      video: videos.get(cameraId),
+      referenceUrl: backgroundReferenceUrl(latest.current.zones, cameraId),
       intervalMs: BACKGROUND_INTERVAL_MS,   // 2000
     }),
     intervalMs: BACKGROUND_INTERVAL_MS,
+    maxCameras: 3,
+    minHardwareConcurrency: 4,
     onEvent: (event) => latest.current.addEngineEvents([event]),
-    now: () => Date.now(),
   });
   managerRef.current = manager;
   manager.start();
-  manager.setEnabled(readEngineSettings().backgroundCameras);
+  // Ownership before enabling: never start a worker for the camera Live feeds.
+  manager.setActiveCamera(latest.current.liveEngineCameraId || null);
+  manager.setEnabled(latest.current.enabled);
   return () => {
     manager.stop();
     managerRef.current = null;
   };
-}, [cameraKey]); // sorted ids + statuses; never addEngineEvents or zones
+}, [runKey]); // sorted ids + statuses; never addEngineEvents or zones
 ```
 
 **Do not put `addEngineEvents` or `zones` in the dependency list.** They change identity on
 every store render/zone edit; the effect would tear down every worker and reload the ONNX
 graphs. Callbacks and zones are read through refs; the lifecycle depends only on which
-cameras exist. On a zone or `engine_on` change, apply the same channels Live uses: worker
-`{ type: 'config' }` if `backgroundEngine` exposes it, otherwise `manager.stop();
-manager.start()` (engines restart, models come from the HTTP cache). Add that restart effect
-in the host, debounced.
+cameras exist. A zone edit restarts the run once after an 800 ms debounce; the models come
+from the HTTP cache.
 
-For Settings, add two additive context keys (the frozen surface stays intact):
+For Settings, two additive context keys (the frozen surface stays intact):
 `getBackgroundStatus()` returns `managerRef.current?.status() ?? null`, and
-`setBackgroundEnabled(value)` forwards to the manager (and to storage in the toggle
-handler). Settings polls only `getBackgroundStatus` once per second while mounted; there is
+`setBackgroundEnabled(value)` writes the preference and calls `manager.setEnabled(value)`.
+Settings polls only `getBackgroundStatus` once per second while the option is on; there is
 no global re-render loop.
 
 ## 5. Hidden `<video>` per camera
 
-The host renders a container and creates one `<video>` per eligible camera imperatively, so
-refs exist before the factory is called:
+`createBackgroundEngine` creates one `<video>` per eligible camera in `start()`, so an OFF
+run has zero video elements and zero workers:
 
 ```js
 const video = document.createElement('video');
@@ -205,66 +189,69 @@ Source resolution reuses the Live helpers instead of a second table:
 `VITE_DEMO_CAMERA` / `VITE_DEMO_CLIP` env parsing. A camera is eligible only when it has a
 playable source:
 
-- demo clip exists (`media/<id>.mp4` or the configured clip entry), or a same-origin URL;
+- demo clip (`media/<id>.mp4` or the configured clip entry) that is same-origin http(s);
 - `camera.status !== 'offline'` (no source to decode);
 - `camera.id !== WEBCAM_CAMERA_ID`: one physical device, one permission prompt, and Live
-  already asks for it;
-- the camera is not in the temporary failed set.
+  already asks for it.
 
 `rtsp://` rows cannot be played by a browser; the seeded demo clips are what actually run.
-Say so in the UI; do not claim the RTSP stream is processed.
+A camera whose clip 404s or is not decodable is reported as `unsupported` in Settings; the
+UI never claims the RTSP stream is processed.
 
-Wait for `loadeddata`/`canplay` (with a 10 s timeout) before building the manager, and call
-`video.play().catch(...)`. If a video later errors, remove that camera from the next run and
-surface it; don't hand the factory a dead element. A cheap 5 s watchdog restarts playback if
-`paused` while the option is on (same intent as `LOOP_WATCHDOG_MS` in `useEngine`, but no
-frame loop in the host).
+`video.play().catch(...)` reports a refusal, and a cheap 5 s watchdog restarts playback if
+the element is `paused` while the option is on (same intent as `LOOP_WATCHDOG_MS` in
+`useEngine`, but no frame loop and no canvas).
 
 ## 6. Engine factory and the low-rate worker
 
-`createBackgroundEngine({ cameraId, zones, video, intervalMs })` returns the core's
+`createBackgroundEngine({ cameraId, zones, referenceUrl, intervalMs })` returns the core's
 `{ start, stop, onEvent, status }`:
 
 1. If `typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined'`, return an
    engine whose `status()` is `{ state: 'unsupported', message }`; `start()` does nothing.
    The manager exposes it and stops retrying.
-2. `new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })` — the same
+2. If the resolved clip is not a playable same-origin URL, return the same `unsupported`
+   engine instead of creating a worker that can never decode a frame.
+3. `new Worker(new URL('./worker.js', import.meta.url), { type: 'module' })` — the same
    worker module as Live. One worker per camera on purpose: a second camera in the same
    worker would serialize behind one ORT session and lose the per-camera error isolation.
-3. Post one init message before the first frame:
+4. Post one init message before the first frame:
 
 ```js
 worker.postMessage({
   type: 'init',
   cameraId,
   zones,                 // toEngineZones(zones, cameraId), contract shape
-  engineOn: Boolean(camera.engine_on),
+  engineOn: true,        // background coverage does not follow the Live card switch
   wasmThreads: 1,        // background gets one thread; Live keeps its 4
   safetyBlur: true,      // forced, even if the setting is off (privacy, section 9)
   inputSize: 640,        // YOLO is 640 anyway; smaller copies between threads
+  referenceUrl,          // uploaded zone frame, else the demo still; fetch once
 });
 ```
 
-4. **Sampling lives in the page, not in `worker.js`.** A `setInterval` of `intervalMs`
-   (2 s) tries one frame: skip when `inFlight`, when `video.readyState < 2`, or when
-   `video.videoWidth === 0`; otherwise `createImageBitmap(video)`, post
+5. **Sampling lives in the page, not in `worker.js`.** A `setInterval` of `intervalMs`
+   (2 s) tries one frame: skip when `inFlight`, when the models are not `ready` yet, when
+   `video.readyState < 2`, or when `video.videoWidth === 0`; otherwise
+   `createImageBitmap(video)`, post
    `{ type: 'frame', bitmap, timestamp: performance.now(), mediaTime: video.currentTime }`
    with the bitmap transferred and `inFlight = true`. The worker clears the flag when
-   `result` arrives. This keeps `worker.js` untouched for v1 and caps inference at
-   ~0.5 fps per camera. `requestVideoFrameCallback` is deliberately not used: it fires at
-   display rate and pauses in a hidden tab.
-5. `result`: take `message.events`, convert each `snapshot_blob` to
+   `result` arrives. This keeps `worker.js` untouched and caps inference at ~0.5 fps per
+   camera. `requestVideoFrameCallback` is deliberately not used: it fires at display rate
+   and pauses in a hidden tab.
+6. `result`: take `message.events`, convert each `snapshot_blob` to
    `URL.createObjectURL(blob)` exactly like `useEngine` (the worker cannot own the URL),
    close `message.bitmap` without drawing it (no canvas, no presentation), and hand the
    events to the manager's listener. Keep the last `ms/fps` for `status()`.
-6. `ready` → nothing to load on the page; `status()` reports `loading` until the first
-   `result`. `error`/`worker.onerror` → `status()` reports `{ state: 'error', message }`,
-   which the manager turns into a retry. `stop()` clears the interval, terminates the
-   worker and drops listeners; never leave the interval alive across a toggle.
-7. The page owns the snapshot URLs it hands over. Incidents that the store persists keep
-   their URL for the session (current Live behavior); events dropped by a late/duplicate
-   path should be revoked in the factory. A bounded revoke on manager stop is a follow-up,
-   not a blocker.
+7. `ready` marks the models loaded; `status()` reports `loading` until then.
+   `error`/`worker.onerror` → `status()` reports `{ state: 'error', message }`, which the
+   manager turns into a retry. `stop()` clears both intervals, terminates the worker, pauses
+   and clears the video, and removes it from the document; never leave an interval alive
+   across a toggle.
+8. The page owns the snapshot URLs it hands over. Incidents that the store persists keep
+   their URL for the session (current Live behavior, and revoking would blank the evidence
+   already on screen). URLs created for events that no listener accepted are revoked
+   immediately, and any still undelivered at `stop()` are revoked there.
 
 Model downloads: the first background worker fetches `yolo26n.onnx` and `yunet.onnx` from
 the same origin; later workers reuse the HTTP cache but each keeps its own ORT session in
@@ -295,8 +282,8 @@ Live publishes what it actually feeds to its engine, not just what is selected:
 ```js
 // LiveView, after `engineEnabled` is computed
 const { reportActiveCamera } = useSecurity();
-useEffect(() => {
-  reportActiveCamera(engineEnabled ? activeCamera.id : null);
+useLayoutEffect(() => {
+  reportActiveCamera(engineEnabled ? activeCamera?.id ?? null : null);
   return () => reportActiveCamera(null);
 }, [engineEnabled, activeCamera?.id, reportActiveCamera]);
 ```
@@ -307,7 +294,12 @@ useEffect(() => {
 browserEngineOn && engineSource && displayMode !== 'fullscreen'
 ```
 
-The host subscribes with `manager.setActiveCamera(id)`:
+A layout effect is deliberate: the ownership update lands before the provider's passive
+effect creates the manager, so the manager never starts a frame pump for the camera Live is
+claiming. A worker object can still be constructed at the same commit in a cold start and is
+terminated before the first 2 s tick; no frame, no incident.
+
+The provider subscribes with `manager.setActiveCamera(id)`:
 
 - Live mounted with its engine on → that camera is `active`, its background engine is
   stopped, and the other cameras keep running (their engines are not recreated);
@@ -346,7 +338,7 @@ verifies it.
   tab is hidden. This option means "off-screen in the open app", not "24/7 recording".
 - No queue grows unbounded: at most 32 events per camera wait for a pump; excess is counted
   in `status().cameras[].dropped`.
-- `document.visibilityState` is not a dependency of the core; a later host may pause
+- `document.visibilityState` is not a dependency of the core; a later change may pause
   engines when hidden if measurement shows it helps, but it must not be used to claim
   background-tab coverage.
 
@@ -368,38 +360,55 @@ turn it on in Settings.
 | Hidden tab | Hide the tab for 1 min, restore | No crash, no duplicate burst; delayed events are acceptable and reported as such. |
 | Privacy | Raise a background incident, open Network panel and the snapshot | Snapshot visibly blurred, zero upload requests, no raw frame rendered. |
 
-Acceptance is the table above plus the core's 20 unit tests. If a row fails, the toggle
-stays OFF by default and the failure is reported; do not lower a check to pass.
+Acceptance is the table above plus the unit tests: the manager's 20 and the wiring's 11
+(`useBackgroundCameras.test.mjs`). If a row fails, the toggle stays OFF by default and the
+failure is reported; do not lower a check to pass.
+
+### 11a. Measured on this machine (2026-11-02)
+
+Chromium (Playwright build) on 16 logical cores, static `/LocalSight/` build, option turned
+ON through Settings on the `reports` route, 45 s warm-up, 15 s sample. Three seeded clips
+ran (`stand12`, `taxiway-b`, `baggage-area`), no Live engine.
+
+| Check | Measured |
+|---|---|
+| Whole-browser RSS | OFF 215 MB → ON 261 MB (+46 MB; summed RSS, shared pages counted per process) |
+| Whole-browser CPU | OFF 2.7 % → ON 4.9 % of one core (CPU-time delta across the Chromium process tree over 15 s) |
+| Page-owned objects | 3 hidden videos, `readyState = 4`, `muted`, `loop`, positioned at x = -10000, **0 canvases**, 0 rendered frames |
+| Incidents | 2 incidents from `stand12` and `taxiway-b` in 120 s while on Reports; 0 duplicate ids; `local` chip present. `baggage-area` ran at ~0.5 fps but produced no incident in that window — reported as zero, not implied. |
+| Worker init | per camera: `inputSize=640`, `wasmThreads=1`, `safetyBlur=true`, `engineOn=true`, contract zones, reference frame |
+| Live ownership | Live engine on `stand12`: 2 background videos (`taxiway-b`, `baggage-area`), no `stand12` background video; after `engine-stop`, 3 videos and `stand12` published on the next tick |
+| Guard (2 cores) | `REFUZAT: … minimum 4`, `refusedReason=low-hardware`, 0 videos, all rows `skipped`; Live unaffected |
+| Teardown | toggle OFF: 0 background videos, status `OPRIT`, incident count unchanged over the next 12 s |
+| Privacy | background snapshot 58.7 KB JPEG; head band pixelated (forced `safetyBlur`); no canvas and no upload |
+| Hidden tab | not measured with a real background tab; browser timer throttling is the documented behaviour, not a claim of coverage |
 
 ## 12. Files and PR sequencing
 
-This branch (core only, no behavior change):
+Shipped together on `prep/background-ui`, all behind the OFF toggle:
 
-- `frontend/src/engine/backgroundCameras.js`
-- `frontend/src/engine/backgroundCameras.test.mjs`
-- `frontend/src/engine/BACKGROUND.md`
+- `frontend/src/engine/backgroundCameras.js` + tests (core, unchanged interface)
+- `frontend/src/engine/createBackgroundEngine.js` (hidden video + worker factory)
+- `frontend/src/context/useBackgroundCameras.js` + tests (preference, manager lifecycle)
+- `frontend/src/context/SecurityContext.jsx` (additive `reportActiveCamera`,
+  `liveEngineCameraId`, `backgroundEnabled`, `setBackgroundEnabled`, `getBackgroundStatus`)
+- `frontend/src/components/views/LiveView.jsx` (ownership layout effect only)
+- `frontend/src/components/views/SettingsView.jsx` (toggle, warning, per-camera status,
+  guard copy, QA F6 thread select)
+- this document
 
-Follow-up PRs, each behind the OFF toggle:
-
-1. `utils/engineSettings.js`: `backgroundCameras` key + tests; `SettingsView.jsx`: toggle,
-   warning, status copy. No engine starts even when toggled until the host exists? Ship
-   after (2).
-2. `components/background/BackgroundCamerasHost.jsx`, `engine/backgroundEngine.js`, mount in
-   `App.jsx`, additive `reportActiveCamera`, `getBackgroundStatus` and
-   `setBackgroundEnabled` keys in `SecurityContext.jsx`. Hidden videos + factory.
-3. `LiveView.jsx`: report the active camera only while its engine really runs. Measurement
-   run and numbers recorded here.
-4. `docs/browser-engine.md` cross-link, `runtime` numbers, and any worker `config` support
-   for zone edits.
+Follow-ups: a hidden-tab measurement, a Live `engine_on` change without a full run restart,
+and (only if measurement shows a leak) a store-aware snapshot release.
 
 Out of scope: changing `docs/contract.md`, adding dependencies, FOD/mobile/PWA, recording,
 server upload, background-tab guarantees, and sharing one ORT session between cameras.
 
 ## 13. What is real now
 
-- Real: the manager API, dedupe, caps, active-camera skip, resource guard, backoff,
-  unsupported reporting and timer lifecycle, covered by `node --test`.
-- Not wired: Settings toggle, hidden videos, worker factory, context keys, active-camera
-  report, measurement. The app has no behavior change on this branch.
-- No number in section 11 is measured yet; the targets are there to be confirmed or
-  corrected by the run, not quoted as results.
+- Real and measured: manager API, dedupe, caps, active-camera skip, resource guard, backoff,
+  unsupported reporting, hidden videos and their teardown, snapshot blur, Settings status,
+  and the QA F6 thread display, all covered by `node --test` and the browser run above.
+- Default OFF: no worker, no `<video>`, no timer and no extra incident until the operator
+  enables it. Old/corrupt storage values are OFF.
+- Honest limits: ~0.5 fps per camera, one ORT session per camera, a hidden tab is throttled
+  by the browser, and only same-origin demo clips are processed; RTSP rows are not.

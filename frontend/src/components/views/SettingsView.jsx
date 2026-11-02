@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Cpu, Database, HardDrive, Lock, Server, Settings, ShieldCheck, Terminal, Trash2, Video } from 'lucide-react';
+import { Box, Cpu, Database, HardDrive, Layers, Lock, Server, Settings, ShieldCheck, Terminal, Trash2, Video } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { TYPE_LABELS } from '../../services/api';
@@ -9,6 +9,8 @@ import {
   storeSafetyBlur,
   storeWasmThreads,
 } from '../../utils/engineSettings';
+import { BACKGROUND_MAX_CAMERAS, BACKGROUND_MIN_CORES } from '../../context/useBackgroundCameras';
+import { WEBCAM_CAMERA_ID } from '../live/liveMedia';
 import {
   AUDIT_LIMIT,
   buildAuditRows,
@@ -42,6 +44,25 @@ const TONE_TEXT = {
   bad: 'text-red-600 dark:text-red-400',
   neutral: 'text-slate-700 dark:text-slate-300',
   demo: 'text-amber-700 dark:text-amber-400',
+};
+
+// Background cameras: one label per state the manager can report. `error` never reaches
+// this map (the manager retries it as `backoff`), but a stale row must still say something.
+const BACKGROUND_STATE = {
+  running: { label: 'rulează', tone: 'ok' },
+  starting: { label: 'pornește', tone: 'warn' },
+  active: { label: 'preluată de Live', tone: 'neutral' },
+  stopped: { label: 'oprită', tone: 'neutral' },
+  backoff: { label: 'reîncearcă', tone: 'warn' },
+  unsupported: { label: 'neacceptată', tone: 'bad' },
+  skipped: { label: 'sărită', tone: 'warn' },
+  error: { label: 'eroare', tone: 'bad' },
+};
+
+const BACKGROUND_REFUSAL = {
+  'camera-limit': `Prea multe camere pentru limita de siguranță (max. ${BACKGROUND_MAX_CAMERAS}).`,
+  'low-hardware': `Mașina are prea puține nuclee pentru încă o sesiune ONNX per cameră (minimum ${BACKGROUND_MIN_CORES}).`,
+  'hardware-unknown': 'Browserul nu raportează numărul de nuclee; guarda refuză.',
 };
 
 /** Approximate storage size; the number comes from the stored blobs plus the records. */
@@ -103,6 +124,9 @@ export default function SettingsView() {
     showToast,
     showDemoData,
     setShowDemoData,
+    backgroundEnabled,
+    setBackgroundEnabled,
+    getBackgroundStatus,
   } = useSecurity();
 
   // The stored-count panel is a read of IndexedDB, so it is refreshed when the screen
@@ -140,10 +164,14 @@ export default function SettingsView() {
   const cores = Number.isFinite(isolation.hardwareConcurrency)
     ? Math.floor(isolation.hardwareConcurrency)
     : null;
-  // The actual count and the reason for it: a select that says "8" on a page that runs
-  // one thread would be a lie.
-  const threadReason = !isolation.crossOriginIsolated
-    ? '1 — izolarea nu e activă; rulează single-thread'
+  const isolated = isolation.crossOriginIsolated;
+  const storedThreads = engineSettings.wasmThreads === 'auto'
+    ? 'automat'
+    : String(engineSettings.wasmThreads);
+  // F6: without cross-origin isolation ORT cannot start a second thread. The select must
+  // show the 1 that actually runs, not the 6 that is only stored, and it says both.
+  const threadReason = !isolated
+    ? `stocat ${storedThreads} · rulează 1 fără izolare`
     : engineSettings.wasmThreads === 'auto'
       ? `${resolvedThreads} — izolat, ${cores ?? '?'} nuclee; automat (max. 4)`
       : `${resolvedThreads} — izolat, ${cores ?? '?'} nuclee; ales ${engineSettings.wasmThreads}${
@@ -157,6 +185,62 @@ export default function SettingsView() {
   const changeSafetyBlur = (event) => {
     setEngineSettings(storeSafetyBlur(event.target.checked));
   };
+
+  // The manager lives in the provider; Settings only samples its status once a second
+  // while the option is on. When it is off there is nothing to poll: the section renders
+  // the preference and no worker exists.
+  const [backgroundStatus, setBackgroundStatus] = useState(() => getBackgroundStatus());
+  useEffect(() => {
+    setBackgroundStatus(getBackgroundStatus());
+    if (!backgroundEnabled) return undefined;
+    const timer = setInterval(() => setBackgroundStatus(getBackgroundStatus()), 1000);
+    return () => clearInterval(timer);
+  }, [backgroundEnabled, getBackgroundStatus]);
+
+  const backgroundRows = useMemo(() => {
+    const reported = new Map(((backgroundStatus?.cameras) || []).map((camera) => [camera.id, camera]));
+    return (cameras || []).map((camera) => {
+      const row = reported.get(camera.id);
+      let state = row?.state || 'stopped';
+      let detail = '';
+      if (!row) {
+        if (camera.id === WEBCAM_CAMERA_ID) {
+          state = 'local';
+          detail = 'cameră locală — permisiunea se cere în Live; nu rulează în fundal';
+        } else if (camera.status === 'offline') {
+          state = 'offline';
+          detail = 'offline — fără sursă de decodat';
+        } else {
+          detail = 'fără clip demo redabil';
+        }
+      } else if (state === 'skipped') {
+        detail = BACKGROUND_REFUSAL[backgroundStatus?.refusedReason] || 'sărită de guarda de resurse';
+      } else if (state === 'active') {
+        detail = 'procesată de motorul Live; nu se dublează';
+      } else if (state === 'running' || state === 'starting') {
+        detail = '~1 cadru / 2 s (0,5 fps), nu 30 fps';
+      } else if (state === 'backoff') {
+        detail = row.lastError || 'reîncearcă după o eroare';
+      } else if (state === 'unsupported') {
+        detail = row.lastError || row.engineStatus?.message || 'sursă neacceptată';
+      } else if (state === 'stopped') {
+        detail = backgroundEnabled ? 'se așteaptă pornirea' : 'niciun worker pornit';
+      }
+      const stateStyle = BACKGROUND_STATE[state] || { label: state, tone: 'neutral' };
+      return {
+        id: camera.id,
+        code: camera.code || camera.id,
+        state,
+        label: state === 'local' ? 'locală' : state === 'offline' ? 'offline' : stateStyle.label,
+        tone: state === 'local' || state === 'offline' ? 'neutral' : stateStyle.tone,
+        detail,
+        events: row?.events ?? 0,
+      };
+    });
+  }, [cameras, backgroundStatus, backgroundEnabled]);
+
+  const runningBackground = (backgroundStatus?.cameras || [])
+    .filter((camera) => camera.state === 'running' || camera.state === 'starting').length;
 
   const isMock = Boolean(health?.mock);
   const latestModel = useMemo(() => latestDetectionModel(events), [events]);
@@ -344,29 +428,48 @@ export default function SettingsView() {
               </label>
               <select
                 id="wasm-threads"
-                value={String(engineSettings.wasmThreads)}
+                data-testid="wasm-threads"
+                value={isolated ? String(engineSettings.wasmThreads) : '1'}
                 onChange={changeThreads}
+                disabled={!isolated}
+                aria-describedby="wasm-threads-note"
                 style={{
                   backgroundColor: themeStyles.cardBg,
                   borderColor: themeStyles.panelBorder,
                   color: themeStyles.text,
                 }}
-                className="w-full rounded-lg border px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#FFEB33] sm:max-w-[10rem]"
+                className="w-full rounded-lg border px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#FFEB33] disabled:opacity-70 sm:max-w-[10rem]"
               >
+                {/* F6: the value shown is the one that runs. Without isolation the stored
+                    choice is preserved but cannot apply, so the select shows 1 instead of
+                    a 6 that would be a lie. */}
                 <option value="auto">Automat</option>
-                <option value="1">1</option>
+                {isolated ? <option value="1">1</option> : <option value="1">1 — efectiv (fără izolare)</option>}
                 <option value="2">2</option>
                 <option value="4">4</option>
                 <option value="6">6</option>
                 <option value="8">8</option>
               </select>
-              <p className="font-mono text-[11px] leading-snug" style={muted}>
+              <p
+                id="wasm-threads-note"
+                data-testid="wasm-threads-effective"
+                data-effective={resolvedThreads}
+                data-stored={String(engineSettings.wasmThreads)}
+                className="font-mono text-[11px] leading-snug"
+                style={muted}
+              >
                 {threadReason}
               </p>
               <p className="text-[11px] leading-snug" style={muted}>
                 Automat înseamnă maximum 4 fire; un număr ales este limitat de nucleele mașinii. Fără izolare
                 (COOP/COEP) browserul nu poate porni fire suplimentare.
               </p>
+              {!isolated && (
+                <p data-testid="wasm-threads-note" className="text-[11px] leading-snug text-amber-700 dark:text-amber-400">
+                  Selectul arată 1, cât rulează acum. Alegerea stocată ({storedThreads}) rămâne salvată și se
+                  aplică automat când izolarea (COOP/COEP) revine.
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -389,6 +492,112 @@ export default function SettingsView() {
               </p>
             </div>
           </div>
+        </section>
+
+        <section
+          data-testid="background-panel"
+          aria-labelledby="background-heading"
+          style={surface}
+          className="space-y-3 rounded-xl border p-4"
+        >
+          <h3 id="background-heading" className="flex flex-wrap items-center gap-2 text-sm font-bold uppercase">
+            <Layers size={16} aria-hidden="true" className="text-[#0284C7] dark:text-[#FFEB33]" />
+            Camere în fundal
+            <Chip tone={backgroundEnabled ? 'demo' : 'neutral'}>
+              {backgroundEnabled ? 'PORNIT' : 'OPRIT'}
+            </Chip>
+            {backgroundEnabled && backgroundStatus?.refusedReason && (
+              <Chip tone="demo">REFUZAT</Chip>
+            )}
+          </h3>
+
+          <label className="flex items-start gap-2 text-xs font-bold">
+            <input
+              type="checkbox"
+              data-testid="background-toggle"
+              checked={backgroundEnabled}
+              onChange={(event) => setBackgroundEnabled(event.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[#0284C7] focus:outline-none focus:ring-2 focus:ring-[#FFEB33]"
+            />
+            <span>Toate camerele rulează în fundal (implicit OPRIT)</span>
+          </label>
+
+          <p className="text-xs" style={muted}>
+            Pornește un worker de inferență separat pentru fiecare cameră, nu doar pentru cea din Live.
+            {' '}
+            {BACKGROUND_MAX_CAMERAS} camere înseamnă aproximativ {BACKGROUND_MAX_CAMERAS}× memoria și CPU-ul
+            unei singure camere: fiecare worker are propria sesiune ONNX, deci un laptop mic va deveni lent.
+            Ritmul este redus intenționat, ~1 cadru la 2 s (0,5 fps) per cameră — nu 30 fps și nu o
+            înregistrare 24/7. Într-un tab ascuns browserul suspendă redarea și temporizează timer-ele, deci
+            evenimentele pot întârzia sau lipsi; opțiunea acoperă aplicația deschisă, nu un NVR. Incidentele
+            din toate camerele apar în listă și în raportul de tură.
+          </p>
+
+          <p
+            data-testid="background-status"
+            data-enabled={backgroundEnabled ? 'true' : 'false'}
+            data-refused={backgroundStatus?.refusedReason || ''}
+            data-running={String(runningBackground)}
+            className="font-mono text-[11px] font-bold leading-snug"
+            style={muted}
+          >
+            {!backgroundEnabled
+              ? 'OPRIT — niciun worker de fundal nu rulează.'
+              : backgroundStatus?.refusedReason
+                ? `REFUZAT: ${BACKGROUND_REFUSAL[backgroundStatus.refusedReason] || backgroundStatus.refusedReason}`
+                : !backgroundStatus || backgroundStatus.cameras.length === 0
+                  ? 'PORNIT — nicio cameră cu clip redabil.'
+                  : `PORNIT — ${runningBackground} ${runningBackground === 1 ? 'cameră' : 'camere'} · ~1 cadru / 2 s`}
+          </p>
+
+          {backgroundEnabled && backgroundStatus?.refusedReason && (
+            <p role="alert" className="text-[11px] leading-snug text-amber-700 dark:text-amber-400">
+              {BACKGROUND_REFUSAL[backgroundStatus.refusedReason] || backgroundStatus.refusedReason}
+              {' '}Guarda refuză toată rularea, ca nicio cameră să nu rămână descoperită în tăcere.
+            </p>
+          )}
+
+          <ul className="space-y-1 text-[11px]">
+            {backgroundRows.map((row) => (
+              <li
+                key={row.id}
+                data-testid={`background-camera-${row.id}`}
+                data-state={row.state}
+                className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
+              >
+                <span className="w-16 shrink-0 font-bold">{row.code}</span>
+                <span className={`font-mono font-bold ${TONE_TEXT[row.tone] || TONE_TEXT.neutral}`}>
+                  <span aria-hidden="true" className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-current align-middle" />
+                  {row.label}
+                </span>
+                <span className="min-w-0 flex-1 basis-full font-mono sm:basis-0" style={muted}>
+                  {row.detail}
+                </span>
+                <span className="font-mono tabular-nums" style={muted}>
+                  {row.events} {row.events === 1 ? 'incident' : 'incidente'}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          <p data-testid="background-guard" className="border-t pt-2 text-[11px] leading-snug" style={{ ...muted, borderColor: themeStyles.panelBorder }}>
+            Limită de siguranță: maximum {BACKGROUND_MAX_CAMERAS} camere, minimum {BACKGROUND_MIN_CORES} nuclee
+            (această mașină raportează {cores ?? 'necunoscut'}).
+            {cores === null && ' Numărul de nuclee e necunoscut, deci guarda refuză orice rulare.'}
+            {cores !== null && cores < BACKGROUND_MIN_CORES && ' Sub limită: guarda refuză orice rulare.'}
+            {' '}Camera locală (webcam) nu rulează niciodată în fundal: o singură permisiune, cerută de Live.
+          </p>
+
+          {backgroundEnabled && (
+            <button
+              type="button"
+              data-testid="background-stop"
+              onClick={() => setBackgroundEnabled(false)}
+              className="rounded-lg border border-[#D73833]/50 bg-[#D73833]/15 px-3 py-1.5 text-xs font-bold text-[#D73833] transition-colors hover:bg-[#D73833]/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFEB33]"
+            >
+              Oprește toate camerele din fundal
+            </button>
+          )}
         </section>
 
         <section aria-labelledby="privacy-heading" style={surface} className="space-y-2 rounded-xl border p-4">

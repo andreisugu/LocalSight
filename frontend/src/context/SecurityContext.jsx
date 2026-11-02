@@ -11,6 +11,7 @@
 // rename or remove one without changing every consumer.
 
 import { createContext, useCallback, useContext, useState } from 'react';
+import { useBackgroundCameras } from './useBackgroundCameras.js';
 import { useBackendBootstrap } from './useBackendBootstrap.js';
 import { useCameraStore } from './useCameraStore.js';
 import { useConnectionHealth } from './useConnectionHealth.js';
@@ -36,6 +37,13 @@ export const SecurityProvider = ({ children }) => {
   const zoneStore = useZoneStore({ showToast });
   const routing = useRouting();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Which camera the Live view is really feeding to its browser engine, not just which one
+  // is selected. `null` means "Live owns nothing right now" (another screen, engine off,
+  // fullscreen), so the background manager may process every camera.
+  const [liveEngineCameraId, setLiveEngineCameraId] = useState(null);
+  const reportActiveCamera = useCallback((cameraId) => {
+    setLiveEngineCameraId(typeof cameraId === 'string' && cameraId ? cameraId : null);
+  }, []);
 
   // Real detections by default; the eight demo fixtures are one explicit choice away and
   // that choice survives a reload. The setter is the only writer, so the stored value and
@@ -60,6 +68,16 @@ export const SecurityProvider = ({ children }) => {
   });
 
   const { kpis, setKpis } = useKpis(incidents.events, { showDemoData });
+
+  // All cameras, optionally in the background. The hook sits here so a route change never
+  // tears down its workers; it starts them only when the operator enabled the option and
+  // the resource guard allows it, and it never processes the camera Live owns.
+  const background = useBackgroundCameras({
+    cameras: cameraStore.cameras,
+    zones: zoneStore.zones,
+    addEngineEvents: incidents.addEngineEvents,
+    liveEngineCameraId,
+  });
 
   const connection = useConnectionHealth({
     showToast,
@@ -163,6 +181,14 @@ export const SecurityProvider = ({ children }) => {
     showDemoData,
     setShowDemoData,
   };
+  // Additive: only Live writes the ownership key and only Settings reads the status.
+  const backgroundKeys = {
+    backgroundEnabled: background.enabled,
+    setBackgroundEnabled: background.setEnabled,
+    getBackgroundStatus: background.getStatus,
+    liveEngineCameraId,
+    reportActiveCamera,
+  };
 
   const value = {
     ...navigation,
@@ -174,6 +200,7 @@ export const SecurityProvider = ({ children }) => {
     ...metricKeys,
     ...connectionKeys,
     ...demoKeys,
+    ...backgroundKeys,
   };
 
   return <Store.Provider value={value}>{children}</Store.Provider>;
