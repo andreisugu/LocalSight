@@ -1,8 +1,9 @@
-# CI for LocalSight: backend API, ML edge pipeline, frontend build, the browser
-# smoke test of the static build, and the GitHub Pages subpath (base) check.
+# CI for LocalSight: the browser-engine unit tests, backend API, ML edge pipeline,
+# frontend build, the browser smoke test of the static build, and the GitHub Pages
+# subpath (base) check.
 #
-# The five jobs are independent on purpose: a red backend does not cancel or
-# hide the ML, frontend, e2e and pages-base results.
+# The six jobs are independent on purpose: a red backend does not cancel or hide
+# the unit, ML, frontend, e2e and pages-base results.
 #
 # Model-dependent tests skip on their own when the weights or demo clips are
 # missing (see ml/tests/test_privacy.py: `skipif(not MODEL.is_file())` and
@@ -68,6 +69,30 @@ jobs:
 
       - name: Run tests
         run: uv run pytest -q
+
+  unit:
+    name: frontend / unit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Pure logic only: the engine, the event contract helpers and the report/confidence
+      # formatters. No browser, no models, no network.
+      - name: Unit tests
+        run: node --test src/engine/*.test.mjs src/utils/*.test.mjs src/constants/*.test.mjs
 
   frontend:
     name: frontend / build
