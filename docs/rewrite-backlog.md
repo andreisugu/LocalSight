@@ -46,9 +46,9 @@ doar ce cod a fost scris înainte de direcția LocalSight și cât de mult l-am 
 | `components/layout/Header.jsx` | VojuAriana (6/16) | **parțial**: structura, meniurile și focusul sunt rescrise (185+/122−), dar 173 de linii rămân (importuri, chei de context, JSX, clase) | nu se declară înlocuit până nu scade logică; restul e prezentare |
 | `components/views/IncidentDetailView.jsx` | muxxq (4/9) | parțial rescris: copiază link, descarcă dovada, etichete demo/local; layout-ul de bază e încă moștenit | restul layout-ului, într-un pass separat |
 | `components/views/IncidentsListView.jsx` | VojuAriana (1/3) | **logică înlocuită**: filtrare/formatare în `utils/incidentList.js` (8 teste), markup nou (181+/143−); 66 de linii rămase = `TokenBadge`, importuri, câteva clase | parțial textual, complet pe logică |
-| `components/views/SettingsView.jsx` | VojuAriana (3/7) | parțial rescris (onestitate) | rescrie ca „Sistem" de la zero la următorul pass de UI |
+| `components/views/SettingsView.jsx` | VojuAriana (3/7) | **înlocuit** (347→66 linii; +269/−296), logică în `utils/systemView.js` + 13 teste; audit: 0 linii de logică | gata |
 | `components/layout/Sidebar.jsx` | andreisugu (8/17) | parțial rescris (responsive, footer) | refăcut la un design pass, nu înainte |
-| `components/common/Toast.jsx` | VojuAriana (2/4) | moștenit | mic; înlocuiește-l când umbli la notificări |
+| `components/common/Toast.jsx` | VojuAriana (2/4) | **înlocuit** (20→11; +27/−9), `role=status`/`aria-live`, audit: 0 logică | gata |
 | `components/common/ConfidenceBadge.jsx` | VojuAriana (1/1) | **logică nouă**: `utils/confidence.js` + 6 teste; 11 linii rămase sunt importuri/semnătură | parțial (markup-ul e încă aproape identic) |
 | `context/ThemeContext.jsx` | VojuAriana (1/1) | **înlocuit**: preferință persistentă, `utils/themePreference.js` + 6 teste | gata |
 | `constants/theme.js` | VojuAriana | date pure (paletă/statusuri), fără logică | păstrat intenționat; o schimbare e design, nu proveniență |
@@ -82,6 +82,7 @@ tracker, vest, blur, report, webgpu, decode), `LiveEngineCard`, `SafeImage`, `Er
 | `5b05796` | `IncidentsListView.jsx` + `utils/incidentList.js` | +181/−143, +77 nou | listă rescrisă, filtre testate | 66 — TokenBadge/importuri |
 | `1381d99` | `App.jsx` | +35 / −30 | hartă de rute, scroll/focus | 43 — importuri/layout |
 | `f0b0eae` | `worker.js` / `useEngine.js` | +12/−12, +12/−1 | snapshot-ul e deținut de pagină | nu se aplică (engine al nostru) |
+| `3990c27` | `SettingsView.jsx` + `Toast.jsx` + `utils/systemView.js` | +269/−296, +27/−9, +201 nou | pagină „Sistem & Audit" și toast accesibil, logică testată | 0 logică; doar importuri/JSX/clase |
 
 ## Ce am amânat
 
