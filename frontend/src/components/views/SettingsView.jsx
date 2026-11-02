@@ -262,22 +262,45 @@ export default function SettingsView() {
       </Panel>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Panel icon={Lock} title="Ce pleacă de pe edge" themeStyles={themeStyles}>
+        <Panel icon={Lock} title={isMock ? 'Ce pleacă din browser' : 'Ce pleacă de pe edge'} themeStyles={themeStyles}>
           <ul className="space-y-1.5" style={{ color: themeStyles.textMuted }}>
-            <li>• Video brut rămâne pe edge; nu se trimite nicăieri.</li>
-            <li>
-              • Snapshot-urile și imaginea live au <span className="font-bold text-amber-400">fețele blurate pe edge</span>, înainte
-              de salvare sau trimitere.
-            </li>
-            <li>• Evenimentul conține doar metadate: tip, cameră, zonă, oră, încredere.</li>
-            <li>• Fără recunoaștere facială, fără nume, fără analiză de emoții.</li>
+            {isMock ? (
+              <>
+                <li>• Cadrele video nu părăsesc tabul: sunt desenate pe canvas și nu se încarcă nicăieri.</li>
+                <li>
+                  • Cu motorul pornit, fețele sunt <span className="font-bold text-amber-400">blurate cu YuNet în browser</span>, înainte
+                  de desenare; fluxul brut este ascuns cât timp motorul rulează.
+                </li>
+                <li>• Evenimentele sunt doar metadate: tip, cameră, zonă, oră, încredere. Snapshot-ul de incident nu e conectat.</li>
+                <li>• Modelele ONNX se descarcă o dată din aplicație; fără recunoaștere facială, fără nume, fără analiză de emoții.</li>
+              </>
+            ) : (
+              <>
+                <li>• Video brut rămâne pe edge; nu se trimite nicăieri.</li>
+                <li>
+                  • Snapshot-urile și imaginea live au <span className="font-bold text-amber-400">fețele blurate pe edge</span>, înainte
+                  de salvare sau trimitere.
+                </li>
+                <li>• Evenimentul conține doar metadate: tip, cameră, zonă, oră, încredere.</li>
+                <li>• Fără recunoaștere facială, fără nume, fără analiză de emoții.</li>
+              </>
+            )}
           </ul>
         </Panel>
 
-        <Panel icon={MessageSquare} title="Notificări" themeStyles={themeStyles}>
+        <Panel icon={MessageSquare} title={isMock ? 'Notificări (demo)' : 'Notificări'} themeStyles={themeStyles}>
           <ul className="space-y-1.5" style={{ color: themeStyles.textMuted }}>
             <li>
-              • <span className="font-bold text-[#0284C7] dark:text-[#FFEB33]">Slack</span>: mesaj text + link la incident, fără imagini.
+              {isMock ? (
+                <>
+                  • <span className="font-bold text-[#0284C7] dark:text-[#FFEB33]">Slack</span> nu este conectat în build-ul static:
+                  orele de notificare din fixture sunt istoric demo, nu trimiteri reale.
+                </>
+              ) : (
+                <>
+                  • <span className="font-bold text-[#0284C7] dark:text-[#FFEB33]">Slack</span>: mesaj text + link la incident, fără imagini.
+                </>
+              )}
             </li>
             <li>• Escaladare dacă incidentul nu e confirmat în timpul setat pe zonă.</li>
             <li>• Confirmarea operatorului oprește escaladarea.</li>
