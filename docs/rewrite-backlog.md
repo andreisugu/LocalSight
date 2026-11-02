@@ -62,7 +62,7 @@ doar ce cod a fost scris înainte de direcția LocalSight și cât de mult l-am 
 | `App.jsx` | VojuAriana (5/10) | **rescris structural**: hartă de rute, reset scroll/focus la schimbarea ecranului; 43 de linii rămase = importuri/layout | parțial textual, logica de navigare e a noastră |
 | `main.jsx` | VojuAriana (1/2) | aproape tot al nostru (ErrorBoundary) | nu merită un pass separat |
 | `components/video/BoundingBox.jsx` | VojuAriana (2/2) | **șters 2026-11-02** — 0 importuri, cod mort | gata |
-| `components/views/LiveView.jsx` | andreisugu (15/24) | parțial rescris (motor, webcam, card) | shell-ul mai e moștenit; îl refacem la următorul pass mare de Live |
+| `components/views/LiveView.jsx` | andreisugu (15/24) | **înlocuit** (1298→234; +2102/−1220, 15 fișiere) | logică în `liveMedia.js` (19 teste) + `useLiveMedia.js`; ecranul e compus din 11 componente sub `components/live/`. Audit: 0 logică, 38 de linii = importuri, destructurare și schelet JSX |
 | `context/SecurityContext.jsx` | andreisugu (17/29) | parțial rescris (routing, engine events, ack) | taie-l în contexte mai mici doar când îl atinge un feature mare |
 | `constants/mockData.js` | andreisugu (9/16) | parțial rescris (stills, id-uri stabile) | separă fixture-urile de logică la următorul pass de date |
 | `services/api.js` | andreisugu (10/22) | parțial rescris (mock/API) | de înlocuit cu un client subțire când apare un backend real |
@@ -90,6 +90,7 @@ tracker, vest, blur, report, webgpu, decode), `LiveEngineCard`, `SafeImage`, `Er
 | `f0b0eae` | `worker.js` / `useEngine.js` | +12/−12, +12/−1 | snapshot-ul e deținut de pagină | nu se aplică (engine al nostru) |
 | `3990c27` | `SettingsView.jsx` + `Toast.jsx` + `utils/systemView.js` | +269/−296, +27/−9, +201 nou | pagină „Sistem & Audit" și toast accesibil, logică testată | 0 logică; doar importuri/JSX/clase |
 | `8095b9e` | `ReportsView.jsx` + `ZoneEditorView.jsx` + `utils/reportExport.js` | +444/−352, +159/−121, +316 nou | pagini rescrise, CSV compus și testat (12 teste), light mode reparat | 57 / 36 — importuri, etichete, stiluri, JSX (0 logică) |
+| `48804bb` | `LiveView.jsx` + 11 componente + `liveMedia.js` / `useLiveMedia.js` | +2102 / −1220 | ecran rescris: surse, webcam, etichete și guardul de ack mutate în module testate; invarianții de privacy neschimbați | 38 — importuri, destructurare, `if`-ul de fullscreen și scheletul JSX (0 logică) |
 
 ## Ce am amânat
 
