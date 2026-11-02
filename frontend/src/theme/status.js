@@ -80,5 +80,3 @@ export const STATUS_TOKENS = {
     label: 'Rezolvat',
   },
 };
-
-export default STATUS_TOKENS;

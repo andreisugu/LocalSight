@@ -1,4 +1,3 @@
-import React from 'react';
 import { Layers, Save, Trash2 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 

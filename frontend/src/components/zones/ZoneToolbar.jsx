@@ -1,4 +1,3 @@
-import React from 'react';
 import { Code, Plus, Redo2, Shapes, Square, Triangle, Undo2 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 

@@ -9,7 +9,7 @@ export const ACK_POINTER_WINDOW_MS = 1500;
 
 // The browser engine is opt-in per viewer, not per camera: a presenter enables it once and
 // the static site keeps the cheap clip-only path for everyone else.
-export const LIVE_ENGINE_STORAGE_KEY = 'localsight.liveEngine';
+const LIVE_ENGINE_STORAGE_KEY = 'localsight.liveEngine';
 
 // The one camera in the mock list whose frames come from this machine instead of the
 // network. It ships only with the static (mock) build, so the id is the whole contract:

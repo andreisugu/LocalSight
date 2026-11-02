@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Activity, AlertTriangle, Camera, CameraOff, Cpu, RotateCcw, Upload, Video } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useEngine } from '../../engine/useEngine';

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Camera, ImageOff, Radio } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 

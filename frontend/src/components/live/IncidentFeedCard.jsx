@@ -1,4 +1,3 @@
-import React from 'react';
 import { Check, Eye } from 'lucide-react';
 import ConfidenceBadge from '../common/ConfidenceBadge';
 import { STATUS_TOKENS } from '../../constants/theme';

@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 
 // A titled surface with an optional leading icon and trailing actions. `size` only changes

@@ -30,5 +30,3 @@ export const DEFAULT_LAB_ZONE = Object.freeze({
     [0.02, 0.98],
   ],
 });
-
-export default DEFAULT_LAB_ZONE;

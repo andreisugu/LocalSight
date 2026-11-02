@@ -2,10 +2,6 @@
 // and an inline style cannot drift. `THEME_CONFIG` owns the surfaces and accents; BRAND
 // owns the fixed palette. Class names stay exactly as before (`bg-safesight-lemon`,
 // `bg-dark-panel`, `text-light-bg`, ...).
-//
-// The animation strings below stay literal: there is no motion token module under
-// src/theme/, and inventing one here would change the module shape rather than derive a
-// value. They are keyframe names and Tailwind's own pulse/ping timings, not colours.
 import { BRAND } from './src/theme/palette.js';
 import { THEME_CONFIG } from './src/theme/themes.js';
 
@@ -41,17 +37,6 @@ export default {
           border: light.panelBorder,
           accent: light.accentColor,
           accentHover: light.accentHover,
-        },
-      },
-      animation: {
-        'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'ping-slow': 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite',
-        scanline: 'scanline 8s linear infinite',
-      },
-      keyframes: {
-        scanline: {
-          '0%': { transform: 'translateY(-100%)' },
-          '100%': { transform: 'translateY(1000%)' },
         },
       },
     },

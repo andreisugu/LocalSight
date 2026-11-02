@@ -1,4 +1,3 @@
-import React from 'react';
 import { useSecurity } from '../../context/SecurityContext';
 import { USE_MOCK } from '../../services/api';
 import { printAsPdf } from '../../utils/print';

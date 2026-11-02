@@ -14,7 +14,7 @@ import { crossingEdges, orderAroundCentroid } from './polygon.js';
 export const HISTORY_LIMIT = 60;
 
 /** A saved zone id is the key other modules reference: lowercase, digits, dashes. */
-export const ZONE_ID_PATTERN = /^[a-z0-9-]+$/;
+const ZONE_ID_PATTERN = /^[a-z0-9-]+$/;
 
 /** Defaults for a zone that does not exist yet. Never mutated; copied per draft. */
 export const DEFAULT_FIELDS = Object.freeze({
@@ -118,7 +118,7 @@ export function draftFromZone(zone) {
 }
 
 /** Draft for a zone the user is about to create. */
-export function draftForNewZone(zoneId) {
+function draftForNewZone(zoneId) {
   const id = slugify(zoneId);
   return {
     ...emptyDraft(),

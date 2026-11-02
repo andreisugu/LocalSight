@@ -1,4 +1,3 @@
-import React from 'react';
 import EngineOverlayBadges from './EngineOverlayBadges';
 import ZoneOutline from './ZoneOutline';
 import { NoDemoFeed, SignalLost, StreamPlaceholder } from './LiveEmptyStates';

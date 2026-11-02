@@ -20,7 +20,7 @@ function plural(count, one, many) {
 }
 
 /** A demo clip carries an RTSP URL; the browser camera does not. */
-export function cameraKind(camera) {
+function cameraKind(camera) {
   return camera?.rtsp_url ? 'clip' : 'local';
 }
 

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Download, MapPin } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import SafeImage from '../common/SafeImage';

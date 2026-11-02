@@ -4,7 +4,6 @@
    rule stays inside `@layer base` where the base layer owns it. */
 @import './styles/base.css';
 @import './styles/scrollbar.css';
-@import './styles/effects.css';
 @import './styles/print.css';
 
 @tailwind base;

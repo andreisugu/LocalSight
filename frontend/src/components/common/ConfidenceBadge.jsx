@@ -1,4 +1,3 @@
-import React from 'react';
 import { Sparkles } from 'lucide-react';
 import { formatConfidence } from '../../utils/confidence';
 

@@ -1,4 +1,3 @@
-import React from 'react';
 import { AlertTriangle, Clock, HardHat, ShieldAlert } from 'lucide-react';
 import { USE_MOCK } from '../../services/api';
 import DemoDataChip from './DemoDataChip';

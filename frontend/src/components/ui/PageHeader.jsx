@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 
 // Title + optional subtitle + actions, matching the heading block the views already use.

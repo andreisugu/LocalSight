@@ -1,4 +1,3 @@
-import React from 'react';
 import { Columns, Cpu, LayoutDashboard, Maximize2, Power } from 'lucide-react';
 import { cameraOptionLabel } from './liveMedia';
 

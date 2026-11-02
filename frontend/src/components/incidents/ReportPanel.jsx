@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Info, RefreshCw } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { reportFields, reportSourceLabel, shouldOfferReportRetry } from '../../utils/incidentDetail';

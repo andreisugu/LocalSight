@@ -1,4 +1,3 @@
-import React from 'react';
 import { ArrowLeft, Link2, Video } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import ConfidenceBadge from '../common/ConfidenceBadge';

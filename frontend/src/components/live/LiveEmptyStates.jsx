@@ -1,4 +1,3 @@
-import React from 'react';
 import { Video, WifiOff } from 'lucide-react';
 
 // The screen's non-feed states. Each one says exactly what is missing instead of leaving

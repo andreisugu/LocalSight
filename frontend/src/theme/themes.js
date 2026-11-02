@@ -39,5 +39,3 @@ export const THEME_CONFIG = {
     modalOverlay: 'rgba(15, 23, 42, 0.65)',
   },
 };
-
-export default THEME_CONFIG;

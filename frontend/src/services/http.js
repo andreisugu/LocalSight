@@ -3,7 +3,7 @@
 
 import { API_BASE_URL } from './config.js';
 
-export function apiUrl(path) {
+function apiUrl(path) {
   return `${API_BASE_URL}${path}`;
 }
 

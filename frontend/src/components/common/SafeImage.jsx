@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ImageOff } from 'lucide-react';
 
 // `blob:pending` is what the in-browser engine puts in `snapshot_url` until the frame is

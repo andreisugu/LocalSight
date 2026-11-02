@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTheme } from '../../context/ThemeContext';
 
 // The shared "nothing here" card: one icon, one sentence, one way out. It matches the
