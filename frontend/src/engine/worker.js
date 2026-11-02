@@ -19,6 +19,7 @@ import {
 import { decodeYolo, decodeYuNet } from './decode.js';
 import { clampRect, expandedRect, headBandRects } from './blur.js';
 import { SNAPSHOT_PENDING, createPipeline } from './pipeline.js';
+import { faceInputPlan, padToMultiple, scaleFaceBoxes } from './perf.js';
 import { createTracker } from './tracker.js';
 import { EDGE, MIN_PERSON_PX, VestTracker, hivisRatio } from './vest.js';
 import { zoneActive } from './zones.js';
@@ -55,6 +56,8 @@ let loading = null;
 let modelThreads = null;
 // The extra head-band blur is a safety net, not the face blur: the operator can turn it
 // off for a demo, and the face boxes still stay blurred. Defaults to ON (fail safe).
+// It also gates the face-detector input cap in `perf.js`: the cap trades YuNet recall for
+// speed, which is only acceptable while this net covers the faces the cap can drop.
 let safetyBlur = true;
 
 // Bench options. Defaults are the spike's: probe providers, process the frame at its own
@@ -278,19 +281,21 @@ function detectPersons(width, height, size) {
   return { blob, box };
 }
 
-function detectFaces(width, height) {
+function detectFaces(width, height, plan = faceInputPlan({ safetyBlur, width, height })) {
   if (models.yunetDynamic) {
-    // Whole frame, padded to multiples of 32 with zeros: the Python edge path. No rescale,
-    // so the boxes come out already in frame pixels.
-    const paddedW = Math.ceil(width / 32) * 32;
-    const paddedH = Math.ceil(height / 32) * 32;
+    // Whole frame (or the capped copy from `perf.js`), padded to multiples of 32 with
+    // zeros: the Python edge path. When the head-band safety blur is on, `plan` hands
+    // YuNet a downscaled copy; the boxes are then in copy pixels and `frameScale` maps
+    // them back in `handleFrame`. The copy never upscales, so a small frame keeps its size.
+    const paddedW = padToMultiple(plan.width);
+    const paddedH = padToMultiple(plan.height);
     if (!faceCanvas || faceCanvas.width !== paddedW || faceCanvas.height !== paddedH) {
       faceCanvas = new OffscreenCanvas(paddedW, paddedH);
       faceCtx = faceCanvas.getContext('2d', { willReadFrequently: true });
     }
     faceCtx.fillStyle = '#000';
     faceCtx.fillRect(0, 0, paddedW, paddedH);
-    faceCtx.drawImage(frameCanvas, 0, 0, width, height);
+    faceCtx.drawImage(frameCanvas, 0, 0, plan.width, plan.height);
     const { data } = faceCtx.getImageData(0, 0, paddedW, paddedH);
     return {
       blob: rgbaToNchw(data, paddedW, paddedH, { swapRB: true, normalize: false }),
@@ -299,10 +304,13 @@ function detectFaces(width, height) {
       scale: 1,
       padX: 0,
       padY: 0,
+      frameScaleX: plan.scaleX,
+      frameScaleY: plan.scaleY,
     };
   }
 
-  // Frozen 640x640 graph: letterbox, then undo it in the decode.
+  // Frozen 640x640 graph: letterbox, then undo it in the decode. The graph already shrinks
+  // the frame to 640, so the cap is a no-op here and the factors stay at identity.
   const box = letterbox(width, height, models.yunetInput.width || 640);
   if (!faceCanvas || faceCanvas.width !== box.size || faceCanvas.height !== box.size) {
     faceCanvas = new OffscreenCanvas(box.size, box.size);
@@ -319,6 +327,8 @@ function detectFaces(width, height) {
     scale: box.scale,
     padX: box.padX,
     padY: box.padY,
+    frameScaleX: 1,
+    frameScaleY: 1,
   };
 }
 
@@ -746,9 +756,10 @@ async function handleFrame(message) {
       padY: yolo.box.padY,
     });
 
-    const face = detectFaces(width, height);
+    const facePlan = faceInputPlan({ safetyBlur, width, height });
+    const face = detectFaces(width, height, facePlan);
     const outputs = await runYuNet(models, face.blob, face.width, face.height);
-    faces = decodeYuNet(outputs, {
+    const decodedFaces = decodeYuNet(outputs, {
       inputW: face.width,
       inputH: face.height,
       scoreThreshold: FACE_CONF,
@@ -757,6 +768,9 @@ async function handleFrame(message) {
       padX: face.padX,
       padY: face.padY,
     });
+    // A capped detector sees a copy, so its boxes are in copy pixels. The blur, the overlay
+    // and the snapshot all stay at frame resolution; map the boxes back once, here.
+    faces = scaleFaceBoxes(decodedFaces, face.frameScaleX, face.frameScaleY);
     detected = true;
   } catch (caught) {
     error = caught instanceof Error ? caught.message : String(caught);
