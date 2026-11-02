@@ -152,7 +152,7 @@ export default function LiveEngineCard({
         <MetricCell
           icon={Radio}
           iconClass="bg-[#FFEB33]/25 dark:bg-[#FFEB33]/15 text-amber-700 dark:text-[#FFEB33]"
-          label="Zonă activă"
+          label="Zonă"
           title={zoneLabel}
         >
           {zoneLabel}

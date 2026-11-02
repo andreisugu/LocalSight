@@ -224,15 +224,19 @@ export function incidentTitle(event) {
  * @param {object|null|undefined} event
  * @returns {string}
  */
-export function snapshotAlt(event) {
+export function snapshotAlt(event, { safetyBlur = true } = {}) {
   const camera = event?.camera_id || 'camera necunoscută';
   const zone = event?.zone_id || 'zonă necunoscută';
-  return `Cadru din momentul incidentului: camera ${camera}, zona ${zone}; fețele sunt blurate.`;
+  const blur = safetyBlur
+    ? 'fețele sunt blurate.'
+    : 'fețele detectate sunt blurate; blurul de siguranță pe cap este oprit.';
+  return `Cadru din momentul incidentului: camera ${camera}, zona ${zone}; ${blur}`;
 }
 
 /** Caption on the evidence frame; the blur happened in the tab only for engine incidents. */
-export function snapshotCaption(event) {
-  return event?.local
+export function snapshotCaption(event, { safetyBlur = true } = {}) {
+  if (!event?.local) return 'Momentul incidentului • fețe blurate';
+  return safetyBlur
     ? 'Momentul incidentului • fețe blurate în browser'
-    : 'Momentul incidentului • fețe blurate';
+    : 'Momentul incidentului • fețe detectate blurate · blur de siguranță oprit';
 }

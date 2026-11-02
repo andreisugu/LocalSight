@@ -4,6 +4,7 @@ import { useTheme } from '../../context/ThemeContext';
 import SafeImage from '../common/SafeImage';
 import EventTimeline from './EventTimeline';
 import { snapshotAlt, snapshotCaption, snapshotDownload } from '../../utils/incidentDetail';
+import { readEngineSettings } from '../../utils/engineSettings';
 
 // Left column: the frame the rule fired on, its download, and the timeline that explains
 // how the alert travelled. `SafeImage` keeps the box when the in-tab engine has no frame
@@ -12,6 +13,9 @@ import { snapshotAlt, snapshotCaption, snapshotDownload } from '../../utils/inci
 // the evidence is not image-only.
 export default function EvidencePanel({ event }) {
   const { themeStyles } = useTheme();
+  // The safety blur is an operator setting; the caption must not claim full head coverage
+  // when it is off. Read it at render (main thread) and pass it to the pure helpers.
+  const { safetyBlur } = readEngineSettings();
   const captionId = useId();
   const snapshot = snapshotDownload(event);
 
@@ -49,7 +53,7 @@ export default function EvidencePanel({ event }) {
       >
         <SafeImage
           src={event.snapshot_url}
-          alt={snapshotAlt(event)}
+          alt={snapshotAlt(event, { safetyBlur })}
           className="w-full h-full object-cover text-xs p-6"
           iconSize={36}
         />
@@ -57,7 +61,7 @@ export default function EvidencePanel({ event }) {
           id={captionId}
           className="absolute bottom-2 left-2 max-w-[calc(100%-1rem)] px-2 py-1 bg-black/80 text-white font-mono text-[10px] rounded border border-white/20"
         >
-          {snapshotCaption(event)}
+          {snapshotCaption(event, { safetyBlur })}
         </figcaption>
       </figure>
 

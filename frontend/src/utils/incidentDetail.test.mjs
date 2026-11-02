@@ -251,3 +251,11 @@ test('the snapshot caption differs only for a local detection', () => {
   assert.equal(snapshotCaption({ local: true }), 'Momentul incidentului • fețe blurate în browser');
   assert.equal(snapshotCaption({}), 'Momentul incidentului • fețe blurate');
 });
+
+test('the evidence caption reflects the safety blur setting', () => {
+  const event = { local: true };
+  assert.match(snapshotCaption(event), /fețe blurate în browser/);
+  assert.match(snapshotCaption(event, { safetyBlur: false }), /blur de siguranță oprit/);
+  assert.equal(snapshotCaption({ local: false }, { safetyBlur: false }), 'Momentul incidentului • fețe blurate');
+  assert.match(snapshotAlt(event, { safetyBlur: false }), /blurul de siguranță pe cap este oprit/);
+});
