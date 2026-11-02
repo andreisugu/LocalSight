@@ -7,6 +7,7 @@
 // pipeline (tracker -> zones -> rule engine -> event) run on the boxes. Blur stays first
 // class: nothing leaves this worker before the faces are blurred, and a frame that cannot
 // be blurred never leaves at all (see `guardBitmap`).
+import { ZoneAligner, WORK_WIDTH } from './align.js';
 import {
   LETTERBOX_PAD,
   YOLO_INPUT_SIZE,
@@ -38,6 +39,12 @@ const BLUR_SIGMA = 25 / BLUR_SCALE;
 // incident card and the detail view, and it is cheap enough to do on the rare event frame.
 const SNAPSHOT_MAX_EDGE = 960;
 const SNAPSHOT_QUALITY = 0.8;
+
+// Zone alignment (`align.js`): how often the current frame is matched to the reference
+// and how wide the working image is. The aligner computes the reference features once in
+// its constructor; `update()` throttles itself, so this cadence is not a second counter.
+const ALIGN_EVERY_N = 5;
+const ALIGN_MIN_INLIERS = 40;
 
 // PPE state -> badge. `unknown` is a first-class state: a track that has not collected
 // enough colour samples yet must be visible and must never look like a pass.
@@ -108,6 +115,32 @@ let overlayZones = [];
 // off, so the operator can tell configuration from what is actually armed.
 let overlayEngineOn = true;
 
+// --- Zone alignment ----------------------------------------------------------------
+// One aligner per (camera, reference frame). The reference is the exact frame the polygons
+// were drawn on: the Live view resolves it from the zone's `reference_frame_url` or the
+// demo still and sends it on `init`/`config`. Without a reference (webcam, no still) there
+// is nothing to map from and the configured polygons stay as they are, exactly as before.
+let aligner = null;
+// Identity of the current aligner input. A different camera or reference rebuilds; equal
+// keys are a no-op, so `config` messages do not re-fetch the image.
+let alignerKey = null;
+// The in-flight reference fetch/decode. Frames await it so the first frames after a camera
+// switch cannot race a half-built aligner.
+let alignerTask = Promise.resolve();
+// One warning per aligner: a repeating failure would flood the console on every frame.
+let alignerWarned = false;
+// The last zone list an aligned frame produced: if the aligner throws, the frame keeps the
+// previous polygons (or none) instead of dropping the outline and the rules mid-pan.
+let lastAlignedZones = null;
+// The resolved reference URL of the current aligner. Kept so a `config` that only carries
+// zones or the engine switch cannot silently disable alignment: `undefined` means "keep the
+// reference", while an explicit `null` (webcam) clears it.
+let alignerReferenceUrl = null;
+// Scratch canvas for the 640-wide working image the aligner reads. Separate from
+// `frameCanvas` because the aligner needs the raw frame, before blur and annotations.
+let alignCanvas = null;
+let alignCtx = null;
+
 // PPE colour state, one per pipeline. `vests` is the ppe.py `VestTracker`; `vestTracks`
 // mirrors the pipeline's IoU tracker only to learn each detection's track id before
 // `step` runs (see `measureVests`). Both start empty when the pipeline is rebuilt.
@@ -150,6 +183,126 @@ function overlayZonesFor(cameraId, zones) {
   return list.filter(
     (zone) => zone !== null && typeof zone === 'object' && zone.camera_id === cameraId,
   );
+}
+
+function errorText(caught) {
+  return caught instanceof Error ? caught.message : String(caught);
+}
+
+// The reference image is the frame the polygons were drawn on. It is decoded once per
+// camera/reference and scaled to the aligner's working width (640): the aligner normalizes
+// coordinates, so a 1280-wide still and a 1920-wide stream describe the same geometry as
+// long as their aspect ratio matches.
+async function readReferenceImage(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`HTTP ${response.status} pentru ${url}`);
+  const bitmap = await createImageBitmap(await response.blob());
+  try {
+    const width = Math.max(1, Math.min(WORK_WIDTH, bitmap.width));
+    const height = Math.max(1, Math.round((bitmap.height * width) / bitmap.width));
+    const canvas = new OffscreenCanvas(width, height);
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) throw new Error('OffscreenCanvas 2d indisponibil');
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    return ctx.getImageData(0, 0, width, height);
+  } finally {
+    bitmap.close();
+  }
+}
+
+// One 640-wide RGBA readback of the raw frame (drawn from `frameCanvas` before the blur and
+// the boxes), so the aligner does not downscale the full-resolution frame itself.
+function alignImage(width, height) {
+  const targetWidth = Math.max(1, Math.min(WORK_WIDTH, width));
+  const targetHeight = Math.max(1, Math.round((height * targetWidth) / width));
+  if (
+    !alignCanvas ||
+    alignCanvas.width !== targetWidth ||
+    alignCanvas.height !== targetHeight
+  ) {
+    alignCanvas = new OffscreenCanvas(targetWidth, targetHeight);
+    alignCtx = alignCanvas.getContext('2d', { willReadFrequently: true });
+  }
+  alignCtx.drawImage(frameCanvas, 0, 0, targetWidth, targetHeight);
+  return alignCtx.getImageData(0, 0, targetWidth, targetHeight);
+}
+
+// Build the aligner for this camera and reference. The key makes repeat `config` messages
+// free: the reference is only fetched and decoded when the camera or the URL changes, and
+// a stale decode (a second camera switch while the first still downloads) is discarded.
+// `referenceUrl: undefined` keeps the reference that is already configured; only an explicit
+// string or `null` replaces it.
+function configureAligner(cameraId, referenceUrl) {
+  const explicit = referenceUrl !== undefined;
+  const url = explicit
+    ? typeof referenceUrl === 'string' && referenceUrl
+      ? referenceUrl
+      : null
+    : alignerReferenceUrl;
+  const key = `${cameraId || ''}\u0000${url || ''}`;
+  if (key === alignerKey) return;
+  alignerKey = key;
+  alignerReferenceUrl = url;
+  aligner = null;
+  alignerWarned = false;
+  lastAlignedZones = null;
+  if (!url) {
+    // No reference (webcam, camera without a stored frame): keep the configured image-space
+    // polygons. Inventing a reference would move zones on motion the operator never drew.
+    alignerTask = Promise.resolve();
+    return;
+  }
+  alignerTask = (async () => {
+    try {
+      const reference = await readReferenceImage(url);
+      if (alignerKey !== key) return;
+      const candidate = new ZoneAligner({
+        reference,
+        everyN: ALIGN_EVERY_N,
+        minInliers: ALIGN_MIN_INLIERS,
+      });
+      if (candidate.referenceFeatureCount === 0) {
+        console.warn(`[engine] referința de aliniere nu are textură utilă (${url}); alinierea rămâne oprită`);
+        return;
+      }
+      aligner = candidate;
+    } catch (caught) {
+      if (alignerKey !== key) return;
+      console.warn(`[engine] alinierea nu a pornit: ${errorText(caught)}`);
+    }
+  })();
+}
+
+// Per-frame alignment: `null` means "no reference, configured zones as-is"; otherwise the
+// list to draw and to test the rules against, plus the state the UI reports. When the view
+// is lost the list is empty: a guessed polygon is worse than none, so no zone rule fires.
+function alignedZonesFor(width, height) {
+  if (!aligner) return { zones: null, aligned: null };
+  try {
+    const image = alignImage(width, height);
+    if (!aligner.update(image)) {
+      lastAlignedZones = null;
+      return { zones: [], aligned: false };
+    }
+    const mapped = aligner.alignZones(overlayZones);
+    if (!mapped) {
+      lastAlignedZones = null;
+      return { zones: [], aligned: false };
+    }
+    lastAlignedZones = mapped;
+    return { zones: mapped, aligned: true };
+  } catch (caught) {
+    // A bug here must not cost the frame: keep the last known polygons (or none), say so
+    // once, and let the rest of the pipeline run.
+    if (!alignerWarned) {
+      alignerWarned = true;
+      console.warn(`[engine] alinierea a eșuat pe cadru: ${errorText(caught)}`);
+    }
+    return {
+      zones: Array.isArray(lastAlignedZones) ? lastAlignedZones : [],
+      aligned: Boolean(lastAlignedZones),
+    };
+  }
 }
 
 // --- Media clock ---------------------------------------------------------------
@@ -402,6 +555,8 @@ function postGuardedFrame(width, height, detail) {
       ms: 0,
       vest: EMPTY_VEST,
       events: [],
+      // The frame never reached the aligner, so no claim is made either way.
+      aligned: null,
       error: detail || 'modelul de blur nu este disponibil',
     },
     [bitmap],
@@ -741,6 +896,12 @@ async function handleFrame(message) {
   bitmap.close();
 
   const started = performance.now();
+  // The reference decode is a one-off per camera/reference; a frame that raced it would be
+  // reported "lost" for no reason, so the first frames wait for it.
+  await alignerTask;
+  // Alignment reads the raw frame, before the blur and the boxes: after this point the
+  // pixels are annotated and the match would describe the overlay, not the camera.
+  const alignment = alignedZonesFor(width, height);
   let persons = [];
   let faces = [];
   let events = [];
@@ -857,8 +1018,10 @@ async function handleFrame(message) {
 
   // Zones are configuration, not a detection: a malformed polygon must never cost a
   // frame, so this runs outside the fail-closed blur guard and only warns on failure.
+  // `alignment.zones` is the aligned list for this frame, `[]` when the view is lost (no
+  // outline implies no armed rule), and `null` when there is no reference at all.
   try {
-    drawZones(frameCtx, overlayZones, overlayEngineOn);
+    drawZones(frameCtx, alignment.zones ?? overlayZones, overlayEngineOn);
   } catch (caught) {
     console.warn(
       `[engine] zonele nu au putut fi desenate: ${caught instanceof Error ? caught.message : String(caught)}`,
@@ -879,6 +1042,9 @@ async function handleFrame(message) {
         // right below, from the same canvas that is about to be posted. The placeholder is
         // only the fallback if that capture fails.
         snapshotUrl: SNAPSHOT_PENDING,
+        // Per-frame zones: the aligned polygons, or none when the view is lost. Omitted
+        // (`null`) without a reference, so the pipeline keeps its configured list.
+        ...(alignment.zones ? { zones: alignment.zones } : {}),
       });
       events = result.events;
       tracked = result.tracked;
@@ -916,6 +1082,10 @@ async function handleFrame(message) {
       // tracks with a vest, tracks provably without one, and tracks not judgeable yet.
       vest,
       events,
+      // Zone alignment for this frame: `true` while the polygons were mapped onto the
+      // camera view, `false` when the view is lost (no zone rule ran), `null` when the
+      // camera has no reference and the configured polygons are used as-is.
+      aligned: alignment.aligned,
       // `/lab` only (see `trackFeed`): the tracker's boxes and the frame time, so the
       // ground-plane prototype can turn foot points into metres. `bbox` is frame-normalized,
       // the same coordinates the pipeline and the zone rules use.
@@ -961,6 +1131,9 @@ self.onmessage = (event) => {
     });
     overlayZones = overlayZonesFor(pipelineCameraId, message.zones);
     overlayEngineOn = typeof message.engineOn === 'boolean' ? message.engineOn : true;
+    // The reference frame the polygons were drawn on, resolved by the Live view (zone
+    // `reference_frame_url`, else the demo still; `null` for the webcam). Fetched once.
+    configureAligner(pipelineCameraId, message.referenceUrl);
     ensureModels().catch(() => {});
     return;
   }
@@ -977,6 +1150,8 @@ self.onmessage = (event) => {
       });
       overlayZones = overlayZonesFor(pipelineCameraId, message.zones);
       overlayEngineOn = typeof message.engineOn === 'boolean' ? message.engineOn : true;
+      // A new camera means new zone geometry: the aligner is rebuilt, never re-used.
+      configureAligner(pipelineCameraId, message.referenceUrl);
       return;
     }
     if (Array.isArray(message.zones)) {
@@ -988,6 +1163,9 @@ self.onmessage = (event) => {
       pipeline.setEngineOn(message.engineOn);
       overlayEngineOn = message.engineOn;
     }
+    // Same camera, possibly a new reference (the operator replaced the frame): the key
+    // makes an unchanged URL a no-op.
+    configureAligner(pipelineCameraId, message.referenceUrl);
     return;
   }
   if (message.type === 'frame' && message.bitmap) {

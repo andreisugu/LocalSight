@@ -101,7 +101,8 @@ function zonesForCamera(zones, cameraId) {
  * @returns {{
  *   step: (detections: PipelineDetection[], nowS: number,
  *          options: { frameWidth: number, frameHeight: number,
- *                     vestStates?: Array<string|null>, snapshotUrl?: string }) =>
+ *                     vestStates?: Array<string|null>, snapshotUrl?: string,
+ *                     zones?: import('./zones.js').Zone[] }) =>
  *           { events: object[], tracked: import('./tracker.js').TrackedBox[] },
  *   setZones: (zones: import('./zones.js').Zone[]) => void,
  *   setEngineOn: (engineOn: boolean) => void,
@@ -149,6 +150,9 @@ export function createPipeline({
    * @param {number} options.frameHeight Frame height in pixels.
    * @param {Array<string|null>} [options.vestStates] `vest` | `no_vest` | `unknown` per detection.
    * @param {string} [options.snapshotUrl] Blurred snapshot URL for a new event.
+   * @param {import('./zones.js').Zone[]} [options.zones] Zones for this frame only, already in
+   *   the current view. Omitted means "use the configured list"; `[]` means "no zone is
+   *   known this frame" (a lost alignment) and keeps the tracker and rule state running.
    * @returns {{ events: object[], tracked: import('./tracker.js').TrackedBox[] }}
    *   New events and the person boxes the renderer draws and blurs.
    * @throws {TypeError|RangeError} A detection, dimension or time is malformed.
@@ -156,7 +160,7 @@ export function createPipeline({
   function step(
     detections,
     nowS,
-    { frameWidth, frameHeight, vestStates = [], snapshotUrl = SNAPSHOT_PENDING } = {},
+    { frameWidth, frameHeight, vestStates = [], snapshotUrl = SNAPSHOT_PENDING, zones } = {},
   ) {
     if (!Array.isArray(detections)) throw new TypeError('detections must be an array');
     requirePositive(frameWidth, 'frameWidth');
@@ -169,6 +173,13 @@ export function createPipeline({
       throw new TypeError('clock must return epoch milliseconds');
     }
 
+    // The per-frame override exists for the zone aligner: when the camera moved and the
+    // view could not be matched, no polygon is known, so `zones: []` skips the rules while
+    // the tracker, the rule windows and the incident cooldown keep running. It is a local
+    // list, never `setZones`: mutating the configured zones on a lost frame would turn a
+    // temporary "unknown" into a permanent config change.
+    const frameZones = zones === undefined ? currentZones : zonesForCamera(zones, cameraId);
+
     // Pipeline.process: prune first, then update state. The membership is updated while
     // events are muted as well, so the state never goes stale.
     rules.prune(nowS);
@@ -179,7 +190,7 @@ export function createPipeline({
 
     const inZone = new Map();
     for (const track of tracked) {
-      for (const zone of currentZones) {
+      for (const zone of frameZones) {
         if (!Object.hasOwn(EVENT_TYPE_BY_RULE, zone.rule_type)) continue;
         const inside = membership.update({
           trackId: track.trackId,
@@ -200,7 +211,7 @@ export function createPipeline({
     for (let index = 0; index < tracked.length; index += 1) {
       const track = tracked[index];
       const vestState = vestStates[index] ?? 'unknown';
-      for (const zone of currentZones) {
+      for (const zone of frameZones) {
         if (!Object.hasOwn(EVENT_TYPE_BY_RULE, zone.rule_type)) continue;
         const decision = rules.observe({
           trackId: track.trackId,

@@ -5,8 +5,12 @@ Port of the removed Python edge's `ml/safesight_ml/align.py`: zones are drawn on
 the polygons follow a pan, tilt or zoom. When the match fails, the zones are **unknown** for
 that frame and no zone rule fires. A wrong polygon is worse than none.
 
-`align.js` and `features.js` are pure: no DOM, no WASM, no dependency, no model. They are not
-wired into the worker yet; this document is the contract for the change that does it.
+`align.js` and `features.js` are pure: no DOM, no WASM, no dependency, no model.
+
+**Wired into the live engine.** `worker.js` owns one `ZoneAligner` per camera/reference,
+`useEngine` passes the reference URL, `LiveView` resolves it, and `pipeline.step` takes the
+aligned zone list for the frame. The integration is described under "Worker integration"
+below; `ALIGN.md` stays the contract for the algorithm and the UI rules.
 
 ## API
 
@@ -64,62 +68,43 @@ stream invalidates the mapping.
 ## Worker integration
 
 Reference features are the expensive part (~15 ms at 640×360), so build the aligner once and
-cache it, not per frame:
+cache it, not per frame. What the worker does today:
 
-```js
-// Module state next to `pipeline` and `overlayZones`.
-let aligner = null;
-let baseZones = [];
+- `init` / `config` carry `referenceUrl`, resolved by LiveView (zone's
+  `reference_frame_url`, else `DEMO_REFERENCE_FRAMES[camera]`, `null` for the webcam).
+  `configureAligner(cameraId, referenceUrl)` keys on camera + URL: an unchanged key is a
+  no-op, a changed one rebuilds (the camera switch discards a still-downloading decode). An
+  omitted `referenceUrl` keeps the current reference, so a zones-only `config` cannot
+  silently turn alignment off.
+- The reference is fetched and decoded once (`createImageBitmap` → 640-wide
+  `OffscreenCanvas` → `getImageData`), and `ZoneAligner` is built with `everyN = 5`,
+  `minInliers = 40`. A reference with no usable texture leaves `aligner = null` (alignment
+  off, zones as configured) and logs once.
+- Every frame, before the detectors and the blur, the raw frame is drawn into a 640-wide
+  scratch canvas and read back once; `aligner.update(image)` throttles itself. One readback
+  serves the whole attempt.
+- `pipeline.step(..., { zones })` takes the aligned list for that frame. When the view is
+  lost, `zones: []` skips every zone rule and no outline is drawn; the tracker, the rule
+  windows and the incident cooldown keep running, because `step` uses the list locally and
+  never calls `setZones`. Without a reference the option is omitted and the configured list
+  applies, exactly as before.
+- The result message carries `aligned: true | false | null` (`null` = no reference). The
+  stage prints `aliniere: activă` / `aliniere pierdută` for `true`/`false` and nothing for
+  `null`, so an unaligned view never keeps an outline that looks armed.
+- If the aligner throws, the frame keeps the last aligned list (or none), warns once, and
+  the rest of the pipeline runs.
 
-// On `init` / `config` (new camera): rebuild, because the pipeline is rebuilt too.
-async function buildAligner(cameraId, zones) {
-  baseZones = Array.isArray(zones) ? zones.filter((zone) => zone.camera_id === cameraId) : [];
-  const url = baseZones.find((zone) => zone.reference_frame_url)?.reference_frame_url;
-  if (!url) {
-    aligner = null; // webcam / no stored frame: leave zones as configured
-    return;
-  }
-  const bitmap = await createImageBitmap(await (await fetch(url)).blob());
-  const reference = readWorkingImage(bitmap); // 640-wide OffscreenCanvas + getImageData
-  aligner = new ZoneAligner({ reference });
-  if (aligner.referenceFeatureCount === 0) {
-    aligner = null; // untextured reference: alignment would be lost on every frame
-  }
-}
-```
+Measured cost on the shipped stand12 clip at 640×360: `update()` median 15.1 ms per
+attempt, i.e. ~3.2 ms per processed frame with `everyN = 5` on a ~230 ms frame (~1–2 %).
 
-Per frame, right before `pipeline.step`:
+### Demo clips are not static
 
-```js
-const alignedZones = aligner ? (aligner.update(workingImage) ? aligner.alignZones(baseZones) : null) : baseZones;
-
-const result = pipeline.step(detections, nowS, {
-  frameWidth: width,
-  frameHeight: height,
-  vestStates,
-  snapshotUrl: SNAPSHOT_PENDING,
-  // Per-frame zone list: `null`/`[]` means "tracking only, no zone rule this frame".
-  zones: alignedZones ?? [],
-});
-```
-
-Notes for the worker owner:
-
-- `pipeline.step` does not accept a per-frame `zones` override today. It needs one for this
-  wiring; `setZones([])` inside the frame loop is not a substitute, because it mutates the
-  configured list and the rule cooldowns on every lost frame. Until that option exists,
-  leave alignment off and keep the current behaviour.
-- The aligned list is also what the overlay must draw (`drawZones`). When the view is lost,
-  draw no zone outline (or the same "unknown" treatment the UI uses for an inactive zone):
-  an outline implies the rule is armed.
-- One readback is enough: draw the incoming bitmap once into a 640-wide scratch
-  `OffscreenCanvas` and `getImageData` from it. That is ~0.9 MB every `everyN` frames, and it
-  lets the aligner skip its own downscale of the full-resolution frame.
-- `update()` throttles itself. Do not add a second frame counter in the worker.
-- Rebuild the aligner (new reference features) when the camera changes or the reference URL
-  changes. `reset()` only clears the transform and cadence for the *same* reference.
-- Tracking, blur and event building keep running when the view is lost: only the zone rules
-  are skipped. A lost alignment must not stop the pipeline.
+The shipped clips pan/zoom gently; `zone-stand12.jpg` is a frame at t≈2 s, not t=0 (the
+camera drifts ~7 % of the frame width over the first four seconds). So alignment is visible
+on the demo too: the zone follows the ground instead of drifting with the aircraft. At the
+reference moment the mapping is identity (measured max corner error 0.07 px at 1080p), so a
+still reference changes nothing; on any other frame the polygon moves with the camera, which
+is the point of the feature. A camera that really is static is still stable.
 
 ### Webcam caveat
 

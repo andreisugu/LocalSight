@@ -18,6 +18,10 @@ const INITIAL_STATS = {
   actualProviders: [],
   events: [],
   totalEvents: 0,
+  // Zone alignment for the last frame: `true` while the polygons follow the camera,
+  // `false` when the view was lost (no zone rule ran), `null` when the camera has no
+  // reference frame and the configured polygons are used unchanged.
+  aligned: null,
   // `/lab` ground-plane prototype only: `{ time, boxes }` from the worker when the caller
   // asked for `trackFeed`; `null` everywhere else, including Live.
   tracks: null,
@@ -69,6 +73,11 @@ const ENGINE_READY_TIMEOUT_MS = 180_000;
  * contract (poligon `[[x, y], ...]`), iar worker-ul le folosește la construirea pipeline-ului.
  * `/lab` și `/bench` nu le trimit, deci rămân pe fixture-ul lor. Modificările de zone nu
  * repornesc worker-ul: ajung ca mesaj `config` și se aplică pe loc.
+ *
+ * `referenceUrl` is the frame the polygons were drawn on, resolved by the caller (zone
+ * `reference_frame_url`, else the demo still; `null` for the webcam). The worker fetches
+ * it once per camera/reference and maps the zones onto every frame with it. Omitting it
+ * leaves the configured polygons in image space, exactly as before.
  */
 export function useEngine({
   videoRef,
@@ -81,6 +90,7 @@ export function useEngine({
   zones,
   engineOn,
   cameraId,
+  referenceUrl,
 }) {
   const [stats, setStats] = useState(INITIAL_STATS);
   // Settings live on the main thread. Reading them on every render (a tiny localStorage
@@ -106,8 +116,8 @@ export function useEngine({
 
   // Configurația se citește din ref la init, ca efectul principal să nu depindă de ea.
   // Așa o schimbare de zone nu mai repornește worker-ul (și nu reîncarcă graficele ONNX).
-  const configRef = useRef({ zones, engineOn, cameraId });
-  configRef.current = { zones, engineOn, cameraId };
+  const configRef = useRef({ zones, engineOn, cameraId, referenceUrl });
+  configRef.current = { zones, engineOn, cameraId, referenceUrl };
   const workerRef = useRef(null);
 
   useEffect(() => {
@@ -229,6 +239,9 @@ export function useEngine({
           // flashing zeros; the worker always sends the three numbers today.
           vest: message.vest || previous.vest,
           tracks: message.tracks || previous.tracks,
+          // `null` (no reference / a frame that never reached the aligner) is a real
+          // answer, not a missing key: the stage prints nothing then.
+          aligned: typeof message.aligned === 'boolean' ? message.aligned : null,
           // Newest first. The worker sends the events of one frame in rule order; a
           // functional update keeps a re-render from appending the same batch twice.
           events: incoming.length
@@ -363,6 +376,8 @@ export function useEngine({
           totalEvents: 0,
           // Track history belongs to the source that produced it; a new source gets none.
           tracks: null,
+          // Alignment state belongs to the previous camera/reference too.
+          aligned: null,
           status: broken ? previous.status : 'loading',
           message: broken ? previous.message : 'se așteaptă primele cadre',
         };
@@ -416,6 +431,11 @@ export function useEngine({
     if (Array.isArray(config.zones)) init.zones = config.zones;
     if (typeof config.engineOn === 'boolean') init.engineOn = config.engineOn;
     if (typeof config.cameraId === 'string' && config.cameraId) init.cameraId = config.cameraId;
+    // The frame the zones were drawn on. `/lab` and `/bench` never send it, so their
+    // polygons stay in image space. `null` (webcam) is the same as omitting it.
+    if (typeof config.referenceUrl === 'string' && config.referenceUrl) {
+      init.referenceUrl = config.referenceUrl;
+    }
     worker.postMessage(init);
     startLoop();
 
@@ -455,8 +475,14 @@ export function useEngine({
       update.cameraId = cameraId;
       hasConfig = true;
     }
+    // `null` is meaningful here: the webcam has no reference, so the worker must drop the
+    // previous camera's aligner. `undefined` means the caller does not configure alignment.
+    if (typeof referenceUrl === 'string' || referenceUrl === null) {
+      update.referenceUrl = referenceUrl;
+      hasConfig = true;
+    }
     if (hasConfig) worker.postMessage(update);
-  }, [zones, engineOn, cameraId]);
+  }, [zones, engineOn, cameraId, referenceUrl]);
 
   return stats;
 }
