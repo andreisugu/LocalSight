@@ -17,6 +17,8 @@ import {
 } from './detectors.js';
 import { decodeYolo, decodeYuNet } from './decode.js';
 import { SNAPSHOT_PENDING, createPipeline } from './pipeline.js';
+import { createTracker } from './tracker.js';
+import { EDGE, MIN_PERSON_PX, VestTracker, hivisRatio } from './vest.js';
 import { DEFAULT_LAB_ZONE } from './zones.default.js';
 
 const PERSON_CONF = 0.35;
@@ -55,6 +57,19 @@ const LAB_CAMERA_ID = 'lab';
 let pipeline = null;
 let pipelineCameraId = LAB_CAMERA_ID;
 
+// PPE colour state, one per pipeline. `vests` is the ppe.py `VestTracker`; `vestTracks`
+// mirrors the pipeline's IoU tracker only to learn each detection's track id before
+// `step` runs (see `measureVests`). Both start empty when the pipeline is rebuilt.
+let vests = null;
+let vestTracks = null;
+// Every result message carries this shape, so the UI never has to guess at a missing key.
+const EMPTY_VEST = Object.freeze({ vest: 0, noVest: 0, unknown: 0 });
+
+function resetVestState() {
+  vests = new VestTracker();
+  vestTracks = createTracker();
+}
+
 // Pipeline-ul se construiește din configurația primită la `init`. `/lab` și `/bench` nu
 // trimit nici cameră, nici zone, deci primesc fixture-ul de laborator. Pentru Live, lipsa
 // zonelor înseamnă „nu detecta nimic”: nu cădem niciodată pe zona pe tot cadrul.
@@ -65,6 +80,8 @@ function buildPipeline({ cameraId, zones, engineOn } = {}) {
     resolvedZones = [DEFAULT_LAB_ZONE];
   }
   pipelineCameraId = resolvedCameraId;
+  // A camera change means new tracker ids, so the vest history keyed by them starts over.
+  resetVestState();
   return createPipeline({
     cameraId: resolvedCameraId,
     zones: resolvedZones,
@@ -159,7 +176,9 @@ function ensureFrameCanvas(width, height) {
     return;
   }
   frameCanvas = new OffscreenCanvas(width, height);
-  frameCtx = frameCanvas.getContext('2d', { alpha: false });
+  // The PPE colour pass reads every processed frame, so ask for a CPU-backed store:
+  // without it Chrome copies the frame back from the GPU on every `getImageData`.
+  frameCtx = frameCanvas.getContext('2d', { alpha: false, willReadFrequently: true });
   // Any size change invalidates the scratch canvases as well.
   letterboxCanvas = null;
   letterboxCtx = null;
@@ -251,6 +270,74 @@ function clampRect(x1, y1, x2, y2, width, height) {
   const right = Math.max(0, Math.min(width, Math.ceil(x2)));
   const bottom = Math.max(0, Math.min(height, Math.ceil(y2)));
   return { left, top, width: right - left, height: bottom - top };
+}
+
+// --- PPE colour, on the raw frame ----------------------------------------------
+// `Pipeline.process` fills `vest` before the blur, from the unblurred frame. This is the
+// same pass: the pixels are still the camera's, the ratio never leaves this worker, and
+// only the state string goes to the pipeline and to the UI.
+
+// `vest_sample`'s gate from ppe.py: a person too small, or cut by the frame edge, says
+// nothing about the vest. The thresholds are vest.js's, so the two files cannot drift.
+function frameCountsForVest(bbox, height) {
+  if ((bbox[3] - bbox[1]) * height < MIN_PERSON_PX) return false;
+  return !(bbox[0] <= EDGE || bbox[1] <= EDGE || bbox[2] >= 1 - EDGE || bbox[3] >= 1 - EDGE);
+}
+
+// One getImageData per person, over that person's box, then `hivisRatio` on the crop.
+// The box is the read and not the torso band because the band layout (0.2..0.8 wide,
+// 0.15..0.55 tall) lives in `hivisRatio`: on a crop, `[0, 0, 1, 1]` makes it scan the
+// crop's band, which is the same pixels it would scan on the whole frame. The band is 24%
+// of the box, so this copies tens of KB per person instead of a whole frame, and the
+// per-pixel loop still walks the band only. Rounding the box to whole pixels can move a
+// band edge by one pixel against the full-frame read, which is noise for a ratio that is
+// smoothed over 30 frames.
+function vestRatio(ctx, bbox, width, height) {
+  const rect = clampRect(
+    bbox[0] * width,
+    bbox[1] * height,
+    bbox[2] * width,
+    bbox[3] * height,
+    width,
+    height,
+  );
+  if (rect.width < 2 || rect.height < 2) return null;
+  return hivisRatio(ctx.getImageData(rect.left, rect.top, rect.width, rect.height), [0, 0, 1, 1]);
+}
+
+// ppe.py's `vest` dict and the state list `pipeline.js` indexes like `detections`: one
+// ratio per person from the raw frame, one `VestTracker.update` per track, one state per
+// detection, in detection order.
+//
+// The track ids are the only thing the reference does not have to rebuild: `step()` runs
+// the pipeline's own tracker after the pixels are gone, so the id of a detection is not
+// known yet when its colour has to be read. A second instance of the same deterministic
+// tracker, fed the same detections in the same order every frame, produces the same ids
+// (tracker.js matches greedily on IoU, nothing there is random); both start empty when
+// the pipeline is built, so they cannot drift apart over a session.
+function measureVests(detections, width, height, nowS) {
+  if (!vests || !vestTracks) resetVestState();
+  vests.prune(nowS);
+  // Pixels first, tracker state second: a failed read leaves both trackers exactly where
+  // they were, so skipping `step` on the error keeps them on the same frame.
+  const ratios = detections.map((detection) =>
+    frameCountsForVest(detection.bbox, height)
+      ? vestRatio(frameCtx, detection.bbox, width, height)
+      : null,
+  );
+  const tracked = vestTracks.update(detections, nowS * 1000);
+  const states = [];
+  const summary = { vest: 0, noVest: 0, unknown: 0 };
+  for (let index = 0; index < detections.length; index += 1) {
+    const { bbox, confidence } = detections[index];
+    const personPx = (bbox[3] - bbox[1]) * height;
+    const state = vests.update(tracked[index].trackId, ratios[index], confidence, nowS, personPx);
+    states.push(state);
+    if (state === 'vest') summary.vest += 1;
+    else if (state === 'no_vest') summary.noVest += 1;
+    else summary.unknown += 1;
+  }
+  return { states, summary };
 }
 
 function blurRect(ctx, rect) {
@@ -360,6 +447,7 @@ async function handleFrame(message) {
         persons: 0,
         faces: 0,
         ms: 0,
+        vest: EMPTY_VEST,
         events: [],
         error: modelError.message,
       },
@@ -403,27 +491,49 @@ async function handleFrame(message) {
     if (!modelError) modelError = new Error(error);
   }
 
+  // The pipeline speaks frame-normalized boxes (0..1); the detector returns frame pixels.
+  const detections = persons.map((person) => ({
+    bbox: [
+      Math.max(0, Math.min(1, person.x1 / width)),
+      Math.max(0, Math.min(1, person.y1 / height)),
+      Math.max(0, Math.min(1, person.x2 / width)),
+      Math.max(0, Math.min(1, person.y2 / height)),
+    ],
+    confidence: person.score,
+  }));
+
+  // PPE colour must read the pixels the camera produced, so it runs before `blurFaces`
+  // overwrites them. A failure here is a wiring bug, not a broken model: the frame
+  // carries the error and `step` is skipped, because a half-read frame must not advance
+  // the pipeline's tracker past the mirror in `measureVests`.
+  let vestStates = [];
+  let vest = EMPTY_VEST;
+  let vestFailed = false;
+  if (pipeline) {
+    try {
+      const measured = measureVests(detections, width, height, nowS);
+      vestStates = measured.states;
+      vest = measured.summary;
+    } catch (caught) {
+      vestFailed = true;
+      error = caught instanceof Error ? caught.message : String(caught);
+    }
+  }
+
   blurFaces(frameCtx, faces, width, height);
   drawBoxes(frameCtx, persons, '#FFEB33', 'PERSON');
   drawBoxes(frameCtx, faces, '#33E1FF', null);
 
-  // The pipeline speaks frame-normalized boxes (0..1); the detector returns frame pixels.
   // A failure here is a wiring bug, not a broken model: report it per frame instead of
   // poisoning `modelError`, which would stop the engine for good.
-  if (!modelError && pipeline) {
+  if (!modelError && pipeline && !vestFailed) {
     try {
-      const detections = persons.map((person) => ({
-        bbox: [
-          Math.max(0, Math.min(1, person.x1 / width)),
-          Math.max(0, Math.min(1, person.y1 / height)),
-          Math.max(0, Math.min(1, person.x2 / width)),
-          Math.max(0, Math.min(1, person.y2 / height)),
-        ],
-        confidence: person.score,
-      }));
       const result = pipeline.step(detections, nowS, {
         frameWidth: width,
         frameHeight: height,
+        // One PPE state per detection, in the order `step` receives them; a PPE zone
+        // only fires on `no_vest`, so `unknown` stays silent.
+        vestStates,
         // The lab has no renderer/store yet that already saved a blurred frame, so the
         // event carries pipeline.js's explicit placeholder. This is a static-build
         // deviation, documented in docs/browser-engine.md §3.
@@ -444,6 +554,9 @@ async function handleFrame(message) {
       persons: persons.length,
       faces: faces.length,
       ms: Math.round(performance.now() - started),
+      // What the PPE colour pass saw this frame, for the overlay and the lab readout:
+      // tracks with a vest, tracks provably without one, and tracks not judgeable yet.
+      vest,
       events,
       error,
     },
