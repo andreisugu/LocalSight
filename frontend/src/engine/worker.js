@@ -49,15 +49,29 @@ let lastFrameAt = 0;
 let fps = 0;
 
 // One pipeline per worker: it owns the tracker ids, the rule state and the incident
-// cooldown for this camera. The lab has no backend, so the zone is the hard-coded
-// full-frame fixture in zones.default.js.
+// cooldown for this camera. The lab has no backend, so its zone is the hard-coded
+// full-frame fixture in zones.default.js; Live sends the configured zones instead.
 const LAB_CAMERA_ID = 'lab';
-const pipeline = createPipeline({
-  cameraId: LAB_CAMERA_ID,
-  zones: [DEFAULT_LAB_ZONE],
-  engineOn: true,
-  incidentCooldownS: 60,
-});
+let pipeline = null;
+let pipelineCameraId = LAB_CAMERA_ID;
+
+// Pipeline-ul se construiește din configurația primită la `init`. `/lab` și `/bench` nu
+// trimit nici cameră, nici zone, deci primesc fixture-ul de laborator. Pentru Live, lipsa
+// zonelor înseamnă „nu detecta nimic”: nu cădem niciodată pe zona pe tot cadrul.
+function buildPipeline({ cameraId, zones, engineOn } = {}) {
+  const resolvedCameraId = typeof cameraId === 'string' && cameraId ? cameraId : LAB_CAMERA_ID;
+  let resolvedZones = Array.isArray(zones) ? zones : [];
+  if (resolvedCameraId === LAB_CAMERA_ID && resolvedZones.length === 0) {
+    resolvedZones = [DEFAULT_LAB_ZONE];
+  }
+  pipelineCameraId = resolvedCameraId;
+  return createPipeline({
+    cameraId: resolvedCameraId,
+    zones: resolvedZones,
+    engineOn: typeof engineOn === 'boolean' ? engineOn : true,
+    incidentCooldownS: 60,
+  });
+}
 
 // --- Media clock ---------------------------------------------------------------
 // `pipeline.step` needs monotonic seconds that follow the video, not the wall clock: a
@@ -396,7 +410,7 @@ async function handleFrame(message) {
   // The pipeline speaks frame-normalized boxes (0..1); the detector returns frame pixels.
   // A failure here is a wiring bug, not a broken model: report it per frame instead of
   // poisoning `modelError`, which would stop the engine for good.
-  if (!modelError) {
+  if (!modelError && pipeline) {
     try {
       const detections = persons.map((person) => ({
         bbox: [
@@ -450,7 +464,29 @@ self.onmessage = (event) => {
     if (Number.isFinite(message.inputSize) && message.inputSize > 0) {
       frameLimit = message.inputSize;
     }
+    pipeline = buildPipeline({
+      cameraId: message.cameraId,
+      zones: message.zones,
+      engineOn: message.engineOn,
+    });
     ensureModels().catch(() => {});
+    return;
+  }
+  if (message.type === 'config') {
+    // O schimbare de cameră cere alt pipeline (tracker și cooldown proprii); restul
+    // actualizărilor se aplică pe loc, fără să pierdem starea.
+    const nextCameraId =
+      typeof message.cameraId === 'string' && message.cameraId ? message.cameraId : pipelineCameraId;
+    if (!pipeline || nextCameraId !== pipelineCameraId) {
+      pipeline = buildPipeline({
+        cameraId: nextCameraId,
+        zones: message.zones,
+        engineOn: message.engineOn,
+      });
+      return;
+    }
+    if (Array.isArray(message.zones)) pipeline.setZones(message.zones);
+    if (typeof message.engineOn === 'boolean') pipeline.setEngineOn(message.engineOn);
     return;
   }
   if (message.type === 'frame' && message.bitmap) {

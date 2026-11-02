@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useState, useMemo, useEffect } from 'react';
 import {
   INITIAL_CAMERAS,
   INITIAL_EVENTS,
@@ -660,7 +660,24 @@ export function SecurityProvider({ children }) {
     }
   };
 
-  // 8. Simulator: evenimente de test, doar în modul mock.
+  // 8. Incidentele motorului din browser intră în aceeași listă ca evenimentele backend.
+  // Sunt locale prin construcție (`snapshot_url: blob:pending`, model `yolo26n`), așa că
+  // le marcăm cu `local: true` și păstrăm `status: 'open'`. Deduplicăm după `event_id`,
+  // ca o re-randare sau un StrictMode să nu le adauge de două ori, și păstrăm limita
+  // listei la fel ca fluxul WebSocket.
+  const addEngineEvents = useCallback((incoming) => {
+    if (!Array.isArray(incoming) || incoming.length === 0) return;
+    setEvents((prev) => {
+      const known = new Set(prev.map((event) => event.event_id));
+      const fresh = incoming
+        .filter((event) => event && typeof event.event_id === 'string' && !known.has(event.event_id))
+        .map((event) => ({ ...event, local: true, status: 'open', model: event.model || 'yolo26n' }));
+      if (fresh.length === 0) return prev;
+      return [...fresh, ...prev].slice(0, 200);
+    });
+  }, []);
+
+  // 9. Simulator: evenimente de test, doar în modul mock.
   // C-01: Simulare sosire eveniment nou prin WebSocket
   const simulateIncomingWsEvent = (type = 'RESTRICTED_ZONE', severity = 'CRITICAL') => {
     const newId = `evt_stand12_${Date.now()}_${Math.floor(Math.random() * 80 + 10)}`;
@@ -777,6 +794,7 @@ export function SecurityProvider({ children }) {
         saveZone,
         deleteZone,
         clearReferenceFrame,
+        addEngineEvents,
         simulateIncomingWsEvent,
         toggleWsSimulation
       }}

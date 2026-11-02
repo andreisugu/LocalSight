@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   ShieldAlert,
   HardHat,
@@ -98,6 +98,7 @@ export default function LiveView() {
     setSelectedEventId,
     setCurrentView,
     zones,
+    addEngineEvents,
     health
   } = useSecurity();
 
@@ -178,6 +179,34 @@ export default function LiveView() {
   // Configuration, not detection: the zone the active camera is watched against.
   const cameraZones = (zones || []).filter((zone) => zone.camera_id === activeCamera?.id);
   const activeZone = cameraZones.find((zone) => zone.zone_id === activeCamera?.zone_id) || cameraZones[0] || null;
+
+  // Conversia UI -> contract se face într-un singur loc: editorul ține poligonul ca
+  // `[{ x, y }, ...]`, iar pipeline-ul și contractul cer `[[x, y], ...]`. Tot aici
+  // `zone_id` devine `id`, singurul nume pe care îl citește `zones.js`. Memoizat ca
+  // efectul din `useEngine` să nu trimită configurări identice la fiecare randare.
+  const engineZones = useMemo(
+    () =>
+      (zones || [])
+        .filter((zone) => zone.camera_id === activeCamera?.id)
+        .map((zone) => ({
+          id: zone.zone_id,
+          camera_id: zone.camera_id,
+          name: zone.name,
+          rule_type: zone.rule_type,
+          active_when: zone.active_when,
+          required_ppe: zone.required_ppe || [],
+          severity: zone.severity,
+          debounce_s: zone.debounce_s,
+          escalate_after_s: zone.escalate_after_s,
+          polygon: (zone.polygon || [])
+            .map((point) =>
+              Array.isArray(point) ? [Number(point[0]), Number(point[1])] : [Number(point?.x), Number(point?.y)]
+            )
+            .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y)),
+        })),
+    // `zones` and the camera id are the real inputs; `cameraZones` is rebuilt every render.
+    [zones, activeCamera?.id]
+  );
   // Why the engine starts on or off: the visitor must be able to tell a fast path from the
   // ~2 fps WASM fallback before they press the button.
   const engineReason = gpuAvailable === null
@@ -191,7 +220,23 @@ export default function LiveView() {
   // instead of being left pointing at a <video> that no longer exists.
   const browserEngineOn = enginePreference === true;
   const engineEnabled = browserEngineOn && showDemoVideo && displayMode !== 'fullscreen';
-  const engine = useEngine({ videoRef, canvasRef, enabled: engineEnabled });
+  const engine = useEngine({
+    videoRef,
+    canvasRef,
+    enabled: engineEnabled,
+    // Zonele camerei active, în forma din contract, plus comutatorul de motor al camerei.
+    zones: engineZones,
+    engineOn: Boolean(activeCamera?.engine_on),
+    cameraId: activeCamera?.id,
+  });
+
+  // Incidentele motorului sunt incidente reale pentru aplicație: intră în lista comună,
+  // nu doar în panoul de mai jos. Magazinul deduplică după `event_id`, deci o randare în
+  // plus (sau StrictMode) nu le adaugă de două ori.
+  useEffect(() => {
+    if (!engine.events.length) return;
+    addEngineEvents(engine.events);
+  }, [engine.events, addEngineEvents]);
 
   const toggleBrowserEngine = () => {
     setEnginePreference((previous) => {
