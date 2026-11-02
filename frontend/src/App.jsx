@@ -9,6 +9,7 @@ import IncidentsListView from './components/views/IncidentsListView';
 import ZoneEditorView from './components/views/ZoneEditorView';
 import ReportsView from './components/views/ReportsView';
 import SettingsView from './components/views/SettingsView';
+import LabView from './components/views/LabView';
 import Toast from './components/common/Toast';
 
 function MainAppLayout() {
@@ -27,6 +28,8 @@ function MainAppLayout() {
         return <ReportsView />;
       case 'settings':
         return <SettingsView />;
+      case 'lab':
+        return <LabView />;
       case 'live':
       default:
         return <LiveView />;
