@@ -47,7 +47,7 @@ function MainAppLayout() {
       }}
       className="h-screen w-screen flex flex-col overflow-hidden antialiased selection:bg-[#FFEB33] selection:text-[#1F1F1F]"
     >
-      {/* 1. Header (Bara de Sus cu Brand SafeSight AI) */}
+      {/* 1. Header (Bara de Sus cu Brand LocalSight AI) */}
       <Header />
 
       {/* 2. Corp Principal (Sidebar Stânga + Conținut Activ din cele 6 Ecrane) */}

@@ -47,7 +47,7 @@ export default function Header() {
       }}
       className="no-print h-16 px-4 md:px-6 flex items-center justify-between border-b shadow-md z-30 sticky top-0 shrink-0 select-none transition-colors"
     >
-      {/* 1. Brand & Titlu SafeSight */}
+      {/* 1. Brand & Titlu LocalSight */}
       <div className="flex items-center gap-2.5">
         <button
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}

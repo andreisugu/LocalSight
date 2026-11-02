@@ -9,17 +9,28 @@ import {
   OPERATIONAL_SHIFT_ID,
   AVAILABLE_OPERATORS
 } from '../constants/mockData';
-import { safeSightApi, USE_MOCK } from '../services/api';
+import { localSightApi, USE_MOCK } from '../services/api';
 import { playCriticalAlertSound } from '../utils/sound';
 import { STATUS_TOKENS } from '../constants/theme';
 
 const SecurityContext = createContext();
 
-const OPERATOR_STORAGE_KEY = 'safesight.operator';
+const OPERATOR_STORAGE_KEY = 'localsight.operator';
+// The legacy key is still read so operators who saved their name before the rename keep it;
+// the first save rewrites it under the new key.
+const LEGACY_OPERATOR_STORAGE_KEY = 'safesight.operator';
 
 function loadOperatorName() {
   try {
-    return localStorage.getItem(OPERATOR_STORAGE_KEY)?.trim() || '';
+    const current = localStorage.getItem(OPERATOR_STORAGE_KEY)?.trim();
+    if (current) return current;
+    // Migrate a name saved before the rename: copy it to the new key so the legacy one can rot.
+    const legacy = localStorage.getItem(LEGACY_OPERATOR_STORAGE_KEY)?.trim();
+    if (legacy) {
+      localStorage.setItem(OPERATOR_STORAGE_KEY, legacy);
+      return legacy;
+    }
+    return '';
   } catch {
     return '';
   }
@@ -162,10 +173,10 @@ export function SecurityProvider({ children }) {
 
   // 7. Raport de Tură
   const [shiftReport, setShiftReport] = useState(USE_MOCK ? INITIAL_SHIFT_REPORT : EMPTY_SHIFT_REPORT);
-  const [selectedShift, setSelectedShift] = useState(() => (USE_MOCK ? OPERATIONAL_SHIFT_ID : safeSightApi.currentShiftId()));
+  const [selectedShift, setSelectedShift] = useState(() => (USE_MOCK ? OPERATIONAL_SHIFT_ID : localSightApi.currentShiftId()));
   // Ziua operațională (se schimbă la 06:00), nu ziua calendaristică.
   // În mock, aceeași sursă ca raportul de tură, altfel selectorul contrazice datele.
-  const [selectedDate, setSelectedDate] = useState(() => (USE_MOCK ? OPERATIONAL_DATE : safeSightApi.shiftDate()));
+  const [selectedDate, setSelectedDate] = useState(() => (USE_MOCK ? OPERATIONAL_DATE : localSightApi.shiftDate()));
 
   // 8. Stare Conexiune & Toast / Banner Erori (Regulă C-10)
   const [isWsConnected, setIsWsConnected] = useState(true);
@@ -191,11 +202,11 @@ export function SecurityProvider({ children }) {
 
     const load = async () => {
       const [cams, evs, zs, kpi, healthResult] = await Promise.allSettled([
-        safeSightApi.getCameras(),
-        safeSightApi.getEvents(),
-        safeSightApi.getZones(),
-        safeSightApi.getKPIs(),
-        safeSightApi.getHealth()
+        localSightApi.getCameras(),
+        localSightApi.getEvents(),
+        localSightApi.getZones(),
+        localSightApi.getKPIs(),
+        localSightApi.getHealth()
       ]);
       if (cancelled) return;
 
@@ -255,7 +266,7 @@ export function SecurityProvider({ children }) {
     let cancelled = false;
     const tick = async () => {
       try {
-        const next = await safeSightApi.getHealth();
+        const next = await localSightApi.getHealth();
         if (!cancelled) setHealth(next);
       } catch {
         if (!cancelled) setHealth((prev) => ({ ...prev, status: 'offline' }));
@@ -275,8 +286,8 @@ export function SecurityProvider({ children }) {
     if (USE_MOCK) return;
     let cancelled = false;
     const load = (refresh = false) =>
-      safeSightApi
-        .getShiftReport(safeSightApi.shiftToApi(selectedShift), selectedDate, { refresh })
+      localSightApi
+        .getShiftReport(localSightApi.shiftToApi(selectedShift), selectedDate, { refresh })
         .then((report) => { if (!cancelled) setShiftReport(report); })
         .catch(() => { if (!cancelled) showToast('Raportul de tură nu a putut fi încărcat.'); });
 
@@ -289,8 +300,8 @@ export function SecurityProvider({ children }) {
   // sumarul cât timp cifrele nu s-au schimbat.
   const regenerateShiftSummary = () => {
     if (USE_MOCK) return;
-    safeSightApi
-      .getShiftReport(safeSightApi.shiftToApi(selectedShift), selectedDate, { refresh: true })
+    localSightApi
+      .getShiftReport(localSightApi.shiftToApi(selectedShift), selectedDate, { refresh: true })
       .then((report) => setShiftReport(report))
       .catch(() => showToast('Sumarul nu a putut fi regenerat.'));
   };
@@ -312,7 +323,7 @@ export function SecurityProvider({ children }) {
     if (USE_MOCK || !LINKED_INCIDENT_ID || !events.length) return;
     if (events.some((e) => e.event_id === LINKED_INCIDENT_ID)) return;
     let cancelled = false;
-    safeSightApi
+    localSightApi
       .getEventById(LINKED_INCIDENT_ID)
       .then((event) => {
         if (!cancelled && event) setEvents((prev) => (prev.some((e) => e.event_id === event.event_id) ? prev : [event, ...prev]));
@@ -386,7 +397,7 @@ export function SecurityProvider({ children }) {
 
   // WebSocket real; dacă pică, polling la 2 s (C-10).
   useEffect(() => {
-    const disconnect = safeSightApi.connectEventsSocket(
+    const disconnect = localSightApi.connectEventsSocket(
       (msg) => {
         setIsWsConnected(true);
         if (msg.type === 'kpi.updated' && msg.data) {
@@ -407,7 +418,7 @@ export function SecurityProvider({ children }) {
           if (msg.type === 'event.created' && incoming.severity === 'CRITICAL') {
             playCriticalAlertSound();
           }
-          safeSightApi.getKPIs().then(setKpis).catch(() => {});
+          localSightApi.getKPIs().then(setKpis).catch(() => {});
         }
       },
       () => setIsWsConnected(false),
@@ -420,7 +431,7 @@ export function SecurityProvider({ children }) {
     if (USE_MOCK || isWsConnected) return;
     const poll = async () => {
       try {
-        const [evs, kpi] = await Promise.all([safeSightApi.getEvents(), safeSightApi.getKPIs()]);
+        const [evs, kpi] = await Promise.all([localSightApi.getEvents(), localSightApi.getKPIs()]);
         setEvents(evs);
         setKpis(kpi);
       } catch {
@@ -440,7 +451,7 @@ export function SecurityProvider({ children }) {
   const recoverFromFailedAction = async (eventId, previous, error, failedMessage) => {
     if (!USE_MOCK && String(error.message).startsWith('409')) {
       try {
-        const current = await safeSightApi.getEventById(eventId);
+        const current = await localSightApi.getEventById(eventId);
         setEvents((prev) => prev.map((ev) => (ev.event_id === eventId ? current : ev)));
         showToast(`Incidentul fusese deja modificat; acum e „${STATUS_TOKENS[current.status]?.label || current.status}”.`);
         return;
@@ -468,7 +479,7 @@ export function SecurityProvider({ children }) {
       )
     );
     try {
-      const updated = await safeSightApi.acknowledgeEvent(eventId, operatorName);
+      const updated = await localSightApi.acknowledgeEvent(eventId, operatorName);
       setEvents((prev) => prev.map((ev) => (ev.event_id === eventId ? { ...ev, ...updated } : ev)));
       showToast(`Evenimentul ${eventId.slice(-6)} confirmat de ${operatorName}. Escaladare anulată.`);
     } catch (error) {
@@ -492,7 +503,7 @@ export function SecurityProvider({ children }) {
       )
     );
     try {
-      const updated = await safeSightApi.markFalsePositive(eventId, operatorName, note);
+      const updated = await localSightApi.markFalsePositive(eventId, operatorName, note);
       setEvents((prev) => prev.map((ev) => (ev.event_id === eventId ? { ...ev, ...updated } : ev)));
       showToast('Marcat ca Fals Pozitiv. Feedback înregistrat pentru modelul AI.');
     } catch (error) {
@@ -517,7 +528,7 @@ export function SecurityProvider({ children }) {
       )
     );
     try {
-      const updated = await safeSightApi.reopenEvent(eventId, operatorName);
+      const updated = await localSightApi.reopenEvent(eventId, operatorName);
       setEvents((prev) => prev.map((ev) => (ev.event_id === eventId ? { ...ev, ...updated } : ev)));
       showToast('Eveniment redeschis. Timerul de escaladare a repornit.');
     } catch (error) {
@@ -529,7 +540,7 @@ export function SecurityProvider({ children }) {
   const regenerateReport = async (eventId) => {
     showToast('Regenerare raport LLM în curs...');
     try {
-      const updated = await safeSightApi.regenerateReport(eventId);
+      const updated = await localSightApi.regenerateReport(eventId);
       setEvents((prev) => prev.map((ev) => (ev.event_id === eventId ? { ...ev, ...updated } : ev)));
       showToast('Raportul de incident a fost actualizat.');
     } catch (error) {
@@ -545,7 +556,7 @@ export function SecurityProvider({ children }) {
       prev.map((c) => (c.id === cameraId ? { ...c, engine_on: newState } : c))
     );
     try {
-      const updated = await safeSightApi.setEngineState(cameraId, newState);
+      const updated = await localSightApi.setEngineState(cameraId, newState);
       if (updated?.engine_on !== undefined) {
         setCameras((prev) => prev.map((item) => (
           item.id === cameraId ? { ...item, engine_on: updated.engine_on, status: updated.status || item.status } : item
@@ -562,7 +573,7 @@ export function SecurityProvider({ children }) {
   const captureReferenceFrame = async (zoneId, file) => {
     showToast(`Salvare cadru de referință pentru zona ${zoneId}...`);
     try {
-      const updatedZone = await safeSightApi.captureReferenceFrame(zoneId, file);
+      const updatedZone = await localSightApi.captureReferenceFrame(zoneId, file);
       if (updatedZone) {
         setZones((prev) =>
           prev.map((z) => (z.zone_id === zoneId ? { ...z, ...withFreshPreview(updatedZone) } : z))
@@ -577,7 +588,7 @@ export function SecurityProvider({ children }) {
   const captureReferenceFromLive = async (zoneId) => {
     showToast('Se preia cadrul live (deja blurat la edge)...');
     try {
-      const updated = await safeSightApi.captureReferenceFromLive(zoneId);
+      const updated = await localSightApi.captureReferenceFromLive(zoneId);
       setZones((prev) =>
         prev.map((zone) => (zone.zone_id === zoneId ? { ...zone, ...withFreshPreview(updated) } : zone))
       );
@@ -591,7 +602,7 @@ export function SecurityProvider({ children }) {
     const previous = zones;
     setZones((prev) => prev.filter((zone) => zone.zone_id !== zoneId));
     try {
-      await safeSightApi.deleteZone(zoneId);
+      await localSightApi.deleteZone(zoneId);
       showToast(`Zona ${zoneId} a fost ștearsă.`);
     } catch (error) {
       setZones(previous);
@@ -601,7 +612,7 @@ export function SecurityProvider({ children }) {
 
   const clearReferenceFrame = async (zoneId) => {
     try {
-      const updated = await safeSightApi.deleteReferenceFrame(zoneId);
+      const updated = await localSightApi.deleteReferenceFrame(zoneId);
       setZones((prev) => prev.map((zone) => (zone.zone_id === zoneId ? { ...zone, ...updated } : zone)));
       showToast('Cadrul de referință a fost șters.');
     } catch (error) {
@@ -622,7 +633,7 @@ export function SecurityProvider({ children }) {
     });
     showToast(`Zona ${zoneId} salvată. Rețeaua AI o aplică fără restart.`);
     try {
-      const updated = await safeSightApi.saveZone(zoneId, zoneData);
+      const updated = await localSightApi.saveZone(zoneId, zoneData);
       setZones((prev) => {
         const index = prev.findIndex((zone) => zone.zone_id === zoneId);
         if (index >= 0) {
@@ -687,9 +698,9 @@ export function SecurityProvider({ children }) {
     showToast('Reconectare în curs la Edge & rețeaua de senzori...');
     try {
       const [kpi, evs, cams] = await Promise.allSettled([
-        safeSightApi.getKPIs(),
-        safeSightApi.getEvents(),
-        safeSightApi.getCameras()
+        localSightApi.getKPIs(),
+        localSightApi.getEvents(),
+        localSightApi.getCameras()
       ]);
       if (kpi.status === 'fulfilled' && kpi.value) setKpis(kpi.value);
       if (evs.status === 'fulfilled' && evs.value?.length) setEvents(evs.value);
