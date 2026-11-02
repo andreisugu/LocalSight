@@ -57,7 +57,7 @@ doar ce cod a fost scris înainte de direcția LocalSight și cât de mult l-am 
 | `constants/eventActions.js` | muxxq (1/1) | moștenit (matricea de acțiuni) | înlocuiește-l cu tabelul din contract la următoarea modificare de statusuri |
 | `App.jsx` | VojuAriana (5/10) | **rescris structural**: hartă de rute, reset scroll/focus la schimbarea ecranului; 43 de linii rămase = importuri/layout | parțial textual, logica de navigare e a noastră |
 | `main.jsx` | VojuAriana (1/2) | aproape tot al nostru (ErrorBoundary) | nu merită un pass separat |
-| `components/video/BoundingBox.jsx` | VojuAriana (2/2) | **mort** — 0 importuri | candidat la ștergere; cere confirmare înainte |
+| `components/video/BoundingBox.jsx` | VojuAriana (2/2) | **șters 2026-11-02** — 0 importuri, cod mort | gata |
 | `components/views/LiveView.jsx` | andreisugu (15/24) | parțial rescris (motor, webcam, card) | shell-ul mai e moștenit; îl refacem la următorul pass mare de Live |
 | `context/SecurityContext.jsx` | andreisugu (17/29) | parțial rescris (routing, engine events, ack) | taie-l în contexte mai mici doar când îl atinge un feature mare |
 | `constants/mockData.js` | andreisugu (9/16) | parțial rescris (stills, id-uri stabile) | separă fixture-urile de logică la următorul pass de date |
@@ -90,4 +90,4 @@ tracker, vest, blur, report, webgpu, decode), `LiveEngineCard`, `SafeImage`, `Er
 | 2026-11-02 | `Header.jsx`, `IncidentsListView.jsx`, `Toast.jsx` | fix-uri punctuale de responsive/onestitate; rescrierea nu era în scope |
 | 2026-11-02 | `IncidentDetailView.jsx` (layout) | 342 de linii rămase; doar acțiunile noi sunt ale noastre. Rescrierea completă e următorul pass. |
 | 2026-11-02 | `Toast.jsx`, `eventActions.js`, `print.js` | mici și funcționale; le înlocuim când le atinge un feature |
-| 2026-11-02 | `BoundingBox.jsx` | cod mort (0 importuri); așteaptă confirmarea pentru ștergere |
+| 2026-11-02 | `theme.js`, `ThemeContext.jsx`, `index.css`, `tailwind.config.js` | tokenuri de design partajate; o rescriere fără un redesign real ar fi cosmetică |
