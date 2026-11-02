@@ -1,6 +1,7 @@
 // Owns the engine worker and feeds it frames from a <video>. React only sees the numbers
 // the overlay prints; the pixels go straight from the worker's ImageBitmap to the canvas.
 import { useEffect, useRef, useState } from 'react';
+import { readEngineSettings, resolveWasmThreads } from '../utils/engineSettings.js';
 
 const INITIAL_STATS = {
   fps: 0,
@@ -68,6 +69,16 @@ export function useEngine({
   cameraId,
 }) {
   const [stats, setStats] = useState(INITIAL_STATS);
+  // Settings live on the main thread. Reading them on every render (a tiny localStorage
+  // read) is what makes the resolved thread count an effect dependency: changing it in
+  // Settings tears the worker down and starts a new one with the new count, instead of
+  // trying to reconfigure ORT in place (which it does not support).
+  const engineSettings = readEngineSettings();
+  const wasmThreads = resolveWasmThreads(engineSettings.wasmThreads, {
+    crossOriginIsolated: typeof globalThis !== 'undefined' && Boolean(globalThis.crossOriginIsolated),
+    hardwareConcurrency: typeof navigator === 'undefined' ? undefined : navigator.hardwareConcurrency,
+  });
+  const { safetyBlur } = engineSettings;
   // Set only by the stall watchdog: a provider that never produced a frame is abandoned
   // for wasm, which is observable and safe. A deliberate `provider` prop still wins when
   // the caller changes it (the bench page).
@@ -352,6 +363,11 @@ export function useEngine({
       init.providers = [effectiveProvider];
     }
     if (Number.isFinite(inputSize) && inputSize > 0) init.inputSize = inputSize;
+    // Threads and the head-band blur are fixed for the life of the worker: ORT reads the
+    // thread count when it starts its pool, so a change restarts the worker through the
+    // dependencies below rather than being applied to a running session.
+    init.wasmThreads = wasmThreads;
+    init.safetyBlur = safetyBlur;
     // Configurația Live, citită la momentul pornirii. `/lab` nu trimite niciuna dintre
     // ele, deci worker-ul păstrează zona de laborator.
     const config = configRef.current;
@@ -375,7 +391,7 @@ export function useEngine({
       // from the video that was just detached.
       setStats((previous) => ({ ...INITIAL_STATS, providers: previous.providers }));
     };
-  }, [enabled, effectiveProvider, inputSize, videoRef, canvasRef]);
+  }, [enabled, effectiveProvider, inputSize, videoRef, canvasRef, wasmThreads, safetyBlur]);
 
   // Zonele editate ajung la worker fără restart. `zones` vine memoizat din LiveView, deci
   // efectul chiar pornește doar când configurația se schimbă; `/lab` nu trimite nimic.

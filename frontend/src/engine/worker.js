@@ -21,6 +21,7 @@ import { clampRect, expandedRect, headBandRects } from './blur.js';
 import { SNAPSHOT_PENDING, createPipeline } from './pipeline.js';
 import { createTracker } from './tracker.js';
 import { EDGE, MIN_PERSON_PX, VestTracker, hivisRatio } from './vest.js';
+import { zoneActive } from './zones.js';
 import { DEFAULT_LAB_ZONE } from './zones.default.js';
 
 const PERSON_CONF = 0.35;
@@ -48,6 +49,13 @@ const PPE_BADGES = Object.freeze({
 let models = null;
 let modelError = null;
 let loading = null;
+
+// Wasm thread count for ORT, resolved by the page (`resolveWasmThreads`). `null` keeps the
+// historical default in detectors.js (4 when isolated, 1 otherwise) for `/lab`.
+let modelThreads = null;
+// The extra head-band blur is a safety net, not the face blur: the operator can turn it
+// off for a demo, and the face boxes still stay blurred. Defaults to ON (fail safe).
+let safetyBlur = true;
 
 // Bench options. Defaults are the spike's: probe providers, process the frame at its own
 // resolution. `/lab` never sends an `init` payload, so it keeps exactly that behaviour.
@@ -85,6 +93,14 @@ const LAB_CAMERA_ID = 'lab';
 let pipeline = null;
 let pipelineCameraId = LAB_CAMERA_ID;
 
+// The zones drawn on the processed frame, resolved exactly like the pipeline's own list
+// (same camera filter, same lab fixture fallback). Drawing is presentation only: the rule
+// engine never reads these, so a bad polygon can cost a frame's outline, never a frame.
+let overlayZones = [];
+// `active_when: engine_on` zones are outlined dimmer while the camera's engine switch is
+// off, so the operator can tell configuration from what is actually armed.
+let overlayEngineOn = true;
+
 // PPE colour state, one per pipeline. `vests` is the ppe.py `VestTracker`; `vestTracks`
 // mirrors the pipeline's IoU tracker only to learn each detection's track id before
 // `step` runs (see `measureVests`). Both start empty when the pipeline is rebuilt.
@@ -116,6 +132,17 @@ function buildPipeline({ cameraId, zones, engineOn } = {}) {
     engineOn: typeof engineOn === 'boolean' ? engineOn : true,
     incidentCooldownS: 60,
   });
+}
+
+// Aceeași listă pe care o vede `pipeline.js` după filtrarea pe cameră: zona de laborator
+// când nu vine nicio configurație, altfel exact zonele camerei curente. E o funcție
+// separată pentru că desenul e best-effort, în timp ce pipeline-ul trebuie să rămână strict.
+function overlayZonesFor(cameraId, zones) {
+  const list = Array.isArray(zones) ? zones : [];
+  if (cameraId === LAB_CAMERA_ID && list.length === 0) return [DEFAULT_LAB_ZONE];
+  return list.filter(
+    (zone) => zone !== null && typeof zone === 'object' && zone.camera_id === cameraId,
+  );
 }
 
 // --- Media clock ---------------------------------------------------------------
@@ -178,7 +205,10 @@ async function ensureModels() {
     try {
       const loaded = await loadModels(
         (stage) => post({ type: 'status', stage }),
-        initProviders ? { providers: initProviders } : {},
+        {
+          ...(initProviders ? { providers: initProviders } : {}),
+          ...(Number.isFinite(modelThreads) && modelThreads >= 1 ? { threads: modelThreads } : {}),
+        },
       );
       models = loaded;
       post({
@@ -545,6 +575,87 @@ function drawPpeBadges(ctx, persons, states) {
   }
 }
 
+// --- Zone outlines ---------------------------------------------------------------
+// Configuration, not a detection: the polygon comes from the zone editor and the worker
+// strokes the same list the rules consume, after the blur and the person boxes. The event
+// snapshot is captured from this canvas, so an incident JPEG carries the zone the rule
+// fired in as well.
+const ZONE_STROKE = '#FFEB33';
+const ZONE_DASH = [10, 7];
+// A zone whose `active_when` follows the engine switch stays visible while the switch is
+// off, dimmed and labelled, instead of disappearing and looking deleted.
+const ZONE_INACTIVE_ALPHA = 0.4;
+
+// Normalized `[x, y]` points; accepts `{x, y}` too, because the editor stores objects.
+// Below three usable points the polygon is not drawable and the zone is skipped.
+function zonePoints(zone) {
+  const raw = Array.isArray(zone?.polygon) ? zone.polygon : [];
+  const points = [];
+  for (const point of raw) {
+    const x = Array.isArray(point) ? Number(point[0]) : Number(point?.x);
+    const y = Array.isArray(point) ? Number(point[1]) : Number(point?.y);
+    if (Number.isFinite(x) && Number.isFinite(y)) points.push([x, y]);
+  }
+  return points.length >= 3 ? points : null;
+}
+
+function drawZones(ctx, zones, engineOn) {
+  if (!Array.isArray(zones) || zones.length === 0) return;
+  const width = ctx.canvas.width;
+  const height = ctx.canvas.height;
+  if (!width || !height) return;
+
+  const fontPx = Math.max(10, Math.round(width / 64));
+  const padding = 4;
+  for (const zone of zones) {
+    const points = zonePoints(zone);
+    if (!points) continue;
+    const active = zoneActive(zone, engineOn);
+    ctx.save();
+    try {
+      ctx.globalAlpha = active ? 1 : ZONE_INACTIVE_ALPHA;
+      ctx.strokeStyle = ZONE_STROKE;
+      ctx.lineWidth = 3;
+      ctx.setLineDash(ZONE_DASH);
+      ctx.lineJoin = 'round';
+
+      ctx.beginPath();
+      points.forEach(([x, y], index) => {
+        const px = x * width;
+        const py = y * height;
+        if (index === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.closePath();
+      ctx.stroke();
+
+      // Label on the polygon's top vertex: the corner a reader scans first, and the one
+      // least likely to sit under a person box.
+      let top = points[0];
+      for (const point of points) {
+        if (point[1] < top[1] || (point[1] === top[1] && point[0] < top[0])) top = point;
+      }
+      const name = String(zone.name || zone.id || '?');
+      ctx.font = `bold ${fontPx}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+      ctx.textBaseline = 'top';
+      const label = fitText(ctx, `ZONĂ: ${name}${active ? '' : ' (inactiv)'}`, Math.max(40, width - padding * 4));
+      const boxWidth = Math.min(width, Math.ceil(ctx.measureText(label).width) + padding * 2);
+      const boxHeight = fontPx + padding * 2;
+      const labelX = Math.max(0, Math.min(width - boxWidth, top[0] * width));
+      let labelY = top[1] * height - boxHeight - 3;
+      if (labelY < 0) labelY = Math.min(height - boxHeight, top[1] * height + 3);
+
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
+      ctx.fillRect(labelX, labelY, boxWidth, boxHeight);
+      ctx.fillStyle = ZONE_STROKE;
+      ctx.fillText(label, labelX + padding, labelY + padding);
+    } finally {
+      // A malformed zone must not leak a dash pattern or a dim alpha into the next frame.
+      ctx.restore();
+    }
+  }
+}
+
 // --- Event snapshot -------------------------------------------------------------
 // The frame is already blurred (faces and the head band) and annotated when this runs, and
 // it is read from `frameCanvas`, never from the incoming bitmap: a snapshot can therefore
@@ -695,7 +806,9 @@ async function handleFrame(message) {
   let blurred = false;
   try {
     blurFaces(frameCtx, faces, width, height);
-    blurHeads(frameCtx, detections, width, height);
+    // The head band is the safety net for faces YuNet misses. The operator can turn it
+    // off; `blurFaces` above and the fail-closed path below stay untouched either way.
+    if (safetyBlur) blurHeads(frameCtx, detections, width, height);
     drawBoxes(frameCtx, persons, '#FFEB33', 'PERSON');
     drawBoxes(frameCtx, faces, '#33E1FF', null);
     blurred = true;
@@ -721,6 +834,16 @@ async function handleFrame(message) {
         `[engine] badge-ul PPE nu a putut fi desenat: ${caught instanceof Error ? caught.message : String(caught)}`,
       );
     }
+  }
+
+  // Zones are configuration, not a detection: a malformed polygon must never cost a
+  // frame, so this runs outside the fail-closed blur guard and only warns on failure.
+  try {
+    drawZones(frameCtx, overlayZones, overlayEngineOn);
+  } catch (caught) {
+    console.warn(
+      `[engine] zonele nu au putut fi desenate: ${caught instanceof Error ? caught.message : String(caught)}`,
+    );
   }
 
   // A failure here is a wiring bug, not a broken model: report it per frame instead of
@@ -792,11 +915,19 @@ self.onmessage = (event) => {
     if (Number.isFinite(message.inputSize) && message.inputSize > 0) {
       frameLimit = message.inputSize;
     }
+    // Engine settings resolved by the page. `/lab` sends neither, so ORT keeps its
+    // isolation-based default and the head-band safety blur stays ON.
+    if (Number.isFinite(message.wasmThreads) && message.wasmThreads >= 1) {
+      modelThreads = Math.floor(message.wasmThreads);
+    }
+    if (typeof message.safetyBlur === 'boolean') safetyBlur = message.safetyBlur;
     pipeline = buildPipeline({
       cameraId: message.cameraId,
       zones: message.zones,
       engineOn: message.engineOn,
     });
+    overlayZones = overlayZonesFor(pipelineCameraId, message.zones);
+    overlayEngineOn = typeof message.engineOn === 'boolean' ? message.engineOn : true;
     ensureModels().catch(() => {});
     return;
   }
@@ -811,10 +942,19 @@ self.onmessage = (event) => {
         zones: message.zones,
         engineOn: message.engineOn,
       });
+      overlayZones = overlayZonesFor(pipelineCameraId, message.zones);
+      overlayEngineOn = typeof message.engineOn === 'boolean' ? message.engineOn : true;
       return;
     }
-    if (Array.isArray(message.zones)) pipeline.setZones(message.zones);
-    if (typeof message.engineOn === 'boolean') pipeline.setEngineOn(message.engineOn);
+    if (Array.isArray(message.zones)) {
+      pipeline.setZones(message.zones);
+      // The outline follows the same camera filter as the rules.
+      overlayZones = overlayZonesFor(pipelineCameraId, message.zones);
+    }
+    if (typeof message.engineOn === 'boolean') {
+      pipeline.setEngineOn(message.engineOn);
+      overlayEngineOn = message.engineOn;
+    }
     return;
   }
   if (message.type === 'frame' && message.bitmap) {
