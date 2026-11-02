@@ -7,8 +7,10 @@ import {
   INITIAL_SHIFT_REPORT,
   OPERATIONAL_DATE,
   OPERATIONAL_SHIFT_ID,
-  AVAILABLE_OPERATORS
+  AVAILABLE_OPERATORS,
+  DEMO_STILLS
 } from '../constants/mockData';
+import { templateReport } from '../engine/report';
 import { localSightApi, USE_MOCK } from '../services/api';
 import { playCriticalAlertSound } from '../utils/sound';
 import { STATUS_TOKENS } from '../constants/theme';
@@ -685,11 +687,28 @@ export function SecurityProvider({ children }) {
       const known = new Set(prev.map((event) => event.event_id));
       const fresh = incoming
         .filter((event) => event && typeof event.event_id === 'string' && !known.has(event.event_id))
-        .map((event) => ({ ...event, local: true, status: 'open', model: event.model || 'yolo26n' }));
+        .map((event) => {
+          // The engine writes detection fields only; the report is the app's job, as it was
+          // the backend's. A template report is written from the event itself and labelled
+          // `șablon` in the detail view — no LLM ran, so it must not claim one.
+          const camera = cameras.find((item) => item.id === event.camera_id);
+          const zone = zones.find(
+            (item) => item.id === event.zone_id || item.zone_id === event.zone_id
+          );
+          return {
+            ...event,
+            local: true,
+            status: 'open',
+            model: event.model || 'yolo26n',
+            report:
+              event.report ||
+              templateReport(event, { cameraName: camera?.name, zoneName: zone?.name })
+          };
+        });
       if (fresh.length === 0) return prev;
       return [...fresh, ...prev].slice(0, 200);
     });
-  }, []);
+  }, [cameras, zones]);
 
   // 9. Simulator: evenimente de test, doar în modul mock.
   // C-01: Simulare sosire eveniment nou prin WebSocket
@@ -705,7 +724,7 @@ export function SecurityProvider({ children }) {
       confidence: { detector: 0.94, temporal: { seen: 14, window: 15 } },
       duration_s: 1.2,
       context: { engine_on: true },
-      snapshot_url: 'https://images.unsplash.com/photo-1542296332-2e4473faf563?w=800&auto=format&fit=crop&q=60',
+      snapshot_url: DEMO_STILLS.stand12,
       model: 'person-ppe-v1',
       detected_at: new Date().toISOString(),
       status: 'open',

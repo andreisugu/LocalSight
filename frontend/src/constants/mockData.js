@@ -97,7 +97,7 @@ export const OPERATIONAL_DATE = operationalDate(currentParts);
 // miniaturile trebuie să funcționeze și offline. Licențele sunt în THIRD_PARTY.md.
 const SNAPSHOT_BASE = `${import.meta.env.BASE_URL}media/stills/`;
 
-const SNAPSHOTS = {
+export const DEMO_STILLS = {
   stand12: `${SNAPSHOT_BASE}apron-stand.jpg`,
   'taxiway-b': `${SNAPSHOT_BASE}taxiway-heathrow.jpg`,
   'baggage-area': `${SNAPSHOT_BASE}baggage-hall.jpg`,
@@ -431,7 +431,7 @@ function buildEvent(spec, index) {
     confidence: { detector: spec.detector, temporal: { seen: spec.seen, window: 15 } },
     duration_s: spec.durationS,
     context: { engine_on: spec.engineOn },
-    snapshot_url: SNAPSHOTS[spec.cameraId],
+    snapshot_url: DEMO_STILLS[spec.cameraId],
     model: 'person-ppe-v1',
     detected_at: spec.detectedAt.toISOString(),
     status: spec.status,
