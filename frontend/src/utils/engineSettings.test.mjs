@@ -62,6 +62,11 @@ test('corrupt JSON falls back to the defaults', () => {
   }
 });
 
+test('an oversized settings blob falls back to the defaults', () => {
+  const raw = JSON.stringify({ wasmThreads: 4, safetyBlur: false, padding: 'x'.repeat(8192) });
+  assert.deepEqual(readEngineSettings(memoryStorage({ [ENGINE_SETTINGS_KEY]: raw })), DEFAULT_ENGINE_SETTINGS);
+});
+
 test('each invalid field falls back on its own, the valid one survives', () => {
   const invalidThreads = memoryStorage({
     [ENGINE_SETTINGS_KEY]: JSON.stringify({ wasmThreads: 3, safetyBlur: false }),

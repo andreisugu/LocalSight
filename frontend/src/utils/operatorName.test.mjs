@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   LEGACY_OPERATOR_STORAGE_KEY,
+  OPERATOR_NAME_LIMIT,
   OPERATOR_STORAGE_KEY,
   normalizeOperatorName,
   readStoredOperatorName,
@@ -74,6 +75,13 @@ test('a failed migration does not resurrect the legacy value', () => {
     setItem() { throw new Error('QuotaExceededError'); },
   };
   assert.equal(readStoredOperatorName(storage), '');
+});
+
+test('an overlong stored name is capped on read', () => {
+  const storage = fakeStorage({ [OPERATOR_STORAGE_KEY]: 'A'.repeat(10_000) });
+  const name = readStoredOperatorName(storage);
+  assert.equal(name.length, OPERATOR_NAME_LIMIT);
+  assert.equal(name, 'A'.repeat(OPERATOR_NAME_LIMIT));
 });
 
 test('writing trims, stores and returns the name', () => {

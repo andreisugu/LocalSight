@@ -6,6 +6,8 @@
 // `resolveWasmThreads` is the only place that decides how many ORT threads actually run,
 // and it is pure, so every branch is checked with `node --test` instead of guessed at.
 
+import { STORAGE_LIMITS, readStoredJson } from './storage.js';
+
 export const ENGINE_SETTINGS_KEY = 'localsight.engineSettings';
 
 /** The thread choices the settings panel offers. `auto` resolves from the machine. */
@@ -48,15 +50,9 @@ export function normalizeWasmThreads(value) {
  */
 export function readEngineSettings(storage = defaultStorage()) {
   const settings = { ...DEFAULT_ENGINE_SETTINGS };
-  let parsed;
-  try {
-    const raw = storage?.getItem(ENGINE_SETTINGS_KEY);
-    if (!raw) return settings;
-    parsed = JSON.parse(raw);
-  } catch {
-    // Corrupt JSON and a blocked storage are the same answer: the defaults.
-    return settings;
-  }
+  const parsed = readStoredJson(storage, ENGINE_SETTINGS_KEY, {
+    maxChars: STORAGE_LIMITS.engineSettings,
+  });
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return settings;
 
   const threads = normalizeWasmThreads(parsed.wasmThreads);
