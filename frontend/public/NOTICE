@@ -83,8 +83,14 @@ Three stills have a stated licence of their own:
 media/stills/zone-stand12.jpg, zone-taxiway-b.jpg and zone-baggage-area.jpg are frames
 re-encoded from the demo clips above, so they carry the same unresolved provenance.
 
-5. Other build/test tooling
----------------------------
-React, Vite, Tailwind CSS, PostCSS, Autoprefixer, lucide-react and Playwright are
-permissive (MIT / ISC / Apache-2.0). They are listed with versions and obligations in
-THIRD_PARTY.md.
+5. Runtime libraries — MIT / ISC / BSD-3-Clause / Apache-2.0
+--------------------------------------------------------------
+React, ReactDOM, scheduler, lucide-react, ONNX Runtime Web, protobufjs, flatbuffers,
+long and the related runtime packages are permissive. Their copyright notices and full
+licence texts ship in /LICENSES.txt (served as dist/LICENSES.txt); versions and
+obligations are in THIRD_PARTY.md. The COOP/COEP service-worker pattern is inspired by
+gzuidhof/coi-serviceworker (MIT, Copyright (c) 2021 Guido Zuidhof); the MIT notice is in
+the same file.
+
+Vite, Tailwind CSS, PostCSS, Autoprefixer, Playwright and caniuse-lite are build/test
+tools and are not part of the served artifact; they are listed in THIRD_PARTY.md.

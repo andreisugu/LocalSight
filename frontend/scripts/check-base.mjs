@@ -16,6 +16,12 @@ import { fileURLToPath } from 'node:url';
 
 const EXPECTED_BASE = '/LocalSight/';
 const REQUIRED_MODELS = ['efficientdet_lite0.onnx', 'efficientdet_lite2.onnx', 'yunet.onnx'];
+const REQUIRED_NOTICES = [
+  'NOTICE',
+  'LICENSES.txt',
+  'models/LICENSE-APACHE-2.0.txt',
+  'models/LICENSE-CC-BY-3.0.txt',
+];
 
 const frontendDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const distDir = join(frontendDir, 'dist');
@@ -121,6 +127,18 @@ for (const name of REQUIRED_MODELS) {
   }
 }
 
+// --- 6. Legal notices and no AGPL binary -----------------------------------
+for (const name of REQUIRED_NOTICES) {
+  readOrFail(join(distDir, name), `legal notice dist/${name}`);
+}
+const notice = existsSync(join(distDir, 'NOTICE')) ? readFileSync(join(distDir, 'NOTICE'), 'utf8') : '';
+if (notice && !notice.includes('EfficientDet')) {
+  fail('dist/NOTICE does not name the EfficientDet model');
+}
+if (existsSync(join(modelsDir, 'yolo26n.onnx'))) {
+  fail('dist/models/yolo26n.onnx is present: the AGPL YOLO weights must not ship');
+}
+
 // --- Summary ---------------------------------------------------------------
 const ok = failures.length === 0;
 console.log(`base check: expected ${EXPECTED_BASE} (GitHub Pages subpath)`);
@@ -133,6 +151,7 @@ console.log(
 );
 console.log(`  models: ${presentModels.length}/${REQUIRED_MODELS.length} present (${REQUIRED_MODELS.join(', ')})`);
 console.log(`  COOP/COEP worker: ${coiSource === null ? 'missing' : 'present'}`);
+console.log(`  legal notices: ${REQUIRED_NOTICES.length}/${REQUIRED_NOTICES.length} required; no yolo26n.onnx`);
 
 if (ok) {
   console.log(`OK: ${internal.length} internal ref(s) under ${EXPECTED_BASE}, fallback and models intact`);

@@ -81,3 +81,13 @@ Garda de CI, build-ul de Pages, verificarea artefactului și rollback-ul sunt î
 
 Simptomele cunoscute și cauzele lor sunt în
 [`RUNNING.md`](RUNNING.md#dacă-ceva-nu-merge).
+
+
+## Licența contribuțiilor
+
+Prin trimiterea unui pull request confirmi că ai dreptul să contribui cu codul și că îl
+licențiezi proiectului sub BSL 1.1. Dacă ești membru al echipei de hackathon și contribuția
+ta a fost scrisă înainte de acest fork, confirmă în scris cesiunea/acordul înainte de o
+licențiere comercială; fișierul `LICENSE` singur nu dovedește acordul tuturor autorilor.
+Runtime-ul livrat trebuie să rămână permissiv (MIT/ISC/BSD/Apache-2.0), cu notice-urile
+actualizate în `frontend/public/LICENSES.txt`.

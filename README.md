@@ -153,6 +153,8 @@ Scenariul de prezentare, pas cu pas: [`demo/run_sheet_browser.md`](demo/run_shee
 | Conversia ONNX | **CC BY 3.0** | Namas Bhandari; atribuire obligatorie |
 | YuNet | MIT | © Shiqi Yu / OpenCV Zoo |
 | ONNX Runtime Web | MIT | © Microsoft |
+| Runtime JS/WASM: React, lucide, protobuf, flatbuffers | MIT / ISC / BSD-3 / Apache-2.0 | texte complete în [`frontend/public/LICENSES.txt`](frontend/public/LICENSES.txt) |
+| Contribuții upstream | **de confirmat** | upstream fără LICENSE; BSL afirmat de Licensor; acordurile contribuitorilor trebuie documentate |
 | Clipuri și still-uri demo | **nespecificat** | provenance necompletată; nu sunt acoperite pentru redistribuire comercială |
 
 > **Gap cunoscut:** build-ul curent nu conține AGPL, dar blob-ul `yolo26n.onnx` rămâne în
@@ -160,6 +162,11 @@ Scenariul de prezentare, pas cu pas: [`demo/run_sheet_browser.md`](demo/run_shee
 > filtrat, fie de o rescriere de istoric cu aprobare explicită; ambele sunt descrise în
 > [`docs/legal/model-provenance.md`](docs/legal/model-provenance.md) §5. Clipurile demo au
 > același statut: nu sunt acoperite până nu au sursă/licență/consimțământ.
+>
+> **Contribuitori:** upstream-ul nu avea `LICENSE`; BSL-ul este afirmat de Licensor. Pentru
+> licențiere comercială, contribuțiile celorlalți autori trebuie acoperite printr-un acord
+> scris (CLA/cesiune) sau înlocuite; detalii în
+> [`docs/legal/model-provenance.md`](docs/legal/model-provenance.md) §3.1.
 
 Nu este consultanță juridică. Auditul complet, lanțul de proveniență, SHA-256-urile și
 checklist-ul comercial sunt în [`THIRD_PARTY.md`](THIRD_PARTY.md) și

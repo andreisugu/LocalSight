@@ -31,8 +31,14 @@ instead of trusting us.
    on all six clips. No licence is claimed for them, they are not part of the BSL-licensed
    work, and they are **not cleared** for commercial redistribution.
 4. Everything else — the React frontend, ONNX Runtime Web, the Vite/Tailwind build tooling,
-   the YuNet face model — is permissive (MIT / BSD / Apache-2.0 / ISC) and ships fine with
-   the usual notice file.
+   the YuNet face model — is permissive (MIT / BSD / Apache-2.0 / ISC). The runtime notices
+   ship in `frontend/public/LICENSES.txt` (served as `dist/LICENSES.txt`), linked from
+   `NOTICE`, and the build guard refuses a bundle without it.
+5. **The upstream repository had no LICENSE, and this fork asserts BSL 1.1 with a single
+   Licensor.** The provenance report still shows 535 lines from other contributors. Public
+   visibility is not a licence; before commercial licensing, obtain written assignments/CLAs
+   from the contributors or replace their code. This is a separate, blocking gap; see
+   [Remaining gaps](#remaining-gaps).
 
 ## How versions and licences were established
 
@@ -86,6 +92,13 @@ The two EfficientDet rows describe the current build; the detector swap removed
 | `frontend/public/media/stills/taxiway-heathrow.jpg` | — | CC BY-SA 2.0, © Derek Harper (Geograph) | **attribution required**; the file stays CC BY-SA, the code is unaffected |
 | `frontend/public/media/stills/baggage-hall.jpg` | — | CC0 (djedj, Pixabay) | OK |
 | `frontend/public/media/stills/zone-*.jpg` (3) | — | derived from the demo clips | **requires action** — same unresolved provenance as `stand12.mp4`, `taxiway-b.mp4`, `baggage-area.mp4`; no licence claimed |
+
+The served runtime notices are in `frontend/public/LICENSES.txt` (`dist/LICENSES.txt`):
+MIT for React/ReactDOM/scheduler, ONNX Runtime Web/Common, platform, js-tokens, loose-envify,
+undici-types and @types/node; ISC for lucide-react and guid-typescript; BSD-3-Clause for
+protobufjs and the @protobufjs/* packages; Apache-2.0 for flatbuffers and long. The
+COOP/COEP service-worker pattern is inspired by gzuidhof/coi-serviceworker (MIT,
+Copyright (c) 2021 Guido Zuidhof); the implementation is ours and the MIT notice ships there.
 
 Not in the table because they are not model weights: `frontend/public/models/README.md`,
 `LICENSE-APACHE-2.0.txt` and `LICENSE-CC-BY-3.0.txt` are documentation/notice files served
@@ -311,12 +324,25 @@ whatever is copied into it. Do not treat "fresh repo" as a way to launder the fo
 question: rights are fixed by replacing the clips or documenting them, not by changing which
 repository serves them.
 
-### 4. Claims we could not substantiate
+### 4. Upstream code and contributor rights — unresolved, blocking for commercial licensing
+
+The upstream repository (`DaVecTORzzz/craiova-hack-2026`, public) had **no LICENSE** at the
+audited commit. This fork adds BSL 1.1 with Licensor Andrei Șugubete. The provenance report
+shows **535 lines** from other contributors; the README credits Andrei, Max, Dalina and
+Ariana. Public visibility does not grant reuse or relicensing rights. A BSL commercial licence
+granted by one Licensor cannot bind code owned by other authors without their consent.
+
+Action: obtain a written CLA/assignment (or an explicit licence) from every contributor, or
+replace their code and document the replacement. Keep the evidence with the commercial
+paperwork. Do not treat the BSL file as proof that the contributor rights are settled.
+
+### 5. Claims we could not substantiate
 
 - **Per-file model card for the exact `.tflite`** behind the ONNX conversion — see the caveat
   in [Model provenance](#model-provenance).
 - **The footage** — everything about it.
 - **The `docs/assets/*.png` screenshots** — project-produced, but they depict that footage.
+- **Contributor assignments.** We did not see written CLAs from the other authors.
 - **Anything about the buyer's jurisdiction.** CC BY 3.0 and Apache-2.0 are the licences read
   off the upstream files; moral rights, database rights and contractual restrictions in a
   specific country were not assessed.
@@ -341,12 +367,16 @@ repository serves them.
 4. **Ship the notices with every distribution.** `dist/NOTICE` must contain: the
    EfficientDet-Lite Apache-2.0 attribution, the Namas Bhandari CC BY 3.0 attribution with
    the licence URL, the YuNet MIT notice, the ONNX Runtime Web MIT notice, and the CC BY-SA
-   attribution for the Heathrow still. If you reuse the model files outside this repository,
-   carry the two licence texts with them.
+   attribution for the Heathrow still. `dist/LICENSES.txt` must carry the runtime
+   MIT/ISC/BSD/Apache notices. If you reuse the model files outside this repository, carry
+   the two licence texts with them. The build guard checks both files.
 5. **Decide the history question** (new repo with filtered history vs new repo from the
    current tree vs in-place rewrite) before calling a repository "clean". See
    [Remaining gaps](#remaining-gaps) §2.
-6. **Get a lawyer to read this file.** It is an engineering audit with sources attached, not
+6. **Settle contributor rights.** Get written assignments/CLAs from every contributor or
+   replace their lines; the BSL file alone does not prove it. See
+   [Remaining gaps](#remaining-gaps) §4.
+7. **Get a lawyer to read this file.** It is an engineering audit with sources attached, not
    a legal opinion.
 
 ## Ambiguities we did not paper over

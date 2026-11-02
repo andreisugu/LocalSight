@@ -1,5 +1,9 @@
 // Cross-origin isolation on a static host (GitHub Pages), plus a versioned runtime cache.
 //
+// The COOP/COEP service-worker pattern is inspired by gzuidhof/coi-serviceworker (MIT,
+// Copyright (c) 2021 Guido Zuidhof); this implementation is written for LocalSight. The
+// MIT notice for the pattern ships in /LICENSES.txt.
+//
 // ONNX Runtime's wasm backend can only use SharedArrayBuffer — and therefore more than one
 // thread — on a document that is `crossOriginIsolated`. That flag needs COOP/COEP response
 // headers, and Pages sends none (they cannot be configured per-path). A service worker is
@@ -73,7 +77,7 @@ const MODELS_PREFIX = new URL('models/', self.location.href).href;
 const MEDIA_PREFIX = new URL('media/', self.location.href).href;
 const STILLS_PREFIX = new URL('media/stills/', self.location.href).href;
 const FIXED_FILES = new Set(
-  ['logo.svg', 'favicon.svg', 'NOTICE', 'theme-init.js'].map((name) => new URL(name, self.location.href).href),
+  ['logo.svg', 'favicon.svg', 'NOTICE', 'LICENSES.txt', 'theme-init.js'].map((name) => new URL(name, self.location.href).href),
 );
 
 /** Rebuild a response with extra headers, or hand back the original when that is unsafe. */

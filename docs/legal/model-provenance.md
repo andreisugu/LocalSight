@@ -26,6 +26,7 @@ file listed here is served to every visitor and is a distribution of that artefa
 | `models/LICENSE-APACHE-2.0.txt` | — | full Apache-2.0 text | notice file |
 | `models/LICENSE-CC-BY-3.0.txt` | — | full CC BY 3.0 legal code + attribution | notice file |
 | `NOTICE` | — | visitor-facing summary, linked from the sidebar | notice file |
+| `LICENSES.txt` | — | full runtime MIT/ISC/BSD/Apache notices, linked from `NOTICE` | notice file |
 
 No AGPL-licensed artifact is part of this list. The Ultralytics YOLO26n graph that earlier
 builds served is removed by the detector swap that this dossier accompanies — from the tree,
@@ -138,6 +139,40 @@ section collapses to one licence. Until then, both attributions stay.
 - BSL 1.1 requires the licence to be conspicuously displayed on every copy. Keep `LICENSE` at
   the root and keep it in the artifact's documentation.
 
+### 3.1 Upstream code and contributor rights — unresolved
+
+The upstream repository (`DaVecTORzzz/craiova-hack-2026`, public) had **no LICENSE** at the
+audited commit. This fork adds BSL 1.1 with Licensor Andrei Șugubete. The provenance report
+shows **535 lines** from other contributors, and the README credits Andrei, Max, Dalina and
+Ariana. Public visibility is not a licence, and a BSL commercial licence granted by one
+Licensor cannot bind code owned by other authors without their consent.
+
+Before commercial licensing, obtain a written CLA/assignment or explicit licence from every
+contributor, or replace their code and document the replacement. Keep the evidence with the
+commercial paperwork. This is a **blocking** item independent of the model licence.
+
+### 3.2 Runtime libraries and notices — resolved
+
+The served JavaScript/WASM bundle contains permissive runtime libraries. The production tree
+has no GPL/AGPL/LGPL dependency (audited from `frontend/package-lock.json`):
+
+| Family | Packages | Licence |
+|---|---|---|
+| UI | react, react-dom, scheduler | MIT |
+| Icons | lucide-react | ISC |
+| Inference | onnxruntime-web, onnxruntime-common | MIT |
+| Serialization | protobufjs, @protobufjs/* | BSD-3-Clause |
+| Helpers | flatbuffers, long | Apache-2.0 |
+| Small helpers | platform, js-tokens, loose-envify, undici-types, @types/node | MIT |
+| Other | guid-typescript | ISC |
+
+The full copyright lines and licence texts ship in `frontend/public/LICENSES.txt`
+(`dist/LICENSES.txt`), linked from `NOTICE`; the build guard checks the file. The COOP/COEP
+service-worker pattern is inspired by gzuidhof/coi-serviceworker (MIT, Copyright (c) 2021
+Guido Zuidhof); the implementation is ours and the MIT notice ships in `LICENSES.txt`.
+Build-time-only packages (Vite, Tailwind, PostCSS, Playwright, caniuse-lite) are not in the
+served artifact; their versions and licences are in `THIRD_PARTY.md`.
+
 The demo footage is outside all of this: no licence is claimed for it, so neither the BSL nor
 the model licences say anything about it.
 
@@ -171,8 +206,9 @@ For each clip, fill in and keep the evidence somewhere durable (not in a chat lo
 - [ ] **Consent for identifiable people** — written consent from volunteers; blur is a
       mitigation, not a consent substitute.
 - [ ] **Third-party content in frame** — airline livery, logos, plates, screens.
-- [ ] **Derived files** — the three web cuts, the three `zone-*.jpg` stills and the
-      `docs/assets/*.png` screenshots inherit the same rights; list them with the clip.
+- [ ] **Derived files** — the three web cuts, the three `zone-*.jpg` stills, the
+      `docs/assets/*.png` screenshots, `localsight-demo.gif` and `social-preview.png`
+      inherit the same rights; list them with the clip.
 - [ ] **Re-check the export by hand** — the pipeline blurs faces, but a human confirms that
       the shipped cuts contain no unblurred face.
 
@@ -219,8 +255,10 @@ Model licensing is done; the remaining work is footage and paperwork.
 - [ ] **No AGPL model in the artifact.** `dist/models/` must not contain `yolo26n.onnx`, and
       no code path may load a YOLO/Ultralytics graph. Do not reintroduce YOLO weights,
       including fine-tuned exports — the licence follows the weights.
-- [ ] **Model notices present in `dist/`.** `NOTICE`, `models/LICENSE-APACHE-2.0.txt`,
-      `models/LICENSE-CC-BY-3.0.txt`. The sidebar "Licențe" link opens `NOTICE`.
+- [ ] **Model and runtime notices present in `dist/`.** `NOTICE`, `LICENSES.txt`,
+      `models/LICENSE-APACHE-2.0.txt`, `models/LICENSE-CC-BY-3.0.txt`. The sidebar
+      "Licențe" link opens `NOTICE`; `NOTICE` links the runtime texts. The build guard
+      checks all four files and rejects a `yolo26n.onnx` in `dist/models/`.
 - [ ] **Attribution intact.** The Apache-2.0 line (Google, 2020) and the CC BY 3.0 line
       (Namas Bhandari, licence URL) both survive any copy edit of `NOTICE`.
 - [ ] **Model files unmodified, hashes match.** If they are re-exported or re-quantised, the
@@ -229,6 +267,8 @@ Model licensing is done; the remaining work is footage and paperwork.
 - [ ] **Footage resolved per §4**, or the clips replaced. This is the blocking item.
 - [ ] **BSL intact.** `LICENSE` at the root, same Licensor / Additional Use Grant / Change
       Date / Change License, conspicuously displayed on every copy.
+- [ ] **Contributor rights settled.** Written assignments/CLAs from every author, or their
+      code replaced; the BSL file alone is not proof. See §3.1.
 - [ ] **History decision taken per §5**, and written down where a buyer can see it.
 - [ ] **Legal review.** Hand this file, `THIRD_PARTY.md` and the two licence text files to a
       lawyer; they are written to be checked, not believed.
@@ -238,6 +278,8 @@ Model licensing is done; the remaining work is footage and paperwork.
 | Item | State |
 |---|---|
 | Person detector licence | **Resolved** — Apache-2.0 weights, CC BY 3.0 conversion, both attributed |
+| Runtime JS/WASM notices | **Resolved** — permissive; full texts in `LICENSES.txt`; no GPL/AGPL |
+| Upstream/contributor rights | **Unresolved** — upstream had no LICENSE; 535 lines from other authors; needs CLAs/assignment or replacement (§3.1) |
 | Face detector licence | **Resolved** — YuNet, MIT |
 | Runtime and build tooling | **Resolved** — MIT / ISC / Apache-2.0, notices shipped |
 | AGPL in the current build | **Resolved** — no AGPL model ships; the detector swap removes it from tree, engine and notice |

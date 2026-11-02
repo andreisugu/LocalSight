@@ -112,10 +112,17 @@ bash scripts/prepare-demo-media.sh           # scrie în frontend/public/media/
   licența și nu adăuga cod sub altă licență fără aprobare.
 - **Fără greutăți YOLO/AGPL în build.** Detectorul e EfficientDet-Lite0/Lite2: greutățile
   sunt Apache-2.0 (© 2020 Google LLC), conversia ONNX e CC BY 3.0 (Namas Bhandari), iar
-  YuNet e MIT. Atribuirea e obligatorie, nu politicoasă: `frontend/public/NOTICE` și cele
-  două texte din `frontend/public/models/LICENSE-*.txt` rămân în build. Nu reintroduce
-  YOLO/Ultralytics, nici măcar fine-tunat sau „doar pentru demo” — licența urmează
-  greutățile. Detalii: `THIRD_PARTY.md` și `docs/legal/model-provenance.md`.
+  YuNet e MIT. Atribuirea e obligatorie, nu politicoasă: `frontend/public/NOTICE`, cele
+  două texte din `frontend/public/models/LICENSE-*.txt` și `frontend/public/LICENSES.txt`
+  rămân în build. Nu reintroduce YOLO/Ultralytics, nici măcar fine-tunat sau „doar pentru
+  demo” — licența urmează greutățile. Detalii: `THIRD_PARTY.md` și
+  `docs/legal/model-provenance.md`.
+- **Dependențe runtime doar permissive.** Nu adăuga runtime GPL/AGPL/LGPL; orice dependență
+  de producție nouă cere actualizarea `frontend/public/LICENSES.txt` și a
+  `THIRD_PARTY.md`. `check-base.mjs` refuză build-ul fără notice-uri.
+- **Drepturile contribuitorilor se documentează, nu se presupun.** BSL-ul e afirmat de
+  Licensor; codul altor autori are nevoie de cesiune/acord scris sau de înlocuire înainte de
+  licențiere comercială. Vezi `docs/legal/model-provenance.md` §3.1.
 - **Nicio față neblurată în niciun asset commitat** — cadre, snapshot-uri, clipuri,
   capturi pentru docs. Blur-ul rulează înainte de salvare sau afișare, cu plasă de
   siguranță pe banda capului; dacă modelul de fețe nu se încarcă, nu se produce imagine
