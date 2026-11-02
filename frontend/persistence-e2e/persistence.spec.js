@@ -3,6 +3,7 @@ import {
   PAGES_BASE as BASE,
   INCIDENT_TIMEOUT_MS,
   expectNoPageErrors,
+  feedMode,
   firstLocalIncident,
   localStat,
   openView,
@@ -157,6 +158,9 @@ test('an engine incident, its snapshot and its ack survive a reload', async ({ p
   // The default list has no fixture cards at all; the demo toggle is never touched here.
   await expect(page.getByTestId('incident-card')).toHaveCount(0);
   await startEngine(page);
+  // An open incident makes the queue the default; this test is about the card's durable
+  // snapshot, so pin the Flux list before waiting for it.
+  await feedMode(page, 'flux');
 
   // A card tagged `local` is a real engine incident; fixture cards never carry the badge.
   const localCard = firstLocalIncident(page);

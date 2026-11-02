@@ -1,9 +1,10 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ShieldAlert } from 'lucide-react';
 import { useSecurity } from '../../context/SecurityContext';
 import { USE_MOCK } from '../../services/api';
 import DemoDataChip from './DemoDataChip';
 import IncidentFeedCard from './IncidentFeedCard';
+import TriageQueue from './TriageQueue';
 import { shouldAcceptAck } from './liveMedia';
 
 const FILTERS = [
@@ -12,9 +13,25 @@ const FILTERS = [
   { key: 'all', label: 'Toate azi' },
 ];
 
+// The feed modes. `Coadă` is a reading order over the same rows; `Flux` is the list as it
+// always was. Both read the same visible list, so nothing disappears in either direction.
+const MODES = [
+  { key: 'queue', label: 'Coadă', testId: 'feed-mode-queue' },
+  { key: 'flux', label: 'Flux', testId: 'feed-mode-flux' },
+];
+
+/** Open or escalated: what "there is something to work" means for the default mode. */
+function isActive(event) {
+  return event?.status === 'open' || event?.status === 'escalated';
+}
+
 // The incident feed. It renders the context-filtered list, so the global search and the
-// status tabs are already applied; this component adds the count, the filters and the
-// double-click guard on "Confirmă".
+// status tabs are already applied; this component adds the count, the mode switch, the
+// filters and the double-click guard on "Confirmă".
+//
+// The mode is automatic until the operator picks one: `Coadă` while anything is open (a
+// control room works a queue), `Flux` when nothing is. An explicit choice sticks, so the
+// panel never flips under the operator after a row is acknowledged.
 export default function IncidentFeed({
   events,
   filterMode,
@@ -34,8 +51,12 @@ export default function IncidentFeed({
   // The prop is already filtered by the feed tabs and the search box, so "nothing at all"
   // is a different fact that only the store knows: read the visible list for it. The demo
   // preference comes from the same place; an empty feed must not claim the fixtures.
-  const { showDemoData, events: visibleEvents } = useSecurity();
+  const { showDemoData, events: visibleEvents, operatorName, markFalsePositive } = useSecurity();
   const isEmptyList = visibleEvents.length === 0;
+
+  const [chosenMode, setChosenMode] = useState(null);
+  const activeCount = events.filter(isActive).length;
+  const mode = chosenMode ?? (activeCount > 0 ? 'queue' : 'flux');
 
   const beginPress = useCallback((eventId) => {
     pressRef.current = { eventId, at: Date.now() };
@@ -61,6 +82,28 @@ export default function IncidentFeed({
 
   const query = (searchQuery || '').trim();
 
+  const modeButton = (entry) => {
+    const selected = mode === entry.key;
+    return (
+      <button
+        key={entry.key}
+        type="button"
+        data-testid={entry.testId}
+        aria-pressed={selected}
+        onClick={() => setChosenMode(entry.key)}
+        style={{
+          backgroundColor: selected ? (isDarkMode ? '#D73833' : '#7EDEED') : 'transparent',
+          color: selected ? (isDarkMode ? '#FFFFFF' : '#1F1F1F') : themeStyles.textMuted,
+        }}
+        className={`flex-1 rounded-md px-2 py-1 text-[11px] font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFEB33] ${
+          selected ? '' : 'hover:bg-slate-500/10'
+        }`}
+      >
+        {entry.label}
+      </button>
+    );
+  };
+
   return (
     <div
       style={{ backgroundColor: themeStyles.panelBg, borderColor: themeStyles.panelBorder }}
@@ -84,6 +127,16 @@ export default function IncidentFeed({
         <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-[#FFEB33] text-[#1F1F1F] font-bold">
           {events.length}
         </span>
+      </div>
+
+      <div
+        data-testid="feed-mode"
+        role="group"
+        aria-label="Mod de afișare a incidentelor"
+        style={{ backgroundColor: isDarkMode ? '#282828' : '#F1F5F9' }}
+        className="mt-2 flex gap-0.5 rounded-lg border border-slate-500/25 p-0.5 shrink-0"
+      >
+        {MODES.map(modeButton)}
       </div>
 
       <div className="flex gap-1 my-2 shrink-0">
@@ -117,64 +170,78 @@ export default function IncidentFeed({
         })}
       </div>
 
-      <div
-        className={`overflow-y-auto pr-1 scrollbar-thin ${
-          displayMode === 'split'
-            ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-96'
-            : 'space-y-2 flex-1 max-h-[580px]'
-        }`}
-      >
-        {events.length === 0 ? (
-          <div
-            style={{ backgroundColor: isDarkMode ? '#2D2D2D' : '#F8FAFC' }}
-            className={`p-5 rounded-xl text-center space-y-1 mt-4 text-xs ${
-              displayMode === 'split' ? 'col-span-full' : ''
-            }`}
-            data-testid="feed-empty"
-          >
-            {query ? (
-              <>
-                <p className="font-bold text-slate-700 dark:text-slate-300">
-                  Niciun incident pentru „{query}”.
-                </p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                  Șterge căutarea din bara de sus pentru a vedea toate incidentele.
-                </p>
-              </>
-            ) : isEmptyList && USE_MOCK && !showDemoData ? (
-              <>
-                <p className="font-bold text-slate-700 dark:text-slate-300">
-                  Nicio detecție reală încă. Pornește motorul din browser sau activează datele demo.
-                </p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                  Feed-ul arată doar incidentele motorului; fixture-urile demo sunt ascunse
-                  (Setări → Date demo).
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="font-bold text-slate-700 dark:text-slate-300">
-                  Niciun incident în această categorie.
-                </p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                  Zona este conformă cu normele de siguranță.
-                </p>
-              </>
-            )}
-          </div>
-        ) : (
-          events.map((event) => (
-            <IncidentFeedCard
-              key={event.event_id}
-              event={event}
-              isDarkMode={isDarkMode}
-              onOpen={() => onOpenIncident(event.event_id)}
-              onAck={handleAcknowledge}
-              onAckPress={beginPress}
-            />
-          ))
-        )}
-      </div>
+      {mode === 'queue' ? (
+        <TriageQueue
+          events={events}
+          displayMode={displayMode}
+          isDarkMode={isDarkMode}
+          themeStyles={themeStyles}
+          operatorName={operatorName}
+          onOpen={onOpenIncident}
+          onAcknowledge={onAcknowledge}
+          onFalsePositive={markFalsePositive}
+          onShowFlux={() => setChosenMode('flux')}
+        />
+      ) : (
+        <div
+          className={`overflow-y-auto pr-1 scrollbar-thin ${
+            displayMode === 'split'
+              ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-96'
+              : 'space-y-2 flex-1 max-h-[580px]'
+          }`}
+        >
+          {events.length === 0 ? (
+            <div
+              style={{ backgroundColor: isDarkMode ? '#2D2D2D' : '#F8FAFC' }}
+              className={`p-5 rounded-xl text-center space-y-1 mt-4 text-xs ${
+                displayMode === 'split' ? 'col-span-full' : ''
+              }`}
+              data-testid="feed-empty"
+            >
+              {query ? (
+                <>
+                  <p className="font-bold text-slate-700 dark:text-slate-300">
+                    Niciun incident pentru „{query}”.
+                  </p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Șterge căutarea din bara de sus pentru a vedea toate incidentele.
+                  </p>
+                </>
+              ) : isEmptyList && USE_MOCK && !showDemoData ? (
+                <>
+                  <p className="font-bold text-slate-700 dark:text-slate-300">
+                    Nicio detecție reală încă. Pornește motorul din browser sau activează datele demo.
+                  </p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Feed-ul arată doar incidentele motorului; fixture-urile demo sunt ascunse
+                    (Setări → Date demo).
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-bold text-slate-700 dark:text-slate-300">
+                    Niciun incident în această categorie.
+                  </p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Zona este conformă cu normele de siguranță.
+                  </p>
+                </>
+              )}
+            </div>
+          ) : (
+            events.map((event) => (
+              <IncidentFeedCard
+                key={event.event_id}
+                event={event}
+                isDarkMode={isDarkMode}
+                onOpen={() => onOpenIncident(event.event_id)}
+                onAck={handleAcknowledge}
+                onAckPress={beginPress}
+              />
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }
