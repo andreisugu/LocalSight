@@ -51,9 +51,10 @@ niciun server.
 
 ```bash
 cd frontend
-npm run test:unit       # node --test, 422 teste
+npm run test:unit       # node --test, doar logica pură
 npm run test:e2e        # Playwright, 5 teste, baza `/`
-npx playwright test --config=playwright.pages.config.js   # 5 teste pe /LocalSight/, COI + motor
+npm run e2e:pages       # 5 teste pe /LocalSight/, COI + motor
+npm run e2e:persistence # suita lentă: IndexedDB după reload
 ```
 
 O dată, pentru Playwright: `npx playwright install chromium`.
@@ -63,6 +64,73 @@ servește `dist/` sub `/LocalSight/` cu fallback `404.html` și fără COOP/COEP
 `crossOriginIsolated` după reload și pornește motorul pe clip (canvas, status `rulează`,
 fps > 0). CI rulează cinci joburi independente: unit, build, smoke e2e, Pages e2e și garda
 de subpath (`check-base.mjs`).
+
+### Bucla rapidă (canonic)
+
+`npm run verify` este comanda pentru „am terminat o schimbare": unit, build-urile reale și
+ambele suite, cu tabel de timpi la final și cod de ieșire nenul la primul pas roșu.
+Serverele ascultă pe port 0, deci două worktree-uri nu se mai calcă pe 4173/4317.
+
+```bash
+cd frontend
+npm run verify                          # unit + smoke (5) + Pages (5)
+npm run verify -- --with-persistence    # + suita de persistență (minute, nu secunde)
+npm run verify:fast                     # doar unit + build, fără browser
+```
+
+Fiecare suită are propriul build, pentru că fiecare măsoară altă formă a artefactului:
+smoke rulează la baza `/` (`page.goto('/incidents')`, `^/incidents/<id>$`), iar Pages rulează
+pe `/LocalSight/`. `VITE_BASE` se compilează în bundle, deci un singur artefact nu poate
+servi ambele onest. La final `dist/` rămâne build-ul Pages.
+
+#### Iterare: un build, un server, mai multe rulări
+
+Când editezi doar teste sau UI, nu reconstrui la fiecare rulare. Pornește serverul o dată și
+rulează suita de câte ori vrei împotriva lui:
+
+```bash
+# build o dată, ca Pages
+VITE_USE_MOCK=true VITE_BASE=/LocalSight/ npm run build
+cp dist/index.html dist/404.html
+npm run e2e:serve       # tipărește http://127.0.0.1:<port liber>/LocalSight/
+# în alt terminal, de câte ori vrei:
+PW_BASE_URL=http://127.0.0.1:<port>/LocalSight/ npm run e2e:pages
+```
+
+Cu `PW_BASE_URL` setat, configurările Playwright nu mai pornesc nici build, nici server:
+`webServer` dispare, iar serverul e al tău. Fără el, comportamentul e cel de dinainte —
+build + server propriu, neresuscitat, exact ce rulează CI. Pentru smoke (baza `/`) pornește
+`npm run serve:test` (fără `--base`) și rulează
+`PW_BASE_URL=http://127.0.0.1:<port>/ npm run e2e:smoke`.
+
+`npm run serve:test` servește `dist/` fără dependențe: acceptă `--base /LocalSight/`, ascultă
+implicit pe un port liber (`--port 0`), are fallback SPA, MIME corect pentru
+`.wasm/.onnx/.mp4`, Range pentru video și `SIGTERM` curat. Fallback-ul are statusul formei
+servite: 200 la rădăcină (ca
+`vite preview`; smoke-ul cere zero erori în consolă, iar Chromium loghează un document 404),
+404 cu `404.html` sub prefix (ca Pages). `--coi` trimite COOP/COEP pentru teste de UI care nu
+vor să aștepte service worker-ul; implicit e oprit, ca suita Pages să măsoare calea reală.
+
+Variabile de mediu, într-un singur loc:
+
+| Variabilă | Config | Efect |
+|---|---|---|
+| `PW_PORT` | `playwright.config.js`, `playwright.persistence.config.js` | portul serverului propriu când `PW_BASE_URL` nu e setat (implicit 4173 / 4352) |
+| `PW_PAGES_PORT` | `playwright.pages.config.js` | idem, pentru suita Pages (implicit 4317) |
+| `PW_BASE_URL` | toate trei | rulează împotriva unui server existent: fără build, fără `webServer` |
+
+#### Worktree nou: nu rula `npm ci`
+
+Un worktree proaspăt poate împrumuta `node_modules` din checkout-ul principal printr-un
+symlink, atâta timp cât `package-lock.json` e identic — scriptul compară fișierele și refuză
+dacă au divergat:
+
+```bash
+bash frontend/scripts/link-node-modules.sh
+```
+
+Nu rula `npm ci` într-un worktree legat: ar scrie prin symlink în checkout-ul principal.
+Când lock-ul diferă, scriptul cere `npm ci` local.
 
 ## Deploy
 
