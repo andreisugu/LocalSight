@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """Prepare the ONNX models the static frontend loads from ``/models/``.
 
-The browser build has no inference server: the detector and the face guard run in
-the page through ONNX Runtime Web, so both graphs must ship inside ``public/``.
-This script reproduces them from an Ultralytics ONNX export and the opencv_zoo
-YuNet release. Both sources used to live in ``ml/``; that reference stack was
-removed from this fork, so pass the sources explicitly (see below).
+The browser build has no inference server: the person detector and the face guard run
+in the page through ONNX Runtime Web, so every graph must ship inside ``public/``.
+This script reproduces them from the EfficientDet-Lite ONNX exports and the
+opencv_zoo YuNet release. Both sources used to live in ``ml/``; that reference stack
+was removed from this fork, so pass the sources explicitly (see below).
 
-Two steps, one per model:
+Three steps, one per model:
 
-1. ``yolo26n.onnx`` is copied byte for byte. It is the YOLO26n export the removed
-   Python edge used to load. Regenerate it from the Ultralytics weights with::
-
-       yolo export model=yolo26n.pt format=onnx imgsz=640
+1. ``efficientdet_lite0.onnx`` and ``efficientdet_lite2.onnx`` are copied byte for
+   byte. They are the Apache-2.0 EfficientDet-Lite exports the browser runs: uint8
+   ``[1, H, W, 3]`` in (320 px for Lite0, 448 px for Lite2). Lite0 is the default
+   detector; Lite2 is the accuracy choice. Each file is verified after the copy: the
+   declared input must be NHWC uint8 of the expected side, so a wrong download fails
+   here instead of inside the worker.
 
 2. ``yunet.onnx`` is the published YuNet fp32 model with a *dynamic* input shape.
    opencv_zoo ships ``face_detection_yunet_2023mar.onnx`` with the input declared
@@ -27,17 +29,18 @@ Two steps, one per model:
    them at run time and logs a harmless shape-mismatch warning, exactly like the
    removed Python reference did.
 
-Usage (both sources are required; nothing is downloaded)::
+Usage (all three sources are required; nothing is downloaded)::
 
     python3 frontend/scripts/prepare-models.py \\
-        --yolo path/to/yolo26n.onnx \\
+        --efficientdet-lite0 path/to/efficientdet_lite0.onnx \\
+        --efficientdet-lite2 path/to/efficientdet_lite2.onnx \\
         --yunet path/to/face_detection_yunet_2023mar.onnx \\
         --out frontend/public/models
 
-The YuNet source is the MIT-licensed file from
-https://github.com/opencv/opencv_zoo (``models/face_detection_yunet``). The YOLO
-source is your own ``yolo export`` output, or the file left in the git history of
-the removed ``ml/`` stack. Requires the ``onnx`` package (``pip install onnx``).
+The EfficientDet sources are the ONNX exports of Google's EfficientDet-Lite (Apache-2.0
+weights; see THIRD_PARTY.md for the conversion attribution). The YuNet source is the
+MIT-licensed file from https://github.com/opencv/opencv_zoo
+(``models/face_detection_yunet``). Requires the ``onnx`` package (``pip install onnx``).
 """
 
 from __future__ import annotations
@@ -55,6 +58,9 @@ DEFAULT_OUT = REPO_ROOT / "frontend" / "public" / "models"
 # of the largest one for the concatenation to line up.
 YUNET_ALIGN = 32
 
+# Person graph -> the square input side its export declares.
+EFFICIENTDET_SIZES = {"efficientdet_lite0.onnx": 320, "efficientdet_lite2.onnx": 448}
+
 
 def sha256(path: Path) -> str:
     """Hex SHA-256 of a file, read in chunks so a 10 MB model stays cheap."""
@@ -70,18 +76,39 @@ def human_mb(path: Path) -> str:
     return f"{path.stat().st_size / (1024 * 1024):.1f} MB"
 
 
-def copy_yolo(source: Path, destination: Path) -> None:
-    """Copy the YOLO26n export unchanged: the browser needs the same graph."""
+def input_dims(path: Path) -> tuple[list[int], int]:
+    """Declared dims and the ONNX element type of the single graph input."""
+    import onnx  # imported here so --help works without the dependency
+
+    graph = onnx.load(str(path)).graph
+    if len(graph.input) != 1:
+        raise ValueError(f"{path.name}: expected one input, found {len(graph.input)}")
+    tensor = graph.input[0].type.tensor_type
+    dims = [int(dim.dim_value) for dim in tensor.shape.dim]
+    return dims, int(tensor.elem_type)
+
+
+def copy_efficientdet(source: Path, destination: Path, size: int) -> None:
+    """Copy one EfficientDet-Lite export and prove it is the graph the worker expects."""
+    import onnx
+
     if not source.is_file():
         raise FileNotFoundError(
-            f"YOLO source missing: {source}\n"
-            "Export it with `yolo export model=yolo26n.pt format=onnx imgsz=640` "
-            "and pass the result with --yolo."
+            f"EfficientDet source missing: {source}\n"
+            f"Export the {destination.name.replace('.onnx', '')} graph and pass it with "
+            f"--{destination.name.replace('_', '-').replace('.onnx', '')}."
         )
     shutil.copyfile(source, destination)
+    dims, elem_type = input_dims(destination)
+    expected = [1, size, size, 3]
+    if dims != expected or elem_type != onnx.TensorProto.UINT8:
+        raise ValueError(
+            f"{destination.name}: expected uint8 NHWC input {expected}, got "
+            f"elem_type {elem_type}, dims {dims}"
+        )
 
 
-def make_yunet_dynamic(source: Path, destination: Path) -> tuple[int, int]:
+def make_yunet_dynamic(source: Path, destination: Path) -> tuple[str, str]:
     """Rewrite YuNet's declared input to ``[1, 3, "height", "width"]``.
 
     Only the metadata changes; the weights and the ops are untouched. Returns the
@@ -116,9 +143,20 @@ def report(path: Path) -> None:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Copy YOLO26n and rewrite YuNet's input shape for the static frontend.",
+        description="Copy the EfficientDet-Lite graphs and rewrite YuNet's input shape.",
     )
-    parser.add_argument("--yolo", type=Path, required=True, help="YOLO26n ONNX source (your Ultralytics export)")
+    parser.add_argument(
+        "--efficientdet-lite0",
+        type=Path,
+        required=True,
+        help="EfficientDet-Lite0 ONNX source (320 px, Apache-2.0)",
+    )
+    parser.add_argument(
+        "--efficientdet-lite2",
+        type=Path,
+        required=True,
+        help="EfficientDet-Lite2 ONNX source (448 px, Apache-2.0)",
+    )
     parser.add_argument(
         "--yunet",
         type=Path,
@@ -134,11 +172,15 @@ def main(argv: list[str] | None = None) -> int:
     out_dir: Path = args.out
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    yolo_out = out_dir / "yolo26n.onnx"
+    lite0_out = out_dir / "efficientdet_lite0.onnx"
+    lite2_out = out_dir / "efficientdet_lite2.onnx"
     yunet_out = out_dir / "yunet.onnx"
 
-    print(f"YOLO26n: {args.yolo} -> {yolo_out}")
-    copy_yolo(args.yolo, yolo_out)
+    print(f"EfficientDet-Lite0: {args.efficientdet_lite0} -> {lite0_out} (320 px)")
+    copy_efficientdet(args.efficientdet_lite0, lite0_out, EFFICIENTDET_SIZES[lite0_out.name])
+
+    print(f"EfficientDet-Lite2: {args.efficientdet_lite2} -> {lite2_out} (448 px)")
+    copy_efficientdet(args.efficientdet_lite2, lite2_out, EFFICIENTDET_SIZES[lite2_out.name])
 
     print(f"YuNet: {args.yunet} -> {yunet_out} (dynamic input, multiple of {YUNET_ALIGN})")
     height, width = make_yunet_dynamic(args.yunet, yunet_out)
@@ -147,7 +189,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print("written:")
-    report(yolo_out)
+    report(lite0_out)
+    report(lite2_out)
     report(yunet_out)
     print(f"YuNet input dims after patch: [1, 3, {height!r}, {width!r}]")
     return 0

@@ -31,6 +31,9 @@ test('app boots with zero console errors and shows the sidebar', async ({ page }
   for (const view of MODULES) {
     await expect(page.getByTestId(`nav-${view}`)).toBeVisible();
   }
+  // The footer names the shipped detector; nothing from the removed AGPL model appears.
+  await expect(sidebar).toContainText('EfficientDet-Lite0');
+  await expect(sidebar).not.toContainText('YOLO');
 
   await page.clock.runFor(2_000);
   // A round trip flushes anything the ticks reported to the driver before the assertion.

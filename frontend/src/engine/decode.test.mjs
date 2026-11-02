@@ -1,15 +1,15 @@
-// Tests for the pure box math: `decodeYolo`, `decodeYuNet`, `decodeEfficientDet` and `nms`.
+// Tests for the pure box math: `decodeEfficientDet`, `decodeYuNet`, output matching and `nms`.
 //
 // These are the only guard between a decode regression and blurred-wrong-region output, so
 // the cases come from the differential test in `docs/qa/engine-parity.md` §2.3/§3.1/§4:
 // the tensor layout, the letterbox round-trip (detector box in source pixels), the frame-12
-// duplicate that NMS 0.45 suppresses but ultralytics' 0.7 keeps, and the YuNet stride math.
-// Synthetic Float32Arrays only: no model, no canvas, no DOM.
+// duplicate that NMS 0.45 suppresses, and the YuNet stride math. Synthetic Float32Arrays
+// only: no model, no canvas, no DOM.
 //
 // `letterbox()` and `rgbaToNchw()` live in `detectors.js`, which imports the ORT wasm with
 // Vite's `?url` suffix at module scope; plain Node cannot resolve that, so the padding and
-// scale are pinned from this side: the exact numbers the worker feeds `decodeYolo` for a
-// 1920x1080 frame (scale 1/3, padX 0, padY 140) and the round-trip back to source pixels.
+// scale are pinned from this side: the exact numbers the worker feeds the decoder for a
+// 1280x720 frame (Lite0, size 320) and the round-trip back to source pixels.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -17,41 +17,16 @@ import assert from 'node:assert/strict';
 import {
   YUNET_STRIDES,
   decodeEfficientDet,
-  decodeYolo,
   decodeYuNet,
   isClassIdArray,
   matchEfficientDetOutputs,
   nms,
 } from './decode.js';
 
-const YOLO_CLASSES = 80;
 const PERSON_CONF = 0.35;
 const PERSON_NMS = 0.45;
 
-/** Column-major `[1, 4 + classes, anchors]` tensor, as the graph emits it. */
-function yoloTensor(boxes, numAnchors = boxes.length) {
-  const data = new Float32Array((4 + YOLO_CLASSES) * numAnchors);
-  boxes.forEach((box, anchor) => {
-    data[anchor] = box.cx;
-    data[numAnchors + anchor] = box.cy;
-    data[2 * numAnchors + anchor] = box.w;
-    data[3 * numAnchors + anchor] = box.h;
-    data[4 * numAnchors + anchor] = box.score;
-  });
-  return data;
-}
-
-/** A source-pixel box -> the letterboxed cx/cy/w/h the tensor would carry. */
-function toLetterbox(box, { scale, padX, padY }) {
-  return {
-    cx: ((box.x1 + box.x2) / 2) * scale + padX,
-    cy: ((box.y1 + box.y2) / 2) * scale + padY,
-    w: (box.x2 - box.x1) * scale,
-    h: (box.y2 - box.y1) * scale,
-    score: 0.9,
-  };
-}
-
+/** Tolerance comparisons for float32 round-trips. */
 function assertClose(actual, expected, tolerance = 1e-4) {
   assert.ok(
     Math.abs(actual - expected) <= tolerance,
@@ -66,68 +41,6 @@ function assertBoxClose(box, expected, tolerance = 1e-4) {
   assertClose(box.y2, expected.y2, tolerance);
 }
 
-test('decodeYolo reads the column-major tensor, not interleaved rows', () => {
-  const data = yoloTensor([
-    { cx: 100, cy: 200, w: 40, h: 80, score: 0.9 },
-    { cx: 300, cy: 320, w: 20, h: 60, score: 0.8 },
-    { cx: 500, cy: 400, w: 10, h: 30, score: 0.7 },
-  ]);
-
-  // An infinite NMS threshold keeps every candidate, so the geometry is what is asserted.
-  const boxes = decodeYolo(data, { conf: 0.1, iou: Infinity });
-
-  assert.deepEqual(
-    boxes.map(({ x1, y1, x2, y2 }) => [x1, y1, x2, y2]),
-    [
-      [80, 160, 120, 240],
-      [290, 290, 310, 350],
-      [495, 385, 505, 415],
-    ]
-  );
-  // Highest score first, like the Python `_nms`.
-  boxes.forEach((box, index) => assertClose(box.score, [0.9, 0.8, 0.7][index], 1e-6));
-  assert.ok(boxes.every((box) => box.classId === 0));
-});
-
-test('the tensor shape is derived from the buffer length when not given', () => {
-  // 4 anchors exactly: a decoder that assumed a different `numAnchors` would shift every
-  // column and return a box that is not this one.
-  const data = yoloTensor([
-    { cx: 10, cy: 20, w: 4, h: 6, score: 0.9 },
-    { cx: 0, cy: 0, w: 0, h: 0, score: 0 },
-    { cx: 0, cy: 0, w: 0, h: 0, score: 0 },
-    { cx: 0, cy: 0, w: 0, h: 0, score: 0 },
-  ]);
-  const [box] = decodeYolo(data, { conf: PERSON_CONF });
-
-  assert.deepEqual([box.x1, box.y1, box.x2, box.y2], [8, 17, 12, 23]);
-});
-
-// Parity §4 discrepancy 1: on frame 12 ultralytics (NMS 0.7) keeps a duplicate whose IoU
-// with its neighbour is 0.70; the port (NMS 0.45) suppresses it. Both halves are pinned so
-// a change to the threshold is visible instead of silent.
-test('NMS 0.45 suppresses the frame-12 duplicate that IoU 0.7 keeps', () => {
-  const boxes = [
-    { cx: 50, cy: 50, w: 100, h: 100, score: 0.9 },
-    { cx: 50, cy: 35, w: 100, h: 70, score: 0.85 },
-  ];
-  const data = yoloTensor(boxes);
-
-  const port = decodeYolo(data, { conf: PERSON_CONF, iou: PERSON_NMS });
-  assert.equal(port.length, 1, '0.45 suppresses the 0.70 duplicate');
-  assert.deepEqual([port[0].x1, port[0].y1, port[0].x2, port[0].y2], [0, 0, 100, 100]);
-
-  const ultralytics = decodeYolo(data, { conf: PERSON_CONF, iou: 0.7 });
-  assert.equal(ultralytics.length, 2, '0.70 keeps both, which is the documented difference');
-  assert.deepEqual(
-    ultralytics.map(({ x1, y1, x2, y2 }) => [x1, y1, x2, y2]),
-    [
-      [0, 0, 100, 100],
-      [0, 0, 100, 70],
-    ]
-  );
-});
-
 test('nms keeps the first of two equal scores and drops overlapping boxes', () => {
   const box = (x1, score) => ({ x1, y1: 0, x2: x1 + 100, y2: 100, score });
   assert.deepEqual(nms([], 0.45), []);
@@ -139,71 +52,6 @@ test('nms keeps the first of two equal scores and drops overlapping boxes', () =
   assert.equal(nms([box(0, 0.9), { ...box(0, 0.8), y2: 85 }], 0.85).length, 2);
 });
 
-test('decodeYolo drops scores below the threshold and non-positive boxes', () => {
-  const data = yoloTensor([
-    { cx: 100, cy: 100, w: 40, h: 80, score: 0.35 },
-    { cx: 100, cy: 100, w: 40, h: 80, score: 0.2 },
-    { cx: 100, cy: 100, w: 0, h: 80, score: 0.99 },
-  ]);
-  // The graph hands over float32: 0.35 is stored as 0.3499999940…, so "exactly at the
-  // decimal threshold" is not a real case. The boundary is `score >= conf` on the stored
-  // value, which is what this pins.
-  const stored = data[4 * 3];
-  assert.ok(stored < 0.35);
-
-  const atThreshold = decodeYolo(data, { conf: stored });
-  assert.equal(atThreshold.length, 1, 'the stored score passes its own threshold');
-  assertClose(atThreshold[0].score, stored, 1e-7);
-
-  assert.equal(decodeYolo(data, { conf: stored + 1e-6 }).length, 0, 'below `conf` is dropped');
-  assert.equal(
-    decodeYolo(data, { conf: 0.1, iou: Infinity }).length,
-    2,
-    'a low threshold keeps both scores, the w=0 candidate stays out'
-  );
-});
-
-// The worker feeds `decodeYolo` a 640x640 letterbox of the frame: 1920x1080 -> drawW 640,
-// drawH 360, scale 1/3, padX 0, padY 140 (`letterbox()` in detectors.js). A box in source
-// pixels must come back to the same source pixels, because those coordinates become the
-// blur rectangle.
-test('a person box survives the 1920x1080 -> 640 letterbox round-trip', () => {
-  const letterbox = { scale: 640 / 1920, padX: 0, padY: 140 };
-  const source = { x1: 960, y1: 313.2, x2: 1056, y2: 637.2 };
-  const data = yoloTensor([toLetterbox(source, letterbox)]);
-
-  const [box] = decodeYolo(data, {
-    conf: PERSON_CONF,
-    iou: PERSON_NMS,
-    scale: letterbox.scale,
-    padX: letterbox.padX,
-    padY: letterbox.padY,
-  });
-
-  assertBoxClose(box, source);
-});
-
-// Parity §4 (risk): at 1920x1080 both implementations round to exactly 640x360, so the
-// 1-px letterbox-rounding difference is invisible. The padding/scale removal must still be
-// exact for a scale that is not representable in binary.
-test('the padding and a non-integer scale are removed exactly', () => {
-  // 1921x1081: scale = 640/1921, drawH = round(1081 * scale) = 360, padY = floor(280/2).
-  const letterbox = { scale: 640 / 1921, padX: 0, padY: 140 };
-  const source = { x1: 500.5, y1: 400.25, x2: 620.75, y2: 900.5 };
-  const data = yoloTensor([toLetterbox(source, letterbox)]);
-
-  const [box] = decodeYolo(data, {
-    conf: PERSON_CONF,
-    iou: PERSON_NMS,
-    scale: letterbox.scale,
-    padX: letterbox.padX,
-    padY: letterbox.padY,
-  });
-
-  assertBoxClose(box, source, 1e-3);
-});
-
-/** YuNet outputs in graph order: cls[3], obj[3], bbox[3], kps[3]. */
 function yunetOutputs(inputW, inputH) {
   const cells = YUNET_STRIDES.map((stride) => (
     Math.floor(inputW / stride) * Math.floor(inputH / stride)
@@ -472,8 +320,8 @@ test('decodeEfficientDet drops degenerate boxes and malformed output', () => {
   assert.deepEqual(decodeEfficientDet(output, { size: 0 }), []);
 });
 
-test('decodeEfficientDet suppresses duplicates with the same NMS 0.45 as YOLO', () => {
-  // Two 100x100 person boxes with IoU 0.7, exactly the frame-12 case of the YOLO test.
+test('decodeEfficientDet suppresses duplicates with NMS 0.45', () => {
+  // Two 100x100 person boxes with IoU 0.7: the engine threshold keeps one, 0.7 keeps both.
   const output = efficientDetOutput([
     { ymin: 0, xmin: 0, ymax: 1, xmax: 1, classId: 0, score: 0.9 },
     { ymin: 0, xmin: 0, ymax: 0.7, xmax: 1, classId: 0, score: 0.85 },

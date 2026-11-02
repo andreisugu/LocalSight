@@ -9,16 +9,14 @@
 // be blurred never leaves at all (see `guardBitmap`).
 import { ZoneAligner, WORK_WIDTH } from './align.js';
 import {
-  LETTERBOX_PAD,
-  YOLO_INPUT_SIZE,
+  DEFAULT_PERSON_INPUT_SIZE,
   letterbox,
   loadModels,
   rgbaToNchw,
   runEfficientDet,
-  runYolo,
   runYuNet,
 } from './detectors.js';
-import { decodeEfficientDet, decodeYolo, decodeYuNet } from './decode.js';
+import { decodeEfficientDet, decodeYuNet } from './decode.js';
 import { clampRect, expandedRect, headBandRects } from './blur.js';
 import { SNAPSHOT_PENDING, createPipeline } from './pipeline.js';
 import { faceInputPlan, padToMultiple, scaleFaceBoxes } from './perf.js';
@@ -69,15 +67,17 @@ let modelThreads = null;
 // speed, which is only acceptable while this net covers the faces the cap can drop.
 let safetyBlur = true;
 
-// Bench options. Defaults are the spike's: probe providers, process the frame at its own
-// resolution. `/lab` never sends an `init` payload, so it keeps exactly that behaviour.
+// Bench options. Defaults: the shipped provider (wasm) and the frame's own resolution.
+// `/bench` passes explicit values; `/lab` never sends an `init` payload, so it keeps the
+// defaults.
 let initProviders = null;
-// Spike-only person detector: `?detector=efficientdet` (Lite0) or `efficientdet-lite2`.
-// `yolo` is the default and the only value `/lab`, `/bench` and Live send unless the page
-// was opened with the flag, so the shipped pipeline is unchanged.
-let personDetector = 'yolo';
-// Longest side of the frame handed to the detectors; 0 means "native size". The YOLO graph
-// is fixed at 640x640, so this limit changes the frame, not the YOLO tensor.
+// Person detector resolved by the page from Settings: `efficientdet` (Lite0, the default)
+// or `efficientdet-lite2`. Only those two values are accepted, so a hand-written init
+// message can never select a graph the build does not ship.
+let personDetector = 'efficientdet';
+// Longest side of the frame handed to the detectors; 0 means "native size". The person
+// graph has its own fixed input (320 or 448), so this limit changes the frame, not the
+// detector tensor.
 let frameLimit = 0;
 // Opt-in telemetry for the `/lab` ground-plane prototype: the result message then carries
 // the tracked boxes and the frame time, instead of only the event count. Live and `/bench`
@@ -160,10 +160,9 @@ function resetVestState() {
   vestTracks = createTracker();
 }
 
-// Contract `model` string for the person graph. The flag must not leave `yolo26n` on an
-// event that EfficientDet actually produced; the default stays exactly as before.
+// Contract `model` string for the person graph, so an event names the graph that produced
+// it. Both are the Apache-2.0 EfficientDet-Lite export.
 const PERSON_MODEL_NAMES = Object.freeze({
-  yolo: 'yolo26n',
   efficientdet: 'efficientdet-lite0',
   'efficientdet-lite2': 'efficientdet-lite2',
 });
@@ -185,7 +184,7 @@ function buildPipeline({ cameraId, zones, engineOn } = {}) {
     zones: resolvedZones,
     engineOn: typeof engineOn === 'boolean' ? engineOn : true,
     incidentCooldownS: 60,
-    model: PERSON_MODEL_NAMES[personDetector] ?? PERSON_MODEL_NAMES.yolo,
+    model: PERSON_MODEL_NAMES[personDetector] ?? PERSON_MODEL_NAMES.efficientdet,
   });
 }
 
@@ -392,9 +391,9 @@ async function ensureModels() {
         providers: loaded.providers,
         actualProviders: loaded.actualProviders,
         fallback: loaded.fallback,
-        // Spike flag, so the card can name the graph that really loaded instead of
-        // repeating the default. Absent/`yolo` reads as YOLO26n.
-        detector: personDetector,
+        // The resolved choice, so the card can name the graph that really loaded instead
+        // of repeating what the page asked for (an unknown value resolves to Lite0).
+        detector: loaded.detector,
       });
       return loaded;
     } catch (error) {
@@ -434,10 +433,10 @@ function targetFrameSize(width, height) {
   };
 }
 
-function yoloInputSize() {
-  // Name kept from the YOLO-only worker: this is the person graph's input side, which the
-  // EfficientDet flag moves to 320 (Lite0) or 448 (Lite2) through `inputMetadata`.
-  return models?.yoloInput?.width || models?.yoloInput?.height || YOLO_INPUT_SIZE;
+function personInputSize() {
+  // The person graph's input side, read from its metadata: 320 for Lite0, 448 for Lite2.
+  // The fallback is the default graph's size, so a metadata-less session still runs.
+  return models?.personInput?.width || models?.personInput?.height || DEFAULT_PERSON_INPUT_SIZE;
 }
 
 function ensureLetterboxCanvas(size) {
@@ -447,22 +446,9 @@ function ensureLetterboxCanvas(size) {
   return letterboxCtx;
 }
 
+// The EfficientDet ONNX export takes `uint8 [1, H, W, 3]` RGB 0..255 and pads the
+// letterbox with black. The face path below keeps its own scratch canvas.
 function detectPersons(width, height, size) {
-  const box = letterbox(width, height, size);
-  const ctx = ensureLetterboxCanvas(size);
-  ctx.fillStyle = `rgb(${LETTERBOX_PAD}, ${LETTERBOX_PAD}, ${LETTERBOX_PAD})`;
-  ctx.fillRect(0, 0, size, size);
-  ctx.drawImage(frameCanvas, box.padX, box.padY, box.drawW, box.drawH);
-
-  const { data } = ctx.getImageData(0, 0, size, size);
-  const blob = rgbaToNchw(data, size, size, { swapRB: false });
-  return { blob, box };
-}
-
-// EfficientDet's ONNX export takes `uint8 [1, H, W, 3]` RGB 0..255 and pads the letterbox
-// with black, not Ultralytics' 114 grey. Same scratch canvas as the YOLO path: only one of
-// the two runs per frame.
-function detectPersonsEfficientDet(width, height, size) {
   const box = letterbox(width, height, size);
   const ctx = ensureLetterboxCanvas(size);
   ctx.fillStyle = '#000';
@@ -982,32 +968,17 @@ async function handleFrame(message) {
   let detected = false;
   try {
     await ensureModels();
-    const personSize = yoloInputSize();
-    if (personDetector === 'yolo') {
-      const yolo = detectPersons(width, height, personSize);
-      const scores = await runYolo(models, yolo.blob, personSize);
-      persons = decodeYolo(scores, {
-        numClasses: 80,
-        conf: PERSON_CONF,
-        iou: PERSON_NMS,
-        scale: yolo.box.scale,
-        padX: yolo.box.padX,
-        padY: yolo.box.padY,
-      });
-    } else {
-      // Spike-only path: same letterbox geometry, different tensor and decoder. The face
-      // detector, blur, PPE, tracker, zones and snapshots below are shared verbatim.
-      const efficientdet = detectPersonsEfficientDet(width, height, personSize);
-      const output = await runEfficientDet(models, efficientdet.input, personSize, personSize);
-      persons = decodeEfficientDet(output, {
-        size: personSize,
-        conf: PERSON_CONF,
-        iou: PERSON_NMS,
-        scale: efficientdet.box.scale,
-        padX: efficientdet.box.padX,
-        padY: efficientdet.box.padY,
-      });
-    }
+    const personSize = personInputSize();
+    const efficientdet = detectPersons(width, height, personSize);
+    const output = await runEfficientDet(models, efficientdet.input, personSize, personSize);
+    persons = decodeEfficientDet(output, {
+      size: personSize,
+      conf: PERSON_CONF,
+      iou: PERSON_NMS,
+      scale: efficientdet.box.scale,
+      padX: efficientdet.box.padX,
+      padY: efficientdet.box.padY,
+    });
 
     const facePlan = faceInputPlan({ safetyBlur, width, height });
     const face = detectFaces(width, height, facePlan);
@@ -1203,14 +1174,15 @@ self.onmessage = (event) => {
     if (Number.isFinite(message.inputSize) && message.inputSize > 0) {
       frameLimit = message.inputSize;
     }
-    // Engine settings resolved by the page. `/lab` sends neither, so ORT keeps its
-    // isolation-based default and the head-band safety blur stays ON.
+    // Engine settings resolved by the page. `/lab` sends none, so ORT keeps its
+    // isolation-based default, the head-band safety blur stays ON and the person detector
+    // stays on the default Lite0.
     if (Number.isFinite(message.wasmThreads) && message.wasmThreads >= 1) {
       modelThreads = Math.floor(message.wasmThreads);
     }
     if (typeof message.safetyBlur === 'boolean') safetyBlur = message.safetyBlur;
-    // Spike-only person detector. Anything other than the two flag values keeps YOLO, so a
-    // hand-written init message cannot silently swap the graph.
+    // Settings value for the person detector. Anything else keeps the current graph, so a
+    // hand-written init message cannot select a model the build does not ship.
     if (message.detector === 'efficientdet' || message.detector === 'efficientdet-lite2') {
       personDetector = message.detector;
     }

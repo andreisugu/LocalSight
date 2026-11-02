@@ -44,55 +44,6 @@ function iou(a, b) {
 }
 
 /**
- * YOLO anchor-free decode. Output tensor is [1, 4 + classes, anchors] with rows
- * cx, cy, w, h followed by the class scores.
- *
- * @param {Float32Array} data
- * @param {object} [options]
- * @param {number} [options.numClasses] 80 for COCO
- * @param {number} [options.numAnchors] 8400 for a 640 input
- * @param {number} [options.conf] score threshold
- * @param {number} [options.iou] NMS IoU
- * @param {number} [options.scale] letterbox scale
- * @param {number} [options.padX]
- * @param {number} [options.padY]
- * @returns {Array<{x1:number,y1:number,x2:number,y2:number,score:number,classId:number}>}
- */
-export function decodeYolo(data, options = {}) {
-  const {
-    numClasses = 80,
-    conf = 0.25,
-    iou: iouThreshold = 0.45,
-    scale = 1,
-    padX = 0,
-    padY = 0,
-  } = options;
-  // 84 x 8400 for a 640 input; derived from the buffer when not given explicitly.
-  const numAnchors = options.numAnchors || Math.floor(data.length / (4 + numClasses));
-
-  const candidates = [];
-  for (let anchor = 0; anchor < numAnchors; anchor += 1) {
-    // Person is class 0 and the only class this spike cares about.
-    const score = data[4 * numAnchors + anchor];
-    if (!(score >= conf)) continue;
-    const cx = data[anchor];
-    const cy = data[numAnchors + anchor];
-    const w = data[2 * numAnchors + anchor];
-    const h = data[3 * numAnchors + anchor];
-    if (!(w > 0) || !(h > 0)) continue;
-    candidates.push({
-      x1: (cx - w / 2 - padX) / scale,
-      y1: (cy - h / 2 - padY) / scale,
-      x2: (cx + w / 2 - padX) / scale,
-      y2: (cy + h / 2 - padY) / scale,
-      score,
-      classId: 0,
-    });
-  }
-  return nms(candidates, iouThreshold);
-}
-
-/**
  * A class-id list is integer-valued; a score list is fractional. Used only as the
  * name-agnostic fallback in `matchEfficientDetOutputs`: the two `[1, 25]` outputs share a
  * shape, and a "score > 1.5" test would misread class 0 (person) as a score.
@@ -179,8 +130,8 @@ export function matchEfficientDetOutputs(results) {
 /**
  * EfficientDet decode: keep class 0 (person) above `conf`, undo the letterbox and run NMS.
  *
- * The boxes are normalized `[ymin, xmin, ymax, xmax]` - y before x, unlike YOLO's
- * `[cx, cy, w, h]` - so the mapping is `(value * size - pad) / scale` per axis.
+ * The boxes are normalized `[ymin, xmin, ymax, xmax]` - y before x, so the mapping is
+ * `(value * size - pad) / scale` per axis.
  *
  * @param {{boxes: Float32Array, classes: Float32Array, scores: Float32Array,
  *          count: number}} output from `runEfficientDet`

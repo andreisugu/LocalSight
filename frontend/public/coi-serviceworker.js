@@ -11,7 +11,7 @@
 //
 //   - documents (index.html and every deep link) are network-first. A cached shell is only
 //     served when the network itself fails, so a stale HTML can never outlive a deploy.
-//   - immutable files are cache-first: content-hashed `/assets/*`, the two ONNX models,
+//   - immutable files are cache-first: content-hashed `/assets/*`, the ONNX models,
 //     the demo clips, the stills and the three fixed files (logo, favicon, NOTICE). They
 //     are filled on the first successful fetch, so the second visit and the offline visit
 //     do not re-download them.

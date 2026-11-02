@@ -1,24 +1,25 @@
-// Spike-only person-detector flag (`?detector=`).
+// Display names for the two shipped person detectors.
 //
-// Two places describe the running graph: LiveView selects it for the worker, and the
-// sidebar footer names what runs in the tab. Reading it through one helper keeps the two
-// from disagreeing, and keeps YOLO26n the answer for an absent flag or a typo.
+// The choice lives in browser settings (`engineSettings.js`); this module only turns the
+// stored value into the label every surface prints, so the Live card, the sidebar footer
+// and the System screen cannot disagree about which graph is running. Pure: no storage, no
+// DOM, checked with `node --test`.
 //
-// The router rewrites the path to `/live` after the first render, which drops the query
-// string; callers that must survive that read the flag once at module/first-render time.
+// Both graphs are the Apache-2.0 EfficientDet-Lite ONNX export; no other detector has a
+// label or ships in this build.
 
 export const PERSON_DETECTOR_LABELS = Object.freeze({
-  yolo: 'YOLO26n',
   efficientdet: 'EfficientDet-Lite0',
   'efficientdet-lite2': 'EfficientDet-Lite2',
 });
 
+/** Lite0 is the fast default; anything unknown reads as the default. */
+export const DEFAULT_DETECTOR = 'efficientdet';
+
 /**
- * @param {string} [search] `location.search` override; empty in Node tests.
- * @returns {'yolo'|'efficientdet'|'efficientdet-lite2'}
+ * @param {unknown} value stored detector id
+ * @returns {string} the label of that detector, or the default's label when unknown
  */
-export function readDetectorFlag(search) {
-  const query = search ?? (typeof window === 'undefined' ? '' : window.location.search);
-  const value = new URLSearchParams(query).get('detector');
-  return value === 'efficientdet' || value === 'efficientdet-lite2' ? value : 'yolo';
+export function detectorLabel(value) {
+  return PERSON_DETECTOR_LABELS[value] ?? PERSON_DETECTOR_LABELS[DEFAULT_DETECTOR];
 }

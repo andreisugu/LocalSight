@@ -145,7 +145,7 @@ test('an engine event with a template report counts like any other incident', ()
   const report = build([
     event({
       local: true,
-      model: 'yolo26n',
+      model: 'efficientdet-lite0',
       status: 'open',
       report: { what: 'Persoană în zona restricționată webcam-view.', source: 'template' },
     }),

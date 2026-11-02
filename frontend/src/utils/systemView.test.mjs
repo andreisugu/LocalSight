@@ -10,6 +10,7 @@ import {
   latestDetectionModel,
   sourceSummary,
 } from './systemView.js';
+import { ENGINE_SETTINGS_KEY, readEngineSettings, storeDetector } from '../utils/engineSettings.js';
 
 const cameras = [
   { id: 'stand12', code: 'CAM-01', name: 'CAM-01 • Stand 12', rtsp_url: 'rtsp://edge/stand12', status: 'online', engine_on: true },
@@ -95,14 +96,37 @@ test('the mock summary has four honest cells and never a backend claim', () => {
   assert.deepEqual(tiles.map((tile) => tile.id), ['build', 'engine', 'model', 'cameras']);
   assert.equal(tiles[0].value, 'STATIC');
   assert.match(tiles[1].detail, /WASM pe Firefox, WebGPU pe Chrome compatibil/);
-  assert.equal(tiles[2].value, 'YOLO26n + YuNet');
+  assert.equal(tiles[2].value, 'EfficientDet-Lite0 + YuNet');
   assert.equal(tiles[3].value, '4 surse');
   assert.match(tiles[3].detail, /3 clipuri demo \+ 1 cameră locală; date demo/);
 
   const text = JSON.stringify(tiles);
-  for (const forbidden of ['Backend online', 'Baza de date răspunde', 'Edge AI', 'Ultimul semnal', 'YOLO24', 'ByteTrack', 'ACTIV', 'ONLINE']) {
+  for (const forbidden of ['Backend online', 'Baza de date răspunde', 'Edge AI', 'Ultimul semnal', 'YOLO', 'ByteTrack', 'ACTIV', 'ONLINE']) {
     assert.equal(text.includes(forbidden), false, `mock tiles must not say "${forbidden}"`);
   }
+});
+
+test('the model tile follows the stored detector without a reload', () => {
+  const lite2 = buildSystemTiles({ isMock: true, cameras, zones, detector: 'efficientdet-lite2' });
+  assert.equal(lite2[2].value, 'EfficientDet-Lite2 + YuNet');
+  assert.match(lite2[2].detail, /Apache-2\.0 \+ MIT/);
+
+  const unknown = buildSystemTiles({ isMock: true, cameras, zones, detector: 'yolo' });
+  assert.equal(unknown[2].value, 'EfficientDet-Lite0 + YuNet');
+
+  // The stored Settings value is what the caller passes; a change is visible immediately.
+  const storage = {
+    data: { [ENGINE_SETTINGS_KEY]: JSON.stringify({ detector: 'efficientdet-lite2' }) },
+    getItem(key) { return key in this.data ? this.data[key] : null; },
+    setItem(key, value) { this.data[key] = String(value); },
+  };
+  const stored = readEngineSettings(storage).detector;
+  assert.equal(buildSystemTiles({ isMock: true, cameras, zones, detector: stored })[2].value, 'EfficientDet-Lite2 + YuNet');
+  storeDetector('efficientdet', storage);
+  assert.equal(
+    buildSystemTiles({ isMock: true, cameras, zones, detector: readEngineSettings(storage).detector })[2].value,
+    'EfficientDet-Lite0 + YuNet',
+  );
 });
 
 test('the backend branch keeps the backend and edge cells', () => {

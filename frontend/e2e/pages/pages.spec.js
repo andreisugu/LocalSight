@@ -116,4 +116,42 @@ test('the engine starts on the clip and produces frames', async ({ page }) => {
   await expect
     .poll(async () => Number(await fpsChip.getAttribute('data-fps')), { timeout: 60_000 })
     .toBeGreaterThan(0);
+
+  // The card names the graph that really loaded. With no setting stored, that must be the
+  // shipped default: EfficientDet-Lite0 (320 px, Apache-2.0). Nothing YOLO is shipped.
+  await expect(page.getByTestId('engine-card')).toContainText('EfficientDet-Lite0');
+  await expect(page.getByTestId('engine-card')).not.toContainText('YOLO');
+});
+
+test('Settings offers both EfficientDet models and persists the choice', async ({ page }) => {
+  await page.goto(BASE);
+  await openView(page, 'settings');
+
+  const panel = page.getByTestId('detector-panel');
+  await expect(panel).toBeVisible();
+  // Both choices are Apache-2.0 and the card says the AGPL model is gone.
+  await expect(panel).toContainText('Apache-2.0');
+  await expect(panel).toContainText('Fără AGPL');
+
+  const lite0 = page.getByTestId('detector-efficientdet');
+  const lite2 = page.getByTestId('detector-efficientdet-lite2');
+  await expect(lite0).toBeChecked();
+  await expect(panel).toContainText('320 px');
+  await expect(panel).toContainText('448 px');
+
+  await lite2.check();
+  await expect(lite2).toBeChecked();
+  await expect
+    .poll(async () => page.evaluate(
+      () => JSON.parse(localStorage.getItem('localsight.engineSettings') || '{}').detector
+    ))
+    .toBe('efficientdet-lite2');
+  // A full reload keeps the choice: it is the engine's setting, not this render's state.
+  await page.reload();
+  await openView(page, 'settings');
+  await expect(page.getByTestId('detector-efficientdet-lite2')).toBeChecked();
+
+  // Back to the default, so a later test in this file sees the shipped configuration.
+  await page.getByTestId('detector-efficientdet').check();
+  await expect(page.getByTestId('detector-efficientdet')).toBeChecked();
 });

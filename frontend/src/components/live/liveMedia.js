@@ -1,7 +1,7 @@
 // Pure decisions behind the Live screen: sources, labels and the acknowledgement guard.
 // Everything here is free of React so the rules can be checked with `node --test` and the
 // view components only have to render what these functions return.
-import { PERSON_DETECTOR_LABELS } from '../../engine/detectorFlag.js';
+import { DEFAULT_DETECTOR, PERSON_DETECTOR_LABELS } from '../../engine/detectorFlag.js';
 
 // A double-click is two clicks at the same spot within this window (Chromium uses 500 ms).
 // The guard below only cares about the `detail` the browser reports and about a press that
@@ -271,13 +271,14 @@ export function engineReadout({
     : activeCamera?.subtitle || activeCamera?.name || '—';
   // The provider is the one ORT actually created, not the one we asked for: on a machine
   // where WebGPU is refused, saying "browser" would hide which path is running. The model
-  // half names the person graph the worker loaded; `?detector` is the only way it is not
-  // YOLO26n, and the default build never sends it.
-  const personModel = PERSON_DETECTOR_LABELS[engine.detector] || PERSON_DETECTOR_LABELS.yolo;
+  // half names the person graph the worker loaded (`ready.detector`), so it follows the
+  // Settings choice and updates when the engine restarts on the other graph.
+  const personModel =
+    PERSON_DETECTOR_LABELS[engine.detector] || PERSON_DETECTOR_LABELS[DEFAULT_DETECTOR];
   const modelLabel = browserEngineOn && engineSource
     ? `${personModel} · ${engine.actualProviders?.length ? engine.actualProviders.join('+') : 'browser'}`
     : showStream
-      ? 'edge · YOLO26'
+      ? 'edge · EfficientDet'
       : 'oprit';
   const latencyLabel =
     kpis.detection_to_alert_latency_s === '—' ? '—' : `${kpis.detection_to_alert_latency_s}s`;

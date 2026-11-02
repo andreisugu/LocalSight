@@ -535,8 +535,9 @@ export default function BenchView() {
         </div>
 
         <p className="text-[11px] font-mono opacity-60" style={{ color: themeStyles.textMuted }}>
-          Graful YOLO e fix 640×640; „input size” limitează cadrul dat detectoarelor (YuNet e dinamic
-          și rulează la această rezoluție), fără upscaling. Un rulaj se măsoară doar după ce modelele
+          Graful EfficientDet are intrare fixă (320×320 Lite0, 448×448 Lite2); „input size” limitează
+          cadrul dat detectoarelor (YuNet e dinamic și rulează la această rezoluție), fără upscaling.
+          Un rulaj se măsoară doar după ce modelele
           s-au încărcat: timpul de încărcare nu intră în durată.
         </p>
       </div>

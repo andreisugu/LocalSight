@@ -219,10 +219,10 @@ test('readouts use measured numbers only', () => {
   });
   assert.equal(running.pipelineActive, true);
   assert.equal(running.pipelineLabel, '5.5 FPS • browser');
-  assert.equal(running.modelLabel, 'YOLO26n · webgpu');
+  assert.equal(running.modelLabel, 'EfficientDet-Lite0 · webgpu');
   assert.equal(running.latencyLabel, '12s');
 
-  // The spike flag names the graph that really ran; the default stays YOLO26n.
+  // The worker's `ready` message names the graph that really ran; the default is Lite0.
   const lite0 = engineReadout({
     ...base,
     engine: { ...engine, detector: 'efficientdet' },
@@ -243,7 +243,7 @@ test('readouts use measured numbers only', () => {
     browserEngineOn: true,
     engineSource: true,
   });
-  assert.equal(unknown.modelLabel, 'YOLO26n · webgpu');
+  assert.equal(unknown.modelLabel, 'EfficientDet-Lite0 · webgpu');
 });
 
 test('zones are converted once, in contract shape', () => {

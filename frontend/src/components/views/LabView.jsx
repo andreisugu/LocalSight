@@ -22,7 +22,7 @@ import {
   smoothSpeed,
 } from '../../engine/groundPlane.js';
 
-const MODEL_HINT = `${import.meta.env.BASE_URL}models/yolo26n.onnx + ${import.meta.env.BASE_URL}models/yunet.onnx`;
+const MODEL_HINT = `${import.meta.env.BASE_URL}models/efficientdet_lite0.onnx + ${import.meta.env.BASE_URL}models/yunet.onnx`;
 
 const SOURCE_CLIP = 'clip';
 const SOURCE_CAMERA = 'camera';
@@ -109,7 +109,7 @@ function cameraErrorFor(error) {
   };
 }
 
-// Spike page: proves YOLO + YuNet + the zone rule engine run in the browser on a looping
+// Spike page: proves EfficientDet + YuNet + the zone rule engine run in the browser on a looping
 // clip or on the laptop webcam. No backend: the zone is the full-frame lab fixture, and
 // the incidents live in memory for as long as the tab is open.
 export default function LabView() {
@@ -633,8 +633,8 @@ export default function LabView() {
             Lab - motor în browser
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Detecție de persoane YOLO, blur de față YuNet și incidente din zona cadrului
-            întreg, ONNX Runtime Web, fără backend.
+            Detecție de persoane EfficientDet-Lite0, blur de față YuNet și incidente din zona
+            cadrului întreg, ONNX Runtime Web, fără backend.
           </p>
         </div>
 

@@ -17,10 +17,11 @@
 // because nobody is watching these feeds live.
 
 import { demoClipFor, parseList } from '../components/live/liveMedia.js';
+import { readEngineSettings } from '../utils/engineSettings.js';
 
 /** One frame every two seconds, for both the page pump and the manager's delivery pump. */
 export const BACKGROUND_INTERVAL_MS = 2000;
-/** YOLO is a 640 graph; a smaller copy between threads only saves bandwidth. */
+/** Frame cap for the hidden copy between threads; the detector resizes to its own input. */
 export const BACKGROUND_INPUT_SIZE = 640;
 /** A paused demo clip is restarted; no frame loop, so this is the only liveness check. */
 const WATCHDOG_MS = 5000;
@@ -87,6 +88,7 @@ export function isPlayableSameOriginClip(url, origin) {
  *   referenceUrl?: string|null,
  *   intervalMs?: number,
  *   videoSource?: string|null,
+ *   detector?: string,
  * }} options
  * @returns {{start: () => void, stop: () => void,
  *   onEvent: (cb: (event: object) => void) => () => void,
@@ -99,6 +101,7 @@ export function createBackgroundEngine({
   referenceUrl = null,
   intervalMs = BACKGROUND_INTERVAL_MS,
   videoSource,
+  detector,
 } = {}) {
   let video = null;
   let worker = null;
@@ -133,6 +136,10 @@ export function createBackgroundEngine({
   const clipUrl = videoSource === undefined
     ? backgroundVideoSource(cameraId)
     : videoSource;
+  // Same Settings value Live uses. A caller may pass one (read once when the manager was
+  // built); without it the stored choice is read here, at start, so a background camera
+  // never silently falls back to a detector the operator did not pick.
+  const personDetector = detector ?? readEngineSettings().detector;
 
   const unsupported = (reason) => {
     state = 'unsupported';
@@ -338,6 +345,8 @@ export function createBackgroundEngine({
       // Forced, even if Settings turned the safety blur off: nobody watches this feed, so a
       // missed profile must still be covered. The worker fails closed on blur errors.
       safetyBlur: true,
+      // EfficientDet-Lite0 unless Settings picked Lite2: the same two graphs Live ships.
+      detector: personDetector,
       inputSize: BACKGROUND_INPUT_SIZE,
       referenceUrl: referenceUrl || undefined,
       // Providers default to the worker's probe; a background session must not demand

@@ -16,9 +16,9 @@ const INITIAL_STATS = {
   message: '',
   providers: [],
   actualProviders: [],
-  // Person graph the worker loaded: `yolo` (default), `efficientdet` (Lite0) or
-  // `efficientdet-lite2`. Only the `?detector` spike flag can set the last two.
-  detector: 'yolo',
+  // Person graph the worker loaded: `efficientdet` (Lite0, default) or
+  // `efficientdet-lite2`. Comes from the worker's `ready` message.
+  detector: 'efficientdet',
   events: [],
   totalEvents: 0,
   // Zone alignment for the last frame: `true` while the polygons follow the camera,
@@ -48,8 +48,9 @@ const LOOP_WATCHDOG_MS = 1000;
 // A WebGPU session that is still "loading" after this long is treated as wedged, not slow:
 // the worker is terminated (it may be blocked synchronously) and rebuilt on wasm.
 const ENGINE_STALL_MS = 30_000;
-// A cold first visit downloads ~38.9 MB (28.7 MB ORT wasm + 9.9 MB YOLO) before the
-// worker can say `ready`; on venue wifi that legitimately takes minutes. The old timer
+// A cold first visit downloads ~42.7 MB (28.7 MB ORT wasm + 13.8 MB EfficientDet-Lite0 +
+// 0.2 MB YuNet) before the worker can say `ready`; on venue wifi that legitimately takes
+// minutes. The old timer
 // started at worker creation and killed such a worker as if WebGPU had wedged. The ready
 // timeout is generous; the 30 s stall timer only starts after `ready`.
 const ENGINE_READY_TIMEOUT_MS = 180_000;
@@ -60,16 +61,15 @@ const ENGINE_READY_TIMEOUT_MS = 180_000;
  *           enabled?: boolean,
  *           provider?: 'webgpu'|'wasm',
  *           inputSize?: number,
- *           detector?: 'yolo'|'efficientdet'|'efficientdet-lite2',
  *           trackFeed?: boolean,
  *           onSample?: (sample: {ms: number, fps: number, persons: number, faces: number,
  *                               error?: string|null, at: number}) => void }} options
  *
  * `provider`/`inputSize` are bench-only knobs. Omitting both sends the same init message
- * the spike always sent, so `/lab` is untouched. `detector` is the `?detector` spike flag
- * read by LiveView: only `efficientdet` and `efficientdet-lite2` leave the default YOLO26n.
- * `onSample` sees every result frame; the 250 ms state throttle above is for overlays, not
- * for measurement.
+ * `/lab` always sent, so the lab is untouched. The person detector is not a prop: it is
+ * read from Settings on every render, so choosing Lite2 in Settings restarts the worker and
+ * loads that graph, exactly like the thread count. `onSample` sees every result frame; the
+ * 250 ms state throttle above is for overlays, not for measurement.
  *
  * `trackFeed` is the `/lab` ground-plane prototype's opt-in: the worker then attaches the
  * tracker's boxes and the frame time to every result, and the state throttle is bypassed so
@@ -91,7 +91,6 @@ export function useEngine({
   enabled = true,
   provider,
   inputSize,
-  detector = 'yolo',
   trackFeed = false,
   onSample,
   zones,
@@ -109,7 +108,7 @@ export function useEngine({
     crossOriginIsolated: typeof globalThis !== 'undefined' && Boolean(globalThis.crossOriginIsolated),
     hardwareConcurrency: typeof navigator === 'undefined' ? undefined : navigator.hardwareConcurrency,
   });
-  const { safetyBlur } = engineSettings;
+  const { safetyBlur, detector } = engineSettings;
   // Set only by the stall watchdog: a provider that never produced a frame is abandoned
   // for wasm, which is observable and safe. A deliberate `provider` prop still wins when
   // the caller changes it (the bench page).
@@ -426,13 +425,12 @@ export function useEngine({
       init.providers = [effectiveProvider];
     }
     if (Number.isFinite(inputSize) && inputSize > 0) init.inputSize = inputSize;
-    // Spike flag. `yolo` is what every caller gets by default, so the init message is
-    // byte-for-byte the one the shipped engine always sent when the flag is absent.
-    if (detector === 'efficientdet' || detector === 'efficientdet-lite2') {
-      init.detector = detector;
-    }
-    // Threads and the head-band blur are fixed for the life of the worker: ORT reads the
-    // thread count when it starts its pool, so a change restarts the worker through the
+    // The person graph and the settings it belongs to are fixed for the life of the worker:
+    // switching the model rebuilds the worker through the dependencies below instead of
+    // swapping a session in place, which the runtime does not support.
+    init.detector = detector;
+    // Threads and the head-band blur are fixed for the same reason: ORT reads the thread
+    // count when it starts its pool, so a change restarts the worker through the
     // dependencies below rather than being applied to a running session.
     init.wasmThreads = wasmThreads;
     init.safetyBlur = safetyBlur;

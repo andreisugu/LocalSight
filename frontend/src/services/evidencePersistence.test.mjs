@@ -93,7 +93,7 @@ function sampleEvent(overrides = {}) {
     duration_s: 1.5,
     context: { engine_on: true },
     snapshot_url: 'blob:http://localhost:4173/dead-beef',
-    model: 'yolo26n',
+    model: 'efficientdet-lite0',
     detected_at: '2026-11-02T09:00:00.000Z',
     received_at: '2026-11-02T09:00:01.000Z',
     notified_at: null,

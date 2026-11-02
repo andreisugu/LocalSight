@@ -33,6 +33,7 @@ import {
   parseList,
   toEngineZones,
 } from '../components/live/liveMedia.js';
+import { readEngineSettings } from '../utils/engineSettings.js';
 import { DEMO_REFERENCE_FRAMES } from '../constants/mockData.js';
 
 export const BACKGROUND_STORAGE_KEY = 'localsight.backgroundCameras';
@@ -205,6 +206,9 @@ export function useBackgroundCameras({
         referenceUrl: backgroundReferenceUrl(latest.current.zones, cameraId),
         intervalMs: BACKGROUND_INTERVAL_MS,
         videoSource: backgroundVideoSource(cameraId, demo),
+        // Settings, read when the manager starts: background cameras run the same
+        // EfficientDet graph as Live instead of a separate default.
+        detector: readEngineSettings().detector,
       }),
       intervalMs: BACKGROUND_INTERVAL_MS,
       maxCameras: BACKGROUND_MAX_CAMERAS,

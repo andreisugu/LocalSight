@@ -5,13 +5,9 @@
 // without a browser.
 
 import { formatDateTime } from './time.js';
-import { PERSON_DETECTOR_LABELS, readDetectorFlag } from '../engine/detectorFlag.js';
+import { DEFAULT_DETECTOR, detectorLabel } from '../engine/detectorFlag.js';
 
 export const AUDIT_LIMIT = 60;
-
-// Read once at module load: the router rewrites the path and drops `?detector`, but the
-// System screen must keep naming the graph this tab actually runs.
-const PERSON_DETECTOR = readDetectorFlag();
 
 function plural(count, one, many) {
   return `${count} ${count === 1 ? one : many}`;
@@ -53,14 +49,21 @@ export function sourceSummary(cameras = [], { isMock = false } = {}) {
  * The four summary cells. In the static build they describe what actually runs in the
  * tab; only the backend branch may talk about a backend or an edge box.
  */
-export function buildSystemTiles({ isMock = false, health, cameras = [], zones = [], latestModel } = {}) {
+export function buildSystemTiles({
+  isMock = false,
+  health,
+  cameras = [],
+  zones = [],
+  latestModel,
+  detector = DEFAULT_DETECTOR,
+} = {}) {
   const sources = sourceSummary(cameras, { isMock });
 
   if (isMock) {
     return [
       { id: 'build', label: 'Build', value: 'STATIC', detail: 'fără backend, fără edge; totul rulează în tab', tone: 'neutral' },
       { id: 'engine', label: 'Motor browser', value: 'OPȚIONAL', detail: 'pornit din Live; WASM pe Firefox, WebGPU pe Chrome compatibil', tone: 'neutral' },
-      { id: 'model', label: 'Model detecție', value: `${PERSON_DETECTOR_LABELS[PERSON_DETECTOR]} + YuNet`, detail: 'ONNX servit din aplicație, rulat local', tone: 'neutral' },
+      { id: 'model', label: 'Model detecție', value: `${detectorLabel(detector)} + YuNet`, detail: 'ONNX servit din aplicație, rulat local; Apache-2.0 + MIT', tone: 'neutral' },
       { id: 'cameras', label: 'Camere', value: sources.value, detail: sources.detail, tone: 'neutral' },
     ];
   }
