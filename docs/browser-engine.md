@@ -119,8 +119,12 @@ Restul planului de port nu există încă: `tracker.js`, `zones.js`, `privacy.js
 încrezătoare, apoi cele slabe) și un Kalman care nu merită portat pentru o singură cameră.
 Portul minim: potrivire lacomă pe IoU ≥ 0.3 între cutiile cadrului anterior și cele
 actuale, ordonate după scor; un track nematch-uit supraviețuiește 30 de cadre, apoi moare;
-id-urile cresc monoton și nu se refolosesc. Consecința de măsurat: la o ocluzie lungă id-ul
-se schimbă, iar `(track_id, zone.id)` din `RuleEngine` și `ZoneMembership` repornește de la
+id-urile cresc monoton și nu se refolosesc. La 1,5 fps un om care merge iese din IoU 0.3
+între două cadre, deci după trecerea pe IoU urmează una pe distanța dintre centre
+(≤ 0.8 × înălțimea maximă a cutiilor, lacom, doar pentru perechile rămase libere); fără ea,
+același om primea un id nou la fiecare cadru-două, iar `VestTracker` nu strângea niciodată
+cele 5 eșantioane. Consecința de măsurat: la o ocluzie lungă id-ul se schimbă, iar
+`(track_id, zone.id)` din `RuleEngine` și `ZoneMembership` repornește de la
 zero — un eveniment poate întârzia cu o fereastră, nu se pierde și nu se dublează
 (cooldown-ul de 60 s per tip+zonă rămâne plasa de siguranță). Id-urile sunt valabile doar
 în sesiunea tab-ului; nu se compară între reload-uri.
