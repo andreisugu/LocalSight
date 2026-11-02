@@ -15,8 +15,8 @@ o dată în tabelul de mai jos.
 | [contract.md](contract.md) | istoric | Contractul eveniment/zonă v2.2 și endpointurile backendului (A→B) | Citești doar forma plicului de eveniment; endpointurile nu se mai aplică |
 | [plan_alert_guarantees.md](plan_alert_guarantees.md) | istoric | Planul livrat pentru outbox/retry, watchdog de cameră și raport de tură | Nu se portează; spune ce însemna „alertă garantată” înainte |
 | [agentic-annotation-workflow.md](agentic-annotation-workflow.md) | istoric | Cum s-au produs cele 2 etichete YOLO PPE, cu verificare vizuală | Nu se portează; etichetele trăiesc în `data/annotations/` |
-| [assets/demo-apron.webp](assets/demo-apron.webp) | referință | Captură cu platforma reală (avion la poartă, zonă restricționată) | Imaginea din README-ul rădăcină; nu o muta |
-| [assets/demo-app.webp](assets/demo-app.webp) | referință | Captură cu aplicația SafeSight din demo (veste, incidente) | Idem, a doua imagine din README |
+| [assets/demo-apron.webp](assets/demo-apron.webp) | istoric | Captură SafeSight veche: platforma reală (avion la poartă, zonă restricționată) | Nu mai e în README-ul rădăcină, care linkuiește `assets/localsight-*.png`; rămâne doar numită în `THIRD_PARTY.md` |
+| [assets/demo-app.webp](assets/demo-app.webp) | istoric | Captură SafeSight veche cu aplicația din demo (veste, incidente) | Idem; nu o pune în README |
 
 Legendă: **actual** = descrie direcția LocalSight; **referință** = încă adevărat și util la
 port; **istoric** = descrie implementarea SafeSight (backend/edge) și nu mai decide nimic.
