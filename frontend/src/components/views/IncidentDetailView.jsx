@@ -20,6 +20,7 @@ import ConfidenceBadge from '../common/ConfidenceBadge';
 import SafeImage from '../common/SafeImage';
 import { printAsPdf } from '../../utils/print';
 import { canDo } from '../../constants/eventActions';
+import { USE_MOCK } from '../../services/api';
 
 export default function IncidentDetailView() {
   const { isDarkMode, themeStyles } = useTheme();
@@ -121,6 +122,15 @@ export default function IncidentDetailView() {
               >
                 {STATUS_TOKENS[selectedEvent.status]?.label || selectedEvent.status}
               </span>
+              {/* The list already labels fixtures; the detail must not present them as a real detection. */}
+              {USE_MOCK && !selectedEvent.local && (
+                <span
+                  className="text-[10px] font-bold px-2 py-0.5 rounded border border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-[#FFEB33] whitespace-nowrap shrink-0"
+                  title="Incident din fixture-urile demo, nu detecție a motorului din browser."
+                >
+                  date demo
+                </span>
+              )}
             </div>
             <p style={{ color: themeStyles.textMuted }} className="text-xs font-mono truncate">
               Model detecție: {selectedEvent.model} • Track ID: #{selectedEvent.track_id}
@@ -168,7 +178,9 @@ export default function IncidentDetailView() {
               iconSize={36}
             />
             <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/80 text-white font-mono text-[10px] rounded border border-white/20">
-              Momentul incidentului • fețe blurate pe edge
+              {selectedEvent.local
+                ? 'Momentul incidentului • fețe blurate în browser'
+                : 'Momentul incidentului • fețe blurate'}
             </div>
           </div>
 
@@ -215,9 +227,15 @@ export default function IncidentDetailView() {
             <div className="flex items-center justify-between pb-2 border-b border-white/10">
               <h3 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2">
                 <Info size={16} className="text-[#D73833]" />
-                Raport incident ({selectedEvent.report?.source === 'llm' ? 'AI' : 'șablon'})
+                Raport incident (
+                {selectedEvent.report?.source === 'llm'
+                  ? USE_MOCK
+                    ? 'AI · demo'
+                    : 'AI'
+                  : 'șablon'}
+                )
               </h3>
-              {canRetryReport && (
+              {canRetryReport && !USE_MOCK && (
                 <button
                   onClick={handleRegenerate}
                   className="no-print text-xs text-[#D73833] hover:underline flex items-center gap-1 font-semibold"
