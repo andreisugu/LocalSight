@@ -4,7 +4,9 @@ import { defineConfig, devices } from '@playwright/test';
 // thing that ships to Pages is `npm run build` output rendered by a static file
 // server. `vite preview` behaves like Pages for history routing (unknown paths
 // fall back to index.html), so deep links such as /incidents/<id> are testable.
-const PORT = 4173;
+// Parallel sessions (agents/worktrees) must not fight over one preview port.
+// `PW_PORT=4310 npm run test:e2e` is enough; CI keeps the default.
+const PORT = Number(process.env.PW_PORT) || 4173;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
