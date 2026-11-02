@@ -7,6 +7,10 @@ const INITIAL_STATS = {
   persons: 0,
   faces: 0,
   ms: 0,
+  // What the worker's PPE colour pass saw in the last frame: tracks with a vest, tracks
+  // provably without one, tracks not judgeable yet. Rendered by nobody while the overlay
+  // is being rewritten; the numbers are already here so the UI can show them.
+  vest: { vest: 0, noVest: 0, unknown: 0 },
   status: 'idle',
   message: '',
   providers: [],
@@ -151,6 +155,9 @@ export function useEngine({
           persons: message.persons,
           faces: message.faces,
           ms: message.ms,
+          // A frame without the key (an older worker) keeps the last counts instead of
+          // flashing zeros; the worker always sends the three numbers today.
+          vest: message.vest || previous.vest,
           // Newest first. The worker sends the events of one frame in rule order; a
           // functional update keeps a re-render from appending the same batch twice.
           events: incoming.length
@@ -269,6 +276,7 @@ export function useEngine({
           persons: 0,
           faces: 0,
           ms: 0,
+          vest: { vest: 0, noVest: 0, unknown: 0 },
           // Incidents are per source: the clip the operator just left must not lend its
           // events to the next one.
           events: [],
