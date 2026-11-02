@@ -405,10 +405,13 @@ export default function LiveView() {
   // The two sources the browser engine can process. Everything the clip path shows (toggle,
   // fps badge, honest note, panel) keys off this, so the webcam path is not a second UI.
   const engineSource = showDemoVideo || webcamLive;
-  // The engine keeps one <video> node across a source swap while it runs (the worker holds
-  // that exact element), and remounts per clip while it is off. A webcam stream is not a
-  // `src`, so it gets its own stable key in the off state.
-  const videoKey = browserEngineOn ? 'live-engine' : isWebcamCamera ? 'webcam-source' : demoVideoSrc;
+  // One <video> node for the life of the view: it owns the decoder and the media pipeline,
+  // and the worker reads frames from that exact element. Rekeying it per engine state threw
+  // a fresh element (and a fresh decoder, and a clip restart) at Chromium on every toggle;
+  // rekeying it per source would hand the worker a detached node when the camera changes
+  // while the engine runs. So the node never changes and a source swap is an attribute
+  // update: `src` for a clip, `srcObject` for the webcam (see the effect above).
+  const videoKey = 'live-source';
 
   // Configuration, not detection: the zone the active camera is watched against.
   const cameraZones = (zones || []).filter((zone) => zone.camera_id === activeCamera?.id);
@@ -893,9 +896,9 @@ export default function LiveView() {
                 ) : (isWebcamCamera || showDemoVideo) ? (
                   <>
                     <video
-                      // While the engine is on the element must survive a source change:
-                      // useEngine keeps its listeners and frame loop on this exact node, and
-                      // the webcam stream is attached to whichever node this is.
+                      // Stable node (see `videoKey`): useEngine keeps its listeners and frame
+                      // loop on this exact element, and both sources swap in place — `src`
+                      // for a clip, `srcObject` for the webcam.
                       key={videoKey}
                       ref={videoRef}
                       // A MediaStream is not a URL: the webcam gets it through srcObject in
