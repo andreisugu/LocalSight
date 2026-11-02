@@ -125,9 +125,10 @@ export function crossingEdges(points, closed = true) {
  * button, not an automatic fix.
  *
  * The comparator splits the plane into the same four arcs `Math.atan2` produces
- * ([-π, 0), 0, (0, π), π) and orders each arc by cross product. Equal directions fall
- * back to distance from the centroid, then to input order, so the result is deterministic
- * for duplicated rays.
+ * ([-π, 0), 0, (0, π), π) and orders each arc by cross product. A turn smaller than
+ * double-precision resolution is a tie: there the exact `atan2` comparison is used, so
+ * near-collinear rays keep the deterministic order they had before. Equal directions fall
+ * back to distance from the centroid, then to input order.
  */
 export function orderAroundCentroid(points) {
   if (points.length < 2) return [...points];
@@ -145,13 +146,27 @@ export function orderAroundCentroid(points) {
   const placed = points.map((point, index) => {
     const dx = point.x - cx;
     const dy = point.y - cy;
-    return { point, index, dx, dy, arc: arc(dx, dy), distance: dx * dx + dy * dy };
+    return {
+      point,
+      index,
+      dx,
+      dy,
+      arc: arc(dx, dy),
+      distance: dx * dx + dy * dy,
+      angle: null,
+    };
   });
 
   placed.sort((a, b) => {
     if (a.arc !== b.arc) return a.arc - b.arc;
     const turn = cross(a.dx, a.dy, b.dx, b.dy);
-    if (turn !== 0) return turn > 0 ? -1 : 1;
+    // Below this relative size the cross product is rounding noise, not a direction.
+    if (Math.abs(turn) > 1e-15 * Math.sqrt(a.distance * b.distance)) {
+      return turn > 0 ? -1 : 1;
+    }
+    const angleA = a.angle ?? (a.angle = Math.atan2(a.dy, a.dx));
+    const angleB = b.angle ?? (b.angle = Math.atan2(b.dy, b.dx));
+    if (angleA !== angleB) return angleA - angleB;
     if (a.distance !== b.distance) return a.distance - b.distance;
     return a.index - b.index;
   });
