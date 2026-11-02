@@ -63,6 +63,10 @@ let initProviders = null;
 // Longest side of the frame handed to the detectors; 0 means "native size". The YOLO graph
 // is fixed at 640x640, so this limit changes the frame, not the YOLO tensor.
 let frameLimit = 0;
+// Opt-in telemetry for the `/lab` ground-plane prototype: the result message then carries
+// the tracked boxes and the frame time, instead of only the event count. Live and `/bench`
+// never set it, so their messages stay exactly as before.
+let trackFeed = false;
 
 let frameCanvas = null;
 let frameCtx = null;
@@ -730,6 +734,7 @@ async function handleFrame(message) {
   let persons = [];
   let faces = [];
   let events = [];
+  let tracked = [];
   let error = null;
   let detected = false;
   try {
@@ -862,6 +867,7 @@ async function handleFrame(message) {
         snapshotUrl: SNAPSHOT_PENDING,
       });
       events = result.events;
+      tracked = result.tracked;
     } catch (caught) {
       error = caught instanceof Error ? caught.message : String(caught);
     }
@@ -896,6 +902,17 @@ async function handleFrame(message) {
       // tracks with a vest, tracks provably without one, and tracks not judgeable yet.
       vest,
       events,
+      // `/lab` only (see `trackFeed`): the tracker's boxes and the frame time, so the
+      // ground-plane prototype can turn foot points into metres. `bbox` is frame-normalized,
+      // the same coordinates the pipeline and the zone rules use.
+      ...(trackFeed
+        ? {
+          tracks: {
+            time: nowS,
+            boxes: tracked.map((track) => ({ id: track.trackId, bbox: track.bbox })),
+          },
+        }
+        : {}),
       error,
     },
     [output],
@@ -921,6 +938,8 @@ self.onmessage = (event) => {
       modelThreads = Math.floor(message.wasmThreads);
     }
     if (typeof message.safetyBlur === 'boolean') safetyBlur = message.safetyBlur;
+    // `/lab` ground-plane prototype only: forward the tracked boxes with each result.
+    if (message.trackFeed === true) trackFeed = true;
     pipeline = buildPipeline({
       cameraId: message.cameraId,
       zones: message.zones,
