@@ -16,7 +16,8 @@ o dată în tabelul de mai jos. Comenzile de rulare, testare și deploy sunt doa
 
 | Fișier | Stare | Ce conține | Ce faci cu el |
 |---|---|---|---|
-| [browser-engine.md](browser-engine.md) | actual | Nota de proiect a motorului din browser: module JS, active de model, runtime, buget de performanță, riscuri | Punctul de plecare; se actualizează când se schimbă arhitectura |
+| [browser-engine.md](browser-engine.md) | actual | Nota de proiect a motorului din browser: module JS, active de model (EfficientDet-Lite0/Lite2 + YuNet), runtime, buget de performanță, riscuri | Punctul de plecare; se actualizează când se schimbă arhitectura |
+| [legal/model-provenance.md](legal/model-provenance.md) | actual | Dossier legal (EN): ce se livrează și cu ce licențe, lanțul de proveniență Google → TFLite → ONNX cu SHA-256, ce acoperă BSL-ul, golul de proveniență al filmărilor și blobul AGPL rămas în istoricul git | Îl dai avocatului sau cumpărătorului; liste de verificare pentru release comercial; nu e sfat juridic |
 | [media.md](media.md) | actual | Re-encodarea clipurilor demo (H.264, 1920 px, fără audio) și publicarea lor pe GitHub Pages | Îl urmezi cu `scripts/prepare-demo-media.sh` înainte de build |
 | [architecture/review.md](architecture/review.md) | actual | Audit de arhitectură și cod: verdict, constatări prioritizate P0–P2, dovezi și anexe pe `frontend/`, `docs/` și CI | Îl folosești ca listă de priorități; cifrele lui sunt snapshot-ul commitului `ad05128`, nu starea de azi |
 | [ops/release-audit.md](ops/release-audit.md) | actual | Audit de release și operațiuni: stare live, gate de CI, artefact, riscuri și goluri de runbook | Citește-l înainte de un demo public; spune ce e verificat și ce rămâne deschis |

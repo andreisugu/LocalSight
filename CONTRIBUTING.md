@@ -31,8 +31,8 @@ Suita unitară, smoke-ul Playwright și suita pe forma de deploy sunt în
 ## 4. Unde se lucrează
 
 Nu există un stack Python de pornit. Tot ce ține de produs e în `frontend/src/engine/`:
-YOLO26n + YuNet + tracker + zone + reguli + blur + vestă hi-vis, în Web Worker prin ONNX
-Runtime Web. Logica pură se testează în Node.
+EfficientDet-Lite0/Lite2 + YuNet + tracker + zone + reguli + blur + vestă hi-vis, în Web
+Worker prin ONNX Runtime Web. Logica pură se testează în Node.
 
 Design-ul și deciziile sunt în [`docs/browser-engine.md`](docs/browser-engine.md).
 Comentariile din `frontend/src` care citează `ml/` sau `backend/` sunt proveniență (din ce
@@ -43,9 +43,10 @@ fișier s-a portat logica), nu căi de rulat: fișierele acelea sunt doar în is
 Regenerarea modelelor și encode-ul clipurilor sunt în
 [`RUNNING.md`](RUNNING.md#modele-și-media). Reguli:
 
-- `prepare-models.py` pornește de la exporturile YOLO26n și YuNet folosite de fosta
-  referință Python (acum doar în istoricul git / upstream) și rescrie inputul YuNet la
-  `[1, 3, "height", "width"]`. Are nevoie de `pip install onnx`.
+- `prepare-models.py` copiază cele două exporturi ONNX EfficientDet-Lite (neatinse) și
+  rescrie doar inputul YuNet la `[1, 3, "height", "width"]`. Sursele se dau ca argumente, nu
+  se descarcă nimic; argumentele exacte sunt în `--help` și în headerul scriptului. Copierea
+  celor două EfficientDet nu are dependențe, patch-ul YuNet are nevoie de `pip install onnx`.
 - `prepare-demo-media.sh` citește `*.mp4` din directorul sursă și scrie versiunea web în
   `frontend/public/media/`. Implicitul e o cale absolută de pe mașina autorului: dă-ți
   directorul ca prim argument.
@@ -69,9 +70,12 @@ Garda de CI, build-ul de Pages, verificarea artefactului și rollback-ul sunt î
   de orice scriere ori afișare; fără nume, emoții sau identificare de persoane.
 - **Licența:** codul e **BSL 1.1** (`LICENSE`) — copiere și modificare libere,
   producție și serviciu găzduit doar cu licență comercială, conversie la Apache 2.0
-  pe 2 noiembrie 2030. **YOLO/Ultralytics e AGPL-3.0**: build-ul servește greutățile,
-  deci AGPL se aplică ansamblului distribuit; BSL-ul nu acoperă asta — pentru orice
-  uz comercial, întreabă întâi. Detalii: [`THIRD_PARTY.md`](THIRD_PARTY.md).
+  pe 2 noiembrie 2030. Codul BSL nu acoperă activele terțe: detectorul are **greutăți
+  Apache-2.0** (Google) și **conversie ONNX CC BY 3.0** (Namas Bhandari), YuNet e MIT, iar
+  atribuirea trebuie să rămână în `frontend/public/NOTICE`. **Nu introduce greutăți
+  YOLO/AGPL** — licența urmează greutățile, inclusiv la un model fine-tunat. Detalii:
+  [`THIRD_PARTY.md`](THIRD_PARTY.md) și
+  [`docs/legal/model-provenance.md`](docs/legal/model-provenance.md).
 
 ## 8. Depanare
 

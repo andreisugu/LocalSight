@@ -2,6 +2,36 @@
 
 Câte un clip pentru fiecare caz din demo. Clipurile `.mp4` nu intră în git; le păstrăm în folderul comun din Drive, sub `SafeSight/data/videos/`.
 
+> ## Statut legal — NECESITĂ ACȚIUNE
+>
+> **Proveniența clipurilor e nerezolvată.** Coloanele *Sursă*, *Licență* și *Cine a filmat*
+> scriu `de completat` pentru toate cele șase clipuri: nu există nici sursă documentată, nici
+> licență, nici operator de cameră, nici acord scris de la persoanele din cadru.
+>
+> **Ce înseamnă concret:**
+>
+> - clipurile **nu sunt curățate** pentru redistribuire comercială și nu sunt acoperite de
+>   licența BSL a codului; nu se inventează o licență pe care nu o avem;
+> - cele trei taieri web din `frontend/public/media/*.mp4` **sunt** comise în git și servite
+>   de build-ul static, deci se distribuie chiar dacă sursele 4K nu sunt în repo; la fel
+>   `zone-*.jpg` (cadre re-encodate din ele) și capturile din `docs/assets/`;
+> - pentru orice demo public, pilot plătit sau instanță găzduită: **completează drepturile
+>   sau înlocuiește clipurile** cu material pe care îl deținem.
+>
+> **Checklist per clip** (dovada se păstrează într-un loc durabil, nu într-un chat):
+>
+> - [ ] sursă: cine deține înregistrarea și camera (aeroport / operator), numit;
+> - [ ] licență sau permisiune **scrisă**, cu scopul: demo intern / demo public / redistribuire comercială;
+> - [ ] operator de cameră, numit;
+> - [ ] dată și loc (apron / terminal);
+> - [ ] acord scris de la voluntarii identificabili — blur-ul e mitigare, nu substitut de consens;
+> - [ ] conținut terț în cadru (livery, logo-uri, plăcuțe, ecrane);
+> - [ ] fișiere derivate trecute în listă: cele trei taieri web, cele trei `zone-*.jpg`, capturile din `docs/assets/`;
+> - [ ] verificare manuală a exportului: nicio față neblurată în ce se publică.
+>
+> Context complet: [`docs/legal/model-provenance.md`](../../docs/legal/model-provenance.md) §4 și
+> [`THIRD_PARTY.md`](../../THIRD_PARTY.md). Licențele modelelor sunt rezolvate; filmările, nu.
+
 | Caz | Fișier (în Drive) | Sursă | Licență | Cine a filmat | Data |
 |---|---|---|---|---|---|
 | Persoană în zona motorului | `videos/2026-10-30_restricted-zone_cam01_persoana-langa-motor.mp4` | de completat | de completat | de completat | 2026-10-30 |

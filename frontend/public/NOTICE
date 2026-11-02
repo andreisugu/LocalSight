@@ -7,25 +7,34 @@ The repository's own code is under the Business Source License 1.1 (see LICENSE)
 third-party components below keep their own licences.
 
 The full audit — versions, where each file is served from, and the open questions — is
-in THIRD_PARTY.md at the repository root.
+in THIRD_PARTY.md at the repository root. The legal dossier, including the model
+provenance chain, is docs/legal/model-provenance.md.
 
-1. Ultralytics YOLO26n weights — AGPL-3.0
-----------------------------------------
-File: yolo26n.onnx, served to every visitor at /models/yolo26n.onnx.
+1. EfficientDet-Lite0 / EfficientDet-Lite2 person detector — Apache-2.0 weights,
+   CC BY 3.0 ONNX conversion
+------------------------------------------------------------------------------
+Files: efficientdet_lite0.onnx, efficientdet_lite2.onnx, served at /models/*.onnx.
 
-Copyright (c) Ultralytics.
-Licensed under the GNU Affero General Public License, version 3 (AGPL-3.0).
+Model and weights: EfficientDet-Lite0 (320x320) and EfficientDet-Lite2 (448x448), from
+Google. Copyright 2020 Google LLC. Licensed under the Apache License, Version 2.0.
+  Licence text: https://www.apache.org/licenses/LICENSE-2.0
+  A copy ships at models/LICENSE-APACHE-2.0.txt.
 
-The model architecture and the weights come from Ultralytics, and an ONNX export does
-not change their licence. Ultralytics' own licensing terms require an Enterprise
-License for commercial, proprietary, SaaS or embedded use; otherwise AGPL-3.0 applies
-to the combined work, including network use under section 13.
+ONNX conversion: the ONNX export of those weights by Namas Bhandari,
+https://github.com/namas191297/efficientdetlite. (c) Namas Bhandari. Licensed under the
+Creative Commons Attribution 3.0 licence (CC BY 3.0).
+  Licence text: https://creativecommons.org/licenses/by/3.0/legalcode
+  A copy ships at models/LICENSE-CC-BY-3.0.txt.
 
-Licence text: https://www.gnu.org/licenses/agpl-3.0.txt
-Ultralytics licensing: https://www.ultralytics.com/license
+The conversion is a separate work from the Apache-2.0 weights: the .onnx file is not a
+Google artefact, and both layers are attributed here. CC BY 3.0 permits commercial use
+and redistribution and requires this attribution and licence link; it does not imply
+that Namas Bhandari or Google endorses this project. No modifications were made to the
+graph; the files are byte-for-byte the upstream ONNX exports and were verified by
+SHA-256 (see models/README.md).
 
-Corresponding source for this demo: https://github.com/andreisugu/LocalSight
-The repository is public, and this file plus the model are distributed from it.
+No AGPL-licensed model is part of this build. Earlier versions served the AGPL-3.0
+YOLO26n weights; that graph is not loaded by this build and is no longer named here.
 
 2. YuNet face detector — MIT
 ----------------------------
@@ -60,9 +69,10 @@ Copyright (c) Microsoft Corporation. Licence: https://github.com/microsoft/onnxr
 --------------------------------------------------
 The clips (media/*.mp4) and the stills (media/stills/*) are demo material. Their source,
 licence and camera operator are NOT recorded in this repository (data/videos/README.md
-still says "de completat" for each clip). No licence is claimed for them, and they are
-not part of the BSL-licensed work. Do not redistribute them outside this demo until the
-provenance is filled in.
+still says "de completat" for each clip). No licence is claimed for them, they have not
+been cleared for redistribution, and they are not part of the BSL-licensed work. Do not
+redistribute them outside this demo until the provenance is filled in or the clips are
+replaced.
 
 Three stills have a stated licence of their own:
 - media/stills/apron-stand.jpg — Unsplash License.
