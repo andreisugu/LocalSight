@@ -31,6 +31,8 @@ const VIEW_PATHS = {
   zones: '/zones',
   reports: '/reports',
   settings: '/settings',
+  // Spike page, reachable by URL only: no sidebar entry.
+  lab: '/lab',
 };
 
 function routeFromPath(pathname) {
