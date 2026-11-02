@@ -1,8 +1,32 @@
+# LocalSight
+
+The SafeSight pipeline, taken in a different direction: detection, zones, face blur and
+incidents should run **in the browser** — no server, no upload, nothing leaving the tab.
+That port is in progress; until it lands, this is the SafeSight codebase with its edge +
+API, and the browser engine grows next to it.
+
+## License
+
+**Business Source License 1.1** — see [LICENSE](LICENSE).
+
+- copying, modifying and non-production use are allowed;
+- production use, including offering it as a hosted or embedded service, needs a
+  commercial license from the Licensor;
+- on **November 2, 2030** the license converts to Apache 2.0.
+
+## Third-party, read before commercial use
+
+- **Ultralytics YOLO is AGPL-3.0.** Shipping a proprietary or hosted product with it
+  needs an Ultralytics Enterprise License, or the whole distribution must comply with
+  the AGPL. This repo's BSL does not override that.
+- The demo clips are not part of the licensed work and are not tracked in git; check
+  their provenance before publishing them.
+
+---
+
 <div align="center">
 
-# SafeSight
-
-**Camerele care există deja pe platformă devin senzori de siguranță.**
+**Pornind de la SafeSight: camerele care există deja pe platformă devin senzori de siguranță.**
 O intrare în zona motorului pornește singură alerta, raportul și escaladarea — fără un operator care se uită la 40 de ecrane.
 
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white&style=flat-square)
