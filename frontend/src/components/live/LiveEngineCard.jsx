@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -6,11 +6,18 @@ import {
   Cpu,
   Gauge,
   Radio,
+  Ruler,
   ScanFace,
   ShieldAlert,
   Users,
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
+import GroundCalibration, { useGroundCalibration } from './GroundCalibration';
+import {
+  advanceTrackSpeeds,
+  createTrackSpeedState,
+  formatGroundRect,
+} from '../../utils/groundCalibration';
 
 // The single card that describes the engine and the sensors together. It used to be two
 // blocks: the browser-engine readout (only while the engine ran) and a four-cell telemetry
@@ -42,6 +49,17 @@ const STATUS_LABELS = {
 // settle says nothing. Ten seconds is long enough for a WASM run to show its real pace.
 const LOW_FPS_AFTER_MS = 10_000;
 const LOW_FPS_THRESHOLD = 2;
+
+// The track feed arrives with every processed frame (~5/s). Re-rendering the speed list
+// that often is clutter, and the EMA already folds the frames in between, so the list is
+// refreshed at most once a second. The fold itself still sees every frame.
+const TRACKS_RENDER_INTERVAL_MS = 1000;
+
+/** One decimal, Romanian comma; `null` when there is no usable reading. */
+function formatSpeed(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  return value.toLocaleString('ro-RO', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
 
 // One definition-list group: `<div>` inside `<dl>` may only hold `dt`/`dd`, so the icon
 // rides inside the term and is positioned against the group. The previous version nested
@@ -78,9 +96,17 @@ export default function LiveEngineCard({
   pipelineActive,
   modelLabel,
   latencyLabel,
+  cameraId,
+  cameraLabel,
+  referenceUrl,
 }) {
   const { themeStyles } = useTheme();
   const [measured, setMeasured] = useState(false);
+  const [calibrationOpen, setCalibrationOpen] = useState(false);
+  const [trackRows, setTrackRows] = useState([]);
+  const trackStateRef = useRef(createTrackSpeedState(null));
+  const trackRenderRef = useRef(0);
+  const ground = useGroundCalibration(cameraId);
 
   // Restart the low-fps measurement with every run: turning the engine off and on is a new
   // start, and the previous verdict must not stick to it. `running` flips with the worker's
@@ -104,6 +130,28 @@ export default function LiveEngineCard({
   // track has not collected enough samples yet, so it is shown, not hidden.
   const vest = engine.vest || { vest: 0, noVest: 0, unknown: 0 };
   const fpsValue = engine.fps ? engine.fps.toFixed(1) : '—';
+
+  // Ground speeds: the fold sees every tracker feed, the list re-renders at most once a
+  // second. A new camera or a recalibration starts from an empty history, so an old speed
+  // is never smoothed into a new map. With no calibration every row says „necalibrat”;
+  // no number is invented and 0 is never printed.
+  useEffect(() => {
+    trackStateRef.current = createTrackSpeedState(ground.homography);
+    setTrackRows([]);
+    trackRenderRef.current = 0;
+  }, [cameraId, ground.homography]);
+
+  useEffect(() => {
+    const feed = engine.tracks;
+    if (!feed || !Array.isArray(feed.boxes)) return;
+    const next = advanceTrackSpeeds(trackStateRef.current, feed, ground.homography);
+    trackStateRef.current = next.state;
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (now - trackRenderRef.current >= TRACKS_RENDER_INTERVAL_MS) {
+      trackRenderRef.current = now;
+      setTrackRows(next.rows);
+    }
+  }, [engine.tracks, ground.homography]);
 
   // One line instead of empty engine slots: the card keeps its shape when detection is off.
   const idleLine = !engineOn
@@ -238,6 +286,124 @@ export default function LiveEngineCard({
           </>
         )}
       </dl>
+
+      {/* Ground calibration lives in this card, not on the stage: the operator keeps the
+          engine readout and the alert feed while placing four corners on the reference
+          still. The webcam has no reference frame, so it never shows the trigger. */}
+      {engineOn && referenceUrl && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-slate-500/15 pt-2">
+          <Ruler
+            size={12}
+            className="shrink-0 text-cyan-700 dark:text-[#33E1FF]"
+            aria-hidden="true"
+          />
+          <span className="text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Calibrare sol
+          </span>
+          <span
+            data-testid="ground-calibration-label"
+            data-calibrated={ground.calibrated ? 'true' : 'false'}
+            className={`font-mono text-[10px] font-bold ${
+              ground.calibrated
+                ? 'text-cyan-700 dark:text-[#33E1FF]'
+                : 'text-slate-500 dark:text-slate-400'
+            }`}
+          >
+            {ground.calibrated ? ground.label : 'necalibrat'}
+          </span>
+          <button
+            type="button"
+            onClick={() => setCalibrationOpen((open) => !open)}
+            aria-expanded={calibrationOpen}
+            className="ml-auto inline-flex items-center gap-1 rounded border border-cyan-600/40 bg-cyan-600/5 px-2 py-1 text-[10px] font-bold text-cyan-800 hover:bg-cyan-600/15 dark:border-[#33E1FF]/40 dark:text-[#33E1FF] dark:hover:bg-[#33E1FF]/10"
+          >
+            <Ruler size={11} aria-hidden="true" />
+            {calibrationOpen ? 'Închide calibrarea' : 'Calibrare sol'}
+          </button>
+        </div>
+      )}
+
+      {calibrationOpen && engineOn && referenceUrl && (
+        <GroundCalibration
+          cameraId={cameraId}
+          cameraLabel={cameraLabel}
+          referenceUrl={referenceUrl}
+          savedCalibration={ground.calibration}
+          onSave={ground.save}
+          onReset={ground.reset}
+          onClose={() => setCalibrationOpen(false)}
+        />
+      )}
+
+      {/* Speeds come from the tracker's own foot points through the calibration map. No
+          calibration means every row says „necalibrat”; a truncated box or a missing
+          previous sample says why there is no number instead of printing 0. */}
+      {running && (
+        <div
+          data-testid="ground-speeds"
+          className="space-y-1 border-t border-slate-500/15 pt-2"
+        >
+          <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+            <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Viteză la sol
+            </p>
+            <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+              {ground.homography ? formatGroundRect(ground.calibration) : 'necalibrat'}
+            </span>
+          </div>
+          {trackRows.length === 0 ? (
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">
+              nicio pistă urmărită acum
+            </p>
+          ) : (
+            <ul className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px]">
+              {trackRows.slice(0, 6).map((row) => {
+                const speed = formatSpeed(row.speedMps);
+                const state = row.truncated
+                  ? 'trunchiat'
+                  : speed !== null
+                    ? `${speed} m/s`
+                    : ground.homography
+                      ? 'fără eșantion'
+                      : 'necalibrat';
+                return (
+                  <li
+                    key={row.id}
+                    data-track-id={row.id}
+                    data-speed-mps={row.speedMps ?? ''}
+                    className="inline-flex items-baseline gap-1"
+                  >
+                    <span className="text-slate-500 dark:text-slate-400">track {row.id}</span>
+                    <span aria-hidden="true" className="text-slate-400">
+                      ·
+                    </span>
+                    <span
+                      className={
+                        speed !== null
+                          ? 'font-bold text-cyan-700 dark:text-[#33E1FF]'
+                          : 'text-slate-500 dark:text-slate-400'
+                      }
+                    >
+                      {state}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {trackRows.length > 6 && (
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">
+              +{trackRows.length - 6} piste
+            </p>
+          )}
+          {ground.homography && engine.aligned === true && (
+            <p className="text-[10px] leading-snug text-slate-500 dark:text-slate-400">
+              calibrarea e pe cadrul de referință; alinierea urmărește o cameră care se
+              mișcă, deci viteza e orientativă.
+            </p>
+          )}
+        </div>
+      )}
 
       {running && (
         <p

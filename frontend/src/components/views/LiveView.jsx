@@ -49,6 +49,7 @@ export default function LiveView() {
     health,
     searchQuery,
     reportActiveCamera,
+    recordCoverageSample,
   } = useSecurity();
 
   // 'standard' | 'split' | 'fullscreen'
@@ -135,6 +136,10 @@ export default function LiveView() {
     cameraId: activeCamera?.id,
     // The reference frame the zones were drawn on; the worker fetches it once per camera.
     referenceUrl: referenceFrameUrl,
+    // The ground calibration and the speed readout need the tracker's boxes with every
+    // result, not just the 250 ms-throttled counts. This is the same opt-in `/lab` uses;
+    // the worker attaches `{ time, boxes }` and nothing else changes.
+    trackFeed: true,
     // Cap the processed frame at 1280 on the long side. The YOLO graph is fixed 640 and
     // faces/blur do not need 1920; the bench measures ~5 fps at 1280 versus ~3.7 at 1080p
     // on the same 4 threads. `/bench` still lets a visitor compare sizes explicitly.
@@ -142,6 +147,33 @@ export default function LiveView() {
   });
 
   useEngineIncidents(engine.events, addEngineEvents);
+
+  // Coverage receipt: one sample per second while the engine runs in this tab, plus one on
+  // every visibility change and engine-status change. `hidden` is the browser throttling
+  // the tab, `paused` is an enabled engine that is not producing frames yet (model load,
+  // error), and `live` is only written while the worker is really running. Session-only:
+  // the provider keeps the list in React state and never persists it, so the Reports panel
+  // can only claim what this tab actually watched.
+  const coverageCameraId = activeCamera?.id;
+  const engineStatus = engine.status;
+  useEffect(() => {
+    if (!engineEnabled || !coverageCameraId) return undefined;
+    const record = () => {
+      const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+      recordCoverageSample({
+        cameraId: coverageCameraId,
+        at: Date.now(),
+        status: hidden ? 'hidden' : engineStatus === 'running' ? 'live' : 'paused',
+      });
+    };
+    record();
+    const timer = window.setInterval(record, 1000);
+    document.addEventListener('visibilitychange', record);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', record);
+    };
+  }, [engineEnabled, coverageCameraId, engineStatus, recordCoverageSample]);
 
   // Privacy: the immersive view renders the raw clip in its own React tree, so entering it
   // would stop the worker and show unblurred faces full-screen. It is never reachable while
@@ -250,6 +282,9 @@ export default function LiveView() {
             pipelineActive={readout.pipelineActive}
             modelLabel={readout.modelLabel}
             latencyLabel={readout.latencyLabel}
+            cameraId={activeCamera.id}
+            cameraLabel={activeCamera.name || activeCamera.code || activeCamera.id}
+            referenceUrl={referenceFrameUrl}
           />
         </div>
 

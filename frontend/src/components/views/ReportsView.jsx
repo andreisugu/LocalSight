@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BarChart3,
   Calendar,
   Clock,
+  Eye,
   FileDown,
   FileText,
   ShieldCheck,
@@ -16,6 +17,8 @@ import { buildShiftReport } from '../../constants/shiftReport';
 import { OPERATIONAL_DATE, OPERATIONAL_SHIFT_ID } from '../../constants/mockData';
 import { Panel } from '../ui';
 import { ProvenanceChip, SourceChip } from '../incidents/Chips';
+import CoverageRibbon from '../reports/CoverageRibbon';
+import { coverageFor } from '../../utils/coverage';
 import { formatDate, formatDuration } from '../../utils/time';
 import {
   REPORT_SOURCE,
@@ -459,8 +462,104 @@ function ZoneTable({ rows }) {
   );
 }
 
+/** A session shorter than this starts at its first sample; a longer one shows the last 30 min. */
+const COVERAGE_WINDOW_MS = 30 * 60 * 1000;
+
+/** Re-render the receipt once a second so a stopped engine's tail becomes a visible gap. */
+function useNow(intervalMs) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), intervalMs);
+    return () => window.clearInterval(timer);
+  }, [intervalMs]);
+  return now;
+}
+
+/**
+ * Coverage receipt, mounted on Reports. It reads the session-only samples Live records
+ * while the engine runs; with no samples it renders the ribbon's honest `noData` rows.
+ * Nothing here is inferred from the number of incidents: a gap is only what the frame
+ * samples prove.
+ */
+function CoveragePanel({ samples, events, cameras, now }) {
+  const { themeStyles } = useTheme();
+  const cameraIds = useMemo(
+    () =>
+      (Array.isArray(cameras) ? cameras : [])
+        .map((camera) => camera?.id)
+        .filter((id) => typeof id === 'string' && id !== ''),
+    [cameras]
+  );
+  const cameraLabels = useMemo(() => {
+    const labels = {};
+    for (const camera of Array.isArray(cameras) ? cameras : []) {
+      if (typeof camera?.id === 'string' && camera.id !== '') {
+        labels[camera.id] = camera.name || camera.code || camera.id;
+      }
+    }
+    return labels;
+  }, [cameras]);
+
+  // The ribbon reads `at`/`eventId`; the incident list carries `detected_at`/`event_id`.
+  const ticks = useMemo(
+    () =>
+      (Array.isArray(events) ? events : [])
+        .map((event) => ({
+          eventId: event?.event_id,
+          at: event?.detected_at,
+          cameraId: event?.camera_id,
+          severity: event?.severity,
+        }))
+        .filter((event) => typeof event.eventId === 'string' && event.eventId && event.at),
+    [events]
+  );
+
+  const coverageWindow = useMemo(() => {
+    const to = now;
+    const first = (Array.isArray(samples) ? samples : []).reduce(
+      (earliest, sample) =>
+        typeof sample?.at === 'number' && sample.at < earliest ? sample.at : earliest,
+      to
+    );
+    return { from: Math.max(first, to - COVERAGE_WINDOW_MS), to };
+  }, [samples, now]);
+
+  const coverage = useMemo(
+    () => coverageFor(samples, ticks, coverageWindow, { expectedFrameMs: 1000, cameras: cameraIds }),
+    [samples, ticks, coverageWindow, cameraIds]
+  );
+
+  return (
+    <Panel as="section" size="card" className="space-y-2">
+      <PanelTitle icon={Eye}>Acoperire cameră</PanelTitle>
+      <CoverageRibbon
+        coverage={coverage}
+        window={coverageWindow}
+        incidents={ticks}
+        cameraLabel={cameraLabels}
+      />
+      <p className="text-[10px] leading-relaxed" style={{ color: themeStyles.textMuted }}>
+        doar cât a rulat motorul în acest tab — un eșantion pe secundă din cadrele procesate,
+        ținut doar în memorie; nu se salvează și nu pleacă din tab. Fereastra acoperă
+        începutul sesiunii sau ultimele 30 de minute.
+      </p>
+    </Panel>
+  );
+}
+
 export default function ReportsView() {
-  const { events, selectedShift, setSelectedShift, selectedDate, showDemoData } = useSecurity();
+  const {
+    events,
+    selectedShift,
+    setSelectedShift,
+    selectedDate,
+    showDemoData,
+    coverageSamples,
+    cameras,
+  } = useSecurity();
+  // A stopped engine stops producing samples, so the receipt needs its own clock to show
+  // the tail as a gap instead of freezing on the last green segment.
+  const now = useNow(1000);
 
   // The report is composed from the incidents the operator sees in the list, so an
   // acknowledgement or a browser-engine event changes the numbers immediately.
@@ -509,6 +608,12 @@ export default function ReportsView() {
         {!hasEvents && <EmptyReport mock={USE_MOCK} showDemoData={showDemoData} />}
         <ReportKpis kpi={report.kpi} />
         <StatusStrip report={report} />
+        <CoveragePanel
+          samples={coverageSamples}
+          events={events}
+          cameras={cameras}
+          now={now}
+        />
         <ReportSummary report={report} />
         {hasEvents && (
           <>
