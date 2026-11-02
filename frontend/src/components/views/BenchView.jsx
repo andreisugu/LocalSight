@@ -573,6 +573,30 @@ export default function BenchView() {
           <div className="opacity-70">
             {webgpu.detail}. Pagina rulează pe WASM; cifrele de mai jos sunt cele de CPU.
           </div>
+          <div className="mt-2 pt-2 border-t border-current/10 opacity-80 space-y-1">
+            <p className="font-semibold">Cum activezi WebGPU</p>
+            <p>
+              <strong>Firefox pe Linux:</strong> <code>about:config</code> →{' '}
+              <code>dom.webgpu.enabled = true</code> și{' '}
+              <code>dom.webgpu.workers.enabled = true</code> (motorul rulează într-un Worker),
+              apoi repornește Firefox. Dacă <code>requestAdapter()</code> întoarce null, încearcă
+              și <code>gfx.webgpu.ignore-blocklist = true</code>. Pe Linux WebGPU e încă
+              experimental; Nightly/Developer Edition sunt varianta sigură.
+            </p>
+            <p>
+              <strong>Firefox pe Windows / macOS (Apple Silicon):</strong> WebGPU e pornit
+              implicit din versiunile 142 / 147 — nu ai ce să activezi.
+            </p>
+            <p>
+              <strong>Chrome / Edge pe Linux:</strong> pornește browserul cu{' '}
+              <code>--enable-unsafe-webgpu --enable-features=Vulkan</code>. Pe Windows și macOS
+              merge din instalare.
+            </p>
+            <p>
+              WebGPU folosește GPU-ul pentru inferență; pe WASM rulează un singur thread, pentru
+              că GitHub Pages nu poate trimite antetele COOP/COEP cerute de <code>SharedArrayBuffer</code>.
+            </p>
+          </div>
         </div>
       )}
 
