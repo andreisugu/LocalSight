@@ -44,9 +44,11 @@ export default function LiveView() {
   // Moduri interactive de afișare: 'standard' | 'split' | 'fullscreen'
   const [displayMode, setDisplayMode] = useState('standard');
   const [streamFailed, setStreamFailed] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
 
   useEffect(() => {
     setStreamFailed(false);
+    setVideoFailed(false);
   }, [activeCamera?.id]);
 
   const isOffline = activeCamera?.status === 'offline';
@@ -65,6 +67,14 @@ export default function LiveView() {
     .join(', ');
   const noLiveForCamera = Boolean(demoCameras.length && activeCamera?.id && !demoCameras.includes(activeCamera.id));
   const showStream = Boolean(activeCamera?.stream_url && !streamFailed && !isOffline && !noLiveForCamera);
+  // Fallback static: fără backend nu există MJPEG, deci rulăm un clip local în buclă.
+  // Ordine: VITE_MEDIA_VIDEO (override global) → {BASE_URL}media/{camera.id}.mp4 → gradient.
+  // Clipurile sunt produse de scripts/prepare-demo-media.sh și rămân în afara git-ului.
+  const mediaVideoOverride = String(import.meta.env.VITE_MEDIA_VIDEO || '').trim();
+  const mediaBaseUrl = import.meta.env.BASE_URL || '/';
+  const demoVideoSrc = mediaVideoOverride
+    || (activeCamera?.id ? `${mediaBaseUrl}media/${activeCamera.id}.mp4` : null);
+  const showDemoVideo = Boolean(demoVideoSrc && !videoFailed && !isOffline && !noLiveForCamera);
   // FPS măsurat de backend din cadența cadrului live; absent = nu se poate măsura,
   // nu 0. Vezi backend/app/services/live_rate.py.
   const liveFps = activeCamera?.id ? health?.live_fps?.[activeCamera.id] : null;
@@ -157,6 +167,23 @@ export default function LiveView() {
                   className="w-full h-full object-cover"
                   onError={() => setStreamFailed(true)}
                 />
+              ) : showDemoVideo ? (
+                <>
+                  <video
+                    key={demoVideoSrc}
+                    src={demoVideoSrc}
+                    className="w-full h-full object-cover"
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    aria-label={`Clip demo ${activeCamera?.id}`}
+                    onError={() => setVideoFailed(true)}
+                  />
+                  <div className="absolute bottom-3 left-3 px-2 py-1 rounded bg-black/75 text-white text-[10px] font-mono border border-white/10">
+                    ÎNREGISTRARE • DEMO STATIC
+                  </div>
+                </>
               ) : (
                 <div className="text-center opacity-25 select-none">
                   <Video size={100} className="mx-auto mb-3 text-slate-300" />
@@ -381,12 +408,33 @@ export default function LiveView() {
                     className="w-full h-full object-cover"
                     onError={() => setStreamFailed(true)}
                   />
+                ) : showDemoVideo ? (
+                  <>
+                    <video
+                      key={demoVideoSrc}
+                      src={demoVideoSrc}
+                      className="w-full h-full object-cover"
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      aria-label={`Clip demo ${activeCamera?.id}`}
+                      onError={() => setVideoFailed(true)}
+                    />
+                    <div className="absolute top-11 left-2.5 px-2 py-1 rounded bg-black/75 text-white text-[10px] font-mono border border-white/10">
+                      ÎNREGISTRARE • DEMO STATIC
+                    </div>
+                  </>
                 ) : (
                   <div className="text-center opacity-30 select-none">
                     <Video size={56} className="mx-auto mb-1 text-slate-300" />
                     <p className="font-mono font-bold text-white text-sm">{activeCamera?.name?.toUpperCase()}</p>
                     <p className="font-mono text-[11px] text-slate-300">
-                      {streamFailed ? 'STREAM MJPEG INDISPONIBIL • FALLBACK' : `LIVE ANNOTATED STREAM${activeCamera?.fps ? ` • ${activeCamera?.fps} FPS` : ''}`}
+                      {videoFailed
+                        ? 'CLIP DEMO INDISPONIBIL • FALLBACK GRAFIC'
+                        : streamFailed
+                        ? 'STREAM INDISPONIBIL • FALLBACK'
+                        : `LIVE ANNOTATED STREAM${activeCamera?.fps ? ` • ${activeCamera?.fps} FPS` : ''}`}
                     </p>
                   </div>
                 )}
