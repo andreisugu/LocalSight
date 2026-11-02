@@ -192,26 +192,26 @@ test('an engine incident, its snapshot and its ack survive a reload', async ({ p
   // `hasText` sees concatenated textContent ("Deschislocal…"), so the badge is matched as
   // its own element instead of with a word boundary.
   const localCard = page
-    .locator('[aria-label^="Deschide incidentul evt_"]')
+    .locator('button[aria-label^="Deschide incidentul"]')
     .filter({ has: page.getByText('local', { exact: true }) })
     .first();
   await expect(localCard).toBeVisible({ timeout: 180_000 });
-  const label = await localCard.getAttribute('aria-label');
-  const eventId = (label || '').replace('Deschide incidentul ', '').trim();
-  expect(eventId).toMatch(/^evt_/);
 
   await localCard.click();
+  await page.waitForURL(/\/incidents\/evt_/);
+  const eventId = decodeURIComponent(new URL(page.url()).pathname.split('/incidents/')[1]);
+  expect(eventId).toMatch(/^evt_/);
   await expect(
     page.getByRole('heading', { level: 2, name: new RegExp(`^incident: ${eventId}$`, 'i') })
   ).toBeVisible();
 
   // The live snapshot is a page-owned blob URL and it really renders.
-  const snapshot = page.getByRole('img', { name: 'Cadru incident blurat' });
+  const snapshot = page.getByRole('img', { name: /Cadru din momentul incidentului/ });
   await expect(snapshot).toHaveAttribute('src', /^blob:/);
   await expect.poll(() => snapshot.evaluate((node) => node.naturalWidth)).toBeGreaterThan(0);
 
-  await page.getByRole('button', { name: /^Confirmă$/i }).click();
-  await expect(page.getByRole('button', { name: /^Confirmat$/i })).toBeVisible();
+  await page.getByRole('button', { name: /^Confirmă incidentul/ }).click();
+  await expect(page.getByRole('button', { name: /Confirmat/i })).toBeVisible();
 
   // Wait until the store reports the incident and the ack, so the reload cannot race a write.
   await openView(page, 'Sistem & Audit');
@@ -229,8 +229,8 @@ test('an engine incident, its snapshot and its ack survive a reload', async ({ p
   await expect(
     page.getByRole('heading', { level: 2, name: new RegExp(`^incident: ${eventId}$`, 'i') })
   ).toBeVisible({ timeout: 90_000 });
-  await expect(page.getByRole('button', { name: /^Confirmat$/i })).toBeVisible();
-  const restored = page.getByRole('img', { name: 'Cadru incident blurat' });
+  await expect(page.getByRole('button', { name: /Confirmat/i })).toBeVisible();
+  const restored = page.getByRole('img', { name: /Cadru din momentul incidentului/ });
   await expect(restored).toHaveAttribute('src', /^blob:/);
   await expect.poll(() => restored.evaluate((node) => node.naturalWidth)).toBeGreaterThan(0);
 
@@ -258,8 +258,8 @@ test('retention prunes by count and age, and clearing leaves the fixtures', asyn
   await openView(page, 'Incidente');
   await page.getByRole('listitem').first().getByRole('button').click();
   const fixtureId = decodeURIComponent(new URL(page.url()).pathname.split('/').pop());
-  await page.getByRole('button', { name: /^Confirmă$/i }).click();
-  await expect(page.getByRole('button', { name: /^Confirmat$/i })).toBeVisible();
+  await page.getByRole('button', { name: /^Confirmă incidentul/ }).click();
+  await expect(page.getByRole('button', { name: /Confirmat/i })).toBeVisible();
 
   // The override write is fire-and-forget; wait for the store to report it before reloading.
   await openView(page, 'Sistem & Audit');
@@ -280,7 +280,7 @@ test('retention prunes by count and age, and clearing leaves the fixtures', asyn
 
   // The fixture override was not tied to a stored incident; prune must not drop it.
   await page.goto(`${BASE}incidents/${fixtureId}`);
-  await expect(page.getByRole('button', { name: /^Confirmat$/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Confirmat/i })).toBeVisible();
 
   await page.goto(`${BASE}incidents/${stale[0]}`);
   await expect(page.getByText('Niciun incident selectat')).toBeVisible();
