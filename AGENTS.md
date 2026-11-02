@@ -86,6 +86,9 @@ a eșuat și de ce.
 - Dacă înlocuirea depășește ~150 de linii, o faci pe branch separat, nu îngropată într-un fix.
 - Inventarul, proveniența și ce s-a amânat stau în `docs/rewrite-backlog.md`; adaugă acolo
   orice amâni, cu o linie de motiv.
+- Procentele se măsoară cu `python3 scripts/provenance.py`; înainte să declari un fișier
+  înlocuit, rulează `--audit <fișier>` și verifică să nu rămână logică a colegilor. Liniile
+  identice (importuri, clase, matematică) rămân atribuite lor — asta e corect.
 - `backend/`, `ml/`, `data/` sunt referință, nu produs: nu le rescrii și nu le cureți.
 
 ## Reguli de lucru

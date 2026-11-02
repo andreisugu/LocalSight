@@ -24,6 +24,7 @@ o dată în tabelul de mai jos.
 | [qa/ppe-end-to-end.md](qa/ppe-end-to-end.md) | actual | Dovada că `NO_PPE` chiar se declanșează, cu clip de control și poarta de 150 px | Arată de ce un om mic în cadru nu produce `no_vest`; nu coborî pragul |
 | [qa/perf-findings.md](qa/perf-findings.md) | actual | Sesiune de 13 minute: fps, memorie, workeri, plus leak-ul nativ la comutarea motorului | Cifrele de referință pentru orice optimizare; leak-ul e urmărit separat |
 | [rewrite-backlog.md](rewrite-backlog.md) | actual | Inventarul codului moștenit din SafeSight și regula de înlocuire oportunistă | Adaugi aici ce amâni; nu porni rescrieri în val |
+| [provenance.md](provenance.md) | generat | Tabel pe fișiere: câte linii sunt ale tale, ale colegilor, necunoscute | Îl regenerezi cu `python3 scripts/provenance.py --write`; nu îl edita manual |
 
 Legendă: **actual** = descrie direcția LocalSight; **referință** = încă adevărat și util la
 port; **istoric** = descrie implementarea SafeSight (backend/edge) și nu mai decide nimic.

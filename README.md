@@ -27,9 +27,9 @@ Demo static: <https://andreisugu.github.io/LocalSight/>
 | Implementare de referință CPU | funcționează | [`ml/`](ml/) + [`backend/`](backend/) |
 | Motor browser: YOLO + YuNet + tracker + zone + evenimente | funcționează în Live, `/lab` și `/bench` | [`frontend/src/engine/`](frontend/src/engine/) |
 | Raport de tură | calculat din incidentele vizibile, marcat `șablon` | `/reports` |
-| Detecție de vestă hi-vis (PPE) | funcționează; starea intră în regulile de zonă | [`frontend/src/engine/vest.js`](frontend/src/engine/vest.js), apelat din `worker.js`; `NO_PPE` cere un om de ≥150 px în cadru |
+| Detecție de vestă hi-vis (PPE) | funcționează; badge `VESTĂ` / `FĂRĂ VESTĂ` / `PPE ?` pe canvas | [`frontend/src/engine/vest.js`](frontend/src/engine/vest.js); `NO_PPE` cere un om de ≥150 px în cadru |
 | Camere | 3 clipuri demo + camera browser (getUserMedia) | selectorul de cameră din Live |
-| Blur pe fețe înainte de desenare | funcționează pe cadrul din canvas | `worker.js`; snapshot-ul de incident nu e conectat |
+| Blur pe fețe înainte de desenare | funcționează pe cadrul din canvas și în snapshot | `worker.js`; JPEG 960 px, fețele blurate, URL deținut de pagină |
 | Motor browser în Live | opt-in, ~1,8–3 fps pe WASM | comutatorul „Procesează în browser” |
 | Backend, Slack, MJPEG, SQLite | în afara scopului | rămân în repo ca referință |
 
@@ -39,7 +39,7 @@ Chromium cât și în Firefox. Firefox este ținut intenționat pe WASM: WebGPU 
 0,4–0,7 fps și putea bloca sesiunea ONNX Runtime. Chrome/Edge folosesc WebGPU când există
 adapter; cifra depinde de GPU. Sub 2 fps, panoul din Live avertizează după 10 s de rulare.
 
-Teste: 144 Node (`node --test`, motor + utilitare + raport) și 5 E2E Playwright; CI
+Teste: 156 Node (`node --test`, motor + utilitare + raport) și 5 E2E Playwright; CI
 rulează unit, backend, ml, build-ul de frontend, e2e și o gardă pentru subpath-ul de Pages.
 
 ## Pagini
@@ -135,7 +135,7 @@ Modelele se regenerează cu `python3 frontend/scripts/prepare-models.py`; clipur
 | YOLO26n + YuNet + tracker + zone + reguli | KPI-urile din strip și incidentele fără chip `local` |
 | Blur pe fețe înainte de desenare, fail-closed | Raportul de incident (șablon, nu LLM) |
 | Detecția de vestă hi-vis și starea PPE | Escaladarea din fixture-uri |
-| Incidentele motorului, marcate `local` | Camera locală (flux propriu, doar cu permisiune) |
+| Incidentele motorului, marcate `local`, cu dovada procesată | Camera locală (flux propriu, doar cu permisiune) |
 
 Scenariul de prezentare, pas cu pas: [`demo/run_sheet_browser.md`](demo/run_sheet_browser.md).
 
