@@ -4,16 +4,9 @@
 // those transformations here means the component only renders and the rules are testable
 // without a browser.
 
-export const AUDIT_LIMIT = 60;
+import { formatDateTime } from './time.js';
 
-const TIME_FORMAT = new Intl.DateTimeFormat('ro-RO', {
-  timeZone: 'Europe/Bucharest',
-  day: '2-digit',
-  month: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-});
+export const AUDIT_LIMIT = 60;
 
 function plural(count, one, many) {
   return `${count} ${count === 1 ? one : many}`;
@@ -130,16 +123,11 @@ export function buildCameraRows(cameras = [], { isMock = false, zones = [] } = {
   });
 }
 
-export function formatAuditTime(iso) {
-  if (!iso) return '—';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '—';
-  try {
-    return TIME_FORMAT.format(date);
-  } catch {
-    return '—';
-  }
-}
+/**
+ * The audit trail prints the same `DD.MM, HH:MM:SS` the incident list does. The name is
+ * kept because `SettingsView` imports it; the formatting itself lives in `utils/time.js`.
+ */
+export const formatAuditTime = (iso) => formatDateTime(iso);
 
 /**
  * Flattens incidents into the steps they went through. The static build gets the demo

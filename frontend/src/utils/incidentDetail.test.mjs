@@ -5,7 +5,6 @@ import {
   buildTimeline,
   copyIncidentLink,
   detectionSummary,
-  formatEventTime,
   reportFields,
   reportSourceLabel,
   severityToken,
@@ -30,22 +29,6 @@ const event = {
   acked_at: '2026-11-02T10:01:00Z',
   report: { source: 'llm', what: 'Persoană în zona motorului' },
 };
-
-test('times are formatted in Bucharest, winter and summer', () => {
-  // November is EET (UTC+2); July is EEST (UTC+3). A fixed offset would pass one and fail
-  // the other, which is exactly how the inherited inline formatter stayed wrong for months.
-  assert.equal(formatEventTime('2026-11-02T10:00:00Z'), '12:00:00');
-  assert.equal(formatEventTime('2026-07-01T10:00:00Z'), '13:00:00');
-  assert.equal(formatEventTime('2026-11-02T23:30:00Z'), '01:30:00');
-});
-
-test('a missing timestamp says it is pending; a broken one is an em dash', () => {
-  assert.equal(formatEventTime(null), 'În așteptare');
-  assert.equal(formatEventTime(undefined), 'În așteptare');
-  assert.equal(formatEventTime(''), 'În așteptare');
-  assert.equal(formatEventTime('not-a-date'), '—');
-  assert.equal(formatEventTime(null, { placeholder: '—' }), '—');
-});
 
 test('the timeline has five ordered steps with formatted times', () => {
   const steps = buildTimeline(event);

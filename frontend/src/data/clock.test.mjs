@@ -7,7 +7,6 @@ import {
   minutesIntoShiftAt,
   operationalDateAt,
   roDecimal,
-  roTime,
   shiftIdAt,
   zonedDateString,
 } from './clock.js';
@@ -65,7 +64,6 @@ test('a shift that just started still leaves room for escalation', () => {
 });
 
 test('time and decimal formatting match the copy already on screen', () => {
-  assert.equal(roTime(at('2026-11-02T07:05:09+02:00')), '07:05:09');
   assert.equal(roDecimal(2.6), '2,6');
   assert.equal(roDecimal(93.8), '93,8');
   assert.equal(zonedDateString(at('2026-11-02T23:30:00+02:00')), '2026-11-02');

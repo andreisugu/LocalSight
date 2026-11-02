@@ -10,6 +10,9 @@ import { backendApi } from './backendApi.js';
 import { mockApi } from './mockApi.js';
 import { currentShiftId, shiftDate, shiftToApi } from './shift.js';
 
+// The type label table has one home (`data/labels.js`); this re-export keeps the API
+// surface self-contained for screens that already import it. New code imports the table
+// from `data/labels.js` directly.
 export { TYPE_LABELS } from '../data/labels.js';
 export { USE_MOCK };
 

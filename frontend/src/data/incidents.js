@@ -6,7 +6,8 @@
 // The prose is written per incident so the detail screen has a real report to show, and
 // `report.when` is composed from `detected_at` instead of being typed by hand.
 
-import { roDecimal, roTime, SECOND_MS } from './clock.js';
+import { formatTime } from '../utils/time.js';
+import { roDecimal, SECOND_MS } from './clock.js';
 import { fixtureEventId } from './eventIds.js';
 import { DEMO_STILLS } from './media.js';
 import { FIXTURE_WINDOW } from './shift.js';
@@ -257,7 +258,7 @@ function buildEvent(spec, index) {
     report: {
       what: spec.narrative.what,
       where: spec.narrative.where,
-      when: `${roTime(detectedAt)}, timp în zonă ${roDecimal(spec.durationS)} s.`,
+      when: `${formatTime(detectedAt)}, timp în zonă ${roDecimal(spec.durationS)} s.`,
       severity_reason: spec.narrative.severityReason,
       recommended_action: spec.narrative.recommendedAction,
       source: 'llm',

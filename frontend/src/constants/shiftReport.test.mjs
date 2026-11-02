@@ -1,22 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildShiftReport } from './shiftReport.js';
-
-const SHIFT = 'Tura 2 (Prânz: 14:00 - 22:00)';
-const AT = '2026-11-02T16:00:00.000Z';
-
-const event = (overrides = {}) => ({
-  event_id: 'evt_stand12_1793356933120_17',
-  type: 'RESTRICTED_ZONE',
-  severity: 'CRITICAL',
-  status: 'open',
-  camera_id: 'stand12',
-  zone_id: 'engine-left',
-  detected_at: AT,
-  acked_at: null,
-  report: null,
-  ...overrides,
-});
+import { SHIFT_LABEL as SHIFT, makeEvent as event } from '../test/factories.mjs';
 
 const build = (events, options = {}) =>
   buildShiftReport(events, {
@@ -87,7 +72,7 @@ test('no acknowledgement means null, not a fake zero', () => {
 test('acknowledgement times with unreadable or reversed dates are ignored', () => {
   const report = build([
     event({ acked_at: 'not-a-date' }),
-    event({ detected_at: 'nope', acked_at: AT }),
+    event({ detected_at: 'nope', acked_at: '2026-11-02T16:00:00.000Z' }),
     event({ detected_at: '2026-11-02T16:00:10.000Z', acked_at: '2026-11-02T16:00:00.000Z' }),
     event({ detected_at: '2026-11-02T16:00:00.000Z', acked_at: '2026-11-02T16:00:12.000Z' }),
   ]);

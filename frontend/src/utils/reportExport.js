@@ -1,39 +1,16 @@
 // Presentation values for the shift report screen.
 //
 // The report itself (counts, distributions, summary) is composed by
-// `constants/shiftReport.js`; this module only turns those numbers into the strings and
-// percentages the page renders, and composes the CSV export from the same report. Keeping
-// it here means the view has no arithmetic and every rule below has a node test.
+// `constants/shiftReport.js`; this module only turns those numbers into the shares and the
+// CSV export the page renders. Dates and durations are formatted by `utils/time.js`, the
+// one home for display times, so the picker, the header and the export cannot disagree.
+// Keeping the arithmetic here means the view has none and every rule below has a node test.
 //
 // The CSV is the report plus the incident list it was counted from, so a reader can check
 // each total against the rows.
 
 /** The label the UI and the export give the report writer. Never "AI". */
 export const REPORT_SOURCE = 'șablon';
-
-// Contract keeps dates as ISO (YYYY-MM-DD); the screen shows one Romanian format so the
-// picker, the header and the export never disagree.
-const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-/**
- * `2026-11-02` → `02.11.2026`. Anything else (null, a partial date) renders as `—`.
- * @param {unknown} value
- * @returns {string}
- */
-export function formatReportDate(value) {
-  const match = ISO_DATE.exec(String(value ?? ''));
-  return match ? `${match[3]}.${match[2]}.${match[1]}` : '—';
-}
-
-/**
- * The average acknowledgement time as the operator reads it. No ack yet is `—`, not `0`.
- * @param {number|null|undefined} seconds
- * @returns {string}
- */
-export function describeAckSeconds(seconds) {
-  if (seconds == null || !Number.isFinite(Number(seconds))) return '—';
-  return `${Math.round(Number(seconds))} sec`;
-}
 
 /**
  * The tallest hour bar, floored at 1 so an empty report divides by a real number.

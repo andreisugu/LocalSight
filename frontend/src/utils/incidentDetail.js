@@ -7,14 +7,7 @@
 // `.js` extensions keep this file loadable by Node's test runner as well as Vite.
 import { STATUS_TOKENS } from '../constants/theme.js';
 import { canDo } from '../constants/eventActions.js';
-
-// One formatter instead of one per render: `Intl.DateTimeFormat` is the expensive part.
-const TIME_FORMAT = new Intl.DateTimeFormat('ro-RO', {
-  timeZone: 'Europe/Bucharest',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-});
+import { formatTime } from './time.js';
 
 // The snapshot URL the in-browser engine writes when it has no frame yet. It is a marker,
 // not a loadable resource, so it must never power a download link.
@@ -46,21 +39,6 @@ const REPORT_FIELDS = [
 ];
 
 /**
- * The API sends UTC; operators read Bucharest local time.
- *
- * @param {string|null|undefined} iso
- * @param {{placeholder?: string}} [options]
- * @returns {string} `HH:MM:SS`, the placeholder for a missing timestamp, or an em dash
- *   for a value that is present but not a date (a broken timestamp is not "pending").
- */
-export function formatEventTime(iso, { placeholder = 'În așteptare' } = {}) {
-  if (!iso) return placeholder;
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '—';
-  return TIME_FORMAT.format(date);
-}
-
-/**
  * The five timeline steps, in order, with their already-formatted times.
  *
  * @param {object|null|undefined} event
@@ -76,7 +54,7 @@ export function buildTimeline(event) {
       position: index + 1,
       label: step.label,
       at,
-      time: formatEventTime(at),
+      time: formatTime(at),
       reached: Boolean(at),
       // A tone only applies once that step actually happened; a pending ack is not green.
       tone: at ? step.tone : 'neutral',
@@ -176,26 +154,17 @@ export function sourceChips(event, { mock = false } = {}) {
   return { local, demo: Boolean(mock) && !local };
 }
 
-/**
- * Status token (colours and Romanian label) with a neutral fallback for a value outside
- * the contract; the screen shows the raw status instead of hiding it.
- *
- * @param {string|null|undefined} status
- * @returns {{bg: string, text: string, border: string, label: string}}
- */
-export function statusToken(status) {
-  return STATUS_TOKENS[status] || { ...UNKNOWN_STATUS_TOKEN, label: status || UNKNOWN_STATUS_TOKEN.label };
+// Status and severity share one token table (`theme/status.js`) and one fallback: a value
+// outside the contract keeps its raw text and a neutral style instead of hiding the row.
+function contractToken(value) {
+  return STATUS_TOKENS[value] || { ...UNKNOWN_STATUS_TOKEN, label: value || UNKNOWN_STATUS_TOKEN.label };
 }
 
-/**
- * Severity token with the same fallback as `statusToken`.
- *
- * @param {string|null|undefined} severity
- * @returns {{bg: string, text: string, border: string, label: string}}
- */
-export function severityToken(severity) {
-  return STATUS_TOKENS[severity] || { ...UNKNOWN_STATUS_TOKEN, label: severity || UNKNOWN_STATUS_TOKEN.label };
-}
+/** Status token (colours and Romanian label), with the neutral fallback above. */
+export const statusToken = contractToken;
+
+/** Severity token (the same table), with the same fallback. */
+export const severityToken = contractToken;
 
 /**
  * The five report fields in reading order, with the honest fallback for a missing value.
