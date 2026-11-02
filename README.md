@@ -25,7 +25,7 @@ Demo static: <https://andreisugu.github.io/LocalSight/>
 | Modele ONNX servite din repo | funcționează | [`frontend/public/models/`](frontend/public/models/) (9,9 MB + 232 KB) |
 | Implementare de referință CPU | funcționează | [`ml/`](ml/) + [`backend/`](backend/) |
 | Motor browser: YOLO + YuNet + tracker + zone + evenimente | funcționează în Live, `/lab` și `/bench` | [`frontend/src/engine/`](frontend/src/engine/) |
-| Detecție de vestă hi-vis (PPE) | funcționează; starea intră în regulile de zonă | [`frontend/src/engine/vest.js`](frontend/src/engine/vest.js), apelat din `worker.js` |
+| Detecție de vestă hi-vis (PPE) | funcționează; starea intră în regulile de zonă | [`frontend/src/engine/vest.js`](frontend/src/engine/vest.js), apelat din `worker.js`; `NO_PPE` cere un om de ≥150 px în cadru |
 | Camere | 3 clipuri demo + camera browser (getUserMedia) | selectorul de cameră din Live |
 | Blur pe fețe înainte de desenare | funcționează pe cadrul din canvas | `worker.js`; snapshot-ul de incident nu e conectat |
 | Motor browser în Live | opt-in, ~1,8–3 fps pe WASM | comutatorul „Procesează în browser” |

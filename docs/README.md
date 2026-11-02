@@ -21,6 +21,7 @@ o dată în tabelul de mai jos.
 | [qa/ui-findings.md](qa/ui-findings.md) | actual | QA adversarial pe interfață: 14 constatări cu pași de reproducere, severitate și dovezi | Nu se rezolvă „după impresii”; fiecare fix pornește de la un pas de aici |
 | [qa/engine-parity.md](qa/engine-parity.md) | actual | Motorul JS vs referința Python: geometrie, reguli, recall YOLO/YuNet pe cadre reale | Dovada că portul e echivalent; o discrepanță nouă se compară cu tabelele de aici |
 | [qa/privacy-findings.md](qa/privacy-findings.md) | actual | Ce se vede pe ecran și ce pleacă în rețea cu motorul pornit; scurgerile găsite | Se recitește înainte de orice afirmație publică despre blur |
+| [qa/ppe-end-to-end.md](qa/ppe-end-to-end.md) | actual | Dovada că `NO_PPE` chiar se declanșează, cu clip de control și poarta de 150 px | Arată de ce un om mic în cadru nu produce `no_vest`; nu coborî pragul |
 
 Legendă: **actual** = descrie direcția LocalSight; **referință** = încă adevărat și util la
 port; **istoric** = descrie implementarea SafeSight (backend/edge) și nu mai decide nimic.
