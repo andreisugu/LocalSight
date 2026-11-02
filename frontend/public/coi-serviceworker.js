@@ -73,7 +73,7 @@ const MODELS_PREFIX = new URL('models/', self.location.href).href;
 const MEDIA_PREFIX = new URL('media/', self.location.href).href;
 const STILLS_PREFIX = new URL('media/stills/', self.location.href).href;
 const FIXED_FILES = new Set(
-  ['logo.svg', 'favicon.svg', 'NOTICE'].map((name) => new URL(name, self.location.href).href),
+  ['logo.svg', 'favicon.svg', 'NOTICE', 'theme-init.js'].map((name) => new URL(name, self.location.href).href),
 );
 
 /** Rebuild a response with extra headers, or hand back the original when that is unsafe. */
