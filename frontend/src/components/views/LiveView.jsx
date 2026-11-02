@@ -21,7 +21,6 @@ import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { STATUS_TOKENS } from '../../constants/theme';
 import ConfidenceBadge from '../common/ConfidenceBadge';
-import BoundingBox from '../video/BoundingBox';
 import { canDo } from '../../constants/eventActions';
 import { useEngine } from '../../engine/useEngine';
 import EnginePanel from '../live/EnginePanel';
@@ -30,13 +29,58 @@ import EnginePanel from '../live/EnginePanel';
 // the static site keeps the cheap clip-only path for everyone else.
 const LIVE_ENGINE_STORAGE_KEY = 'localsight.liveEngine';
 
+// `null` means "no choice stored yet": the view probes WebGPU and decides ON only when an
+// adapter exists. A stored '0' or '1' always wins, so a reload keeps the operator's choice.
 function readLiveEnginePreference() {
   try {
-    return window.localStorage.getItem(LIVE_ENGINE_STORAGE_KEY) === '1';
+    const stored = window.localStorage.getItem(LIVE_ENGINE_STORAGE_KEY);
+    if (stored === '1') return true;
+    if (stored === '0') return false;
   } catch {
-    // Private mode or blocked storage: the toggle still works for this visit.
-    return false;
+    // Private mode or blocked storage: fall through to the WebGPU probe.
   }
+  return null;
+}
+
+// The zone outline is configuration, not a detection: it is drawn from the zone editor's
+// polygon and stays visible when the engine is off so the visitor still sees where the
+// rule applies. It is never derived from an incident track.
+function ZoneOutline({ zone }) {
+  const points = (zone?.polygon || []).filter(
+    (point) => Number.isFinite(point?.x) && Number.isFinite(point?.y)
+  );
+  if (points.length < 3) return null;
+  const left = Math.min(...points.map((point) => point.x));
+  const top = Math.min(...points.map((point) => point.y));
+  return (
+    <>
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 1 1"
+        preserveAspectRatio="none"
+        className="absolute inset-0 w-full h-full pointer-events-none"
+      >
+        <polygon
+          points={points.map((point) => `${point.x},${point.y}`).join(' ')}
+          fill="rgba(255,235,51,0.10)"
+          stroke="#FFEB33"
+          strokeWidth="2"
+          strokeDasharray="6 4"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      {/* The label belongs to the polygon's own corner: keeping it away from the bottom
+          centre leaves the honest note and its button unobstructed. */}
+      <div
+        style={{ left: `${left * 100}%`, top: `${top * 100}%` }}
+        className="absolute -translate-y-full pl-1 pb-0.5 pointer-events-none"
+      >
+        <span className="inline-block px-2 py-1 rounded bg-black/75 text-[#FFEB33] text-[10px] font-mono border border-[#FFEB33]/40 whitespace-nowrap">
+          zonă configurată: {zone.zone_id} · nu este detecție
+        </span>
+      </div>
+    </>
+  );
 }
 
 export default function LiveView() {
@@ -53,6 +97,7 @@ export default function LiveView() {
     acknowledgeEvent,
     setSelectedEventId,
     setCurrentView,
+    zones,
     health
   } = useSecurity();
 
@@ -60,8 +105,10 @@ export default function LiveView() {
   const [displayMode, setDisplayMode] = useState('standard');
   const [streamFailed, setStreamFailed] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
-  // Default OFF: the public site must not download models or start a worker until asked.
-  const [browserEngineOn, setBrowserEngineOn] = useState(readLiveEnginePreference);
+  // null = no stored choice; the default follows the WebGPU probe below.
+  const [enginePreference, setEnginePreference] = useState(readLiveEnginePreference);
+  // null while probing; true/false once requestAdapter() answered.
+  const [gpuAvailable, setGpuAvailable] = useState(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -69,6 +116,34 @@ export default function LiveView() {
     setStreamFailed(false);
     setVideoFailed(false);
   }, [activeCamera?.id]);
+
+  // WebGPU is a question, not an assumption: one probe decides the default and the copy.
+  useEffect(() => {
+    let cancelled = false;
+    const probe = async () => {
+      if (typeof navigator === 'undefined' || !navigator.gpu) {
+        if (!cancelled) setGpuAvailable(false);
+        return;
+      }
+      try {
+        const adapter = await navigator.gpu.requestAdapter();
+        if (!cancelled) setGpuAvailable(Boolean(adapter));
+      } catch {
+        if (!cancelled) setGpuAvailable(false);
+      }
+    };
+    probe();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Default ON only on the fast path. Without an adapter the engine runs on WASM at
+  // ~2 fps, so it stays OFF until the visitor explicitly asks for it.
+  useEffect(() => {
+    if (enginePreference !== null || gpuAvailable === null) return;
+    setEnginePreference(gpuAvailable);
+  }, [enginePreference, gpuAvailable]);
 
   const isOffline = activeCamera?.status === 'offline';
   // dev.py demo: VITE_DEMO_CAMERA = "stand12,taxiway-b", VITE_DEMO_CLIP = "stand12=clip.mp4,taxiway-b=..."
@@ -100,15 +175,27 @@ export default function LiveView() {
   const edgeSeen = health?.edge_last_seen_s;
   const edgeActive = Boolean(health?.db && edgeSeen != null && edgeSeen < 60);
 
+  // Configuration, not detection: the zone the active camera is watched against.
+  const cameraZones = (zones || []).filter((zone) => zone.camera_id === activeCamera?.id);
+  const activeZone = cameraZones.find((zone) => zone.zone_id === activeCamera?.zone_id) || cameraZones[0] || null;
+  // Why the engine starts on or off: the visitor must be able to tell a fast path from the
+  // ~2 fps WASM fallback before they press the button.
+  const engineReason = gpuAvailable === null
+    ? 'se verifică WebGPU…'
+    : gpuAvailable
+      ? 'WebGPU disponibil — detecția reală rulează pe acest clip.'
+      : 'rulează pe WASM single-thread; ~2 fps';
+
   // The engine only runs on the local clip fallback, and only while the viewer asked for
   // it. Fullscreen renders the raw clip in a separate tree, so the worker is stopped there
   // instead of being left pointing at a <video> that no longer exists.
+  const browserEngineOn = enginePreference === true;
   const engineEnabled = browserEngineOn && showDemoVideo && displayMode !== 'fullscreen';
   const engine = useEngine({ videoRef, canvasRef, enabled: engineEnabled });
 
   const toggleBrowserEngine = () => {
-    setBrowserEngineOn((previous) => {
-      const next = !previous;
+    setEnginePreference((previous) => {
+      const next = previous !== true;
       try {
         window.localStorage.setItem(LIVE_ENGINE_STORAGE_KEY, next ? '1' : '0');
       } catch {
@@ -233,9 +320,13 @@ export default function LiveView() {
                 </div>
               )}
 
-              {activeCamera?.boxes?.map((box) => (
-                <BoundingBox key={box.id} box={box} />
-              ))}
+              {/* Fullscreen renders the raw clip and no engine overlay: say so instead of
+                  leaving the visitor to guess whether the boxes are real. */}
+              {showDemoVideo && (
+                <div className="absolute bottom-3 right-3 px-2 py-1 rounded bg-black/75 text-[#FFEB33] text-[10px] font-mono border border-[#FFEB33]/40">
+                  detecția este oprită — cutiile nu urmăresc video
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -403,21 +494,18 @@ export default function LiveView() {
                 <span>MOTOR: {activeCamera?.engine_on ? 'ON' : 'OFF'}</span>
               </button>
 
-              {/* Motorul din browser: doar pe clipul demo, opțional, ținut minte local */}
-              {showDemoVideo && (
+              {/* Motorul din browser ține minte alegerea local. Cât timp e oprit, pornirea
+                  e acțiunea principală din overlay, nu un switch mic în toolbar. */}
+              {showDemoVideo && browserEngineOn && (
                 <button
                   type="button"
                   onClick={toggleBrowserEngine}
                   aria-pressed={browserEngineOn}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 shadow transition-all ${
-                    browserEngineOn
-                      ? 'bg-[#33E1FF] text-[#1F1F1F]'
-                      : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
-                  }`}
-                  title="Rulează detecția YOLO și blurul de față în acest browser, pe clipul demo"
+                  className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 shadow transition-all bg-[#33E1FF] text-[#1F1F1F] hover:bg-[#7EEBFF]"
+                  title="Oprește detecția în browser și revino la clipul brut"
                 >
                   <Cpu size={13} />
-                  <span>Procesează în browser: {browserEngineOn ? 'ON' : 'OFF'}</span>
+                  <span>Oprește motorul în browser</span>
                 </button>
               )}
 
@@ -508,10 +596,33 @@ export default function LiveView() {
                   </div>
                 )}
 
-                {/* Bounding Boxes */}
-                {activeCamera?.boxes?.map((box) => (
-                  <BoundingBox key={box.id} box={box} />
-                ))}
+                {/* Overlay-ul e fie real (canvasul motorului), fie absent. Când clipul demo
+                    rulează fără motor nu se desenează nicio cutie de persoană: doar zona
+                    configurată și o notă care spune exact ce vede vizitatorul. */}
+                {showDemoVideo && !browserEngineOn && <ZoneOutline zone={activeZone} />}
+
+                {browserEngineOn && (
+                  <div className="absolute bottom-12 right-2.5 px-2 py-1 rounded bg-black/80 text-[#33E1FF] text-[10px] font-mono border border-[#33E1FF]/40">
+                    procesat local · {engine.fps ? engine.fps.toFixed(1) : '—'} fps
+                  </div>
+                )}
+
+                {showDemoVideo && !browserEngineOn && (
+                  <div className="absolute z-10 bottom-14 left-1/2 -translate-x-1/2 w-[min(27rem,calc(100%-1.5rem))] px-3 py-2 rounded-xl bg-black/85 border border-[#FFEB33]/60 shadow-lg text-center">
+                    <p className="text-[11px] font-bold text-[#FFEB33]">
+                      detecția este oprită — cutiile nu urmăresc video
+                    </p>
+                    <p className="text-[10px] text-slate-300 mt-0.5">{engineReason}</p>
+                    <button
+                      type="button"
+                      onClick={toggleBrowserEngine}
+                      className="mt-1.5 px-3 py-1.5 rounded-lg bg-[#33E1FF] hover:bg-[#7EEBFF] text-[#1F1F1F] text-[11px] font-bold inline-flex items-center gap-1.5 shadow"
+                    >
+                      <Cpu size={13} />
+                      Pornește motorul în browser
+                    </button>
+                  </div>
+                )}
 
                 {/* HUD Overlay cu semnal LIVE exclusiv lângă fluxul camerei */}
                 <div className="absolute top-2.5 left-2.5 flex items-center gap-2 bg-black/80 px-2.5 py-1 rounded-lg text-[10px] font-mono text-white border border-white/10 shadow">
@@ -586,7 +697,7 @@ export default function LiveView() {
               <div className="truncate">
                 <span className="text-[9px] text-slate-400 block font-semibold leading-tight">Model Detecție</span>
                 <span className="font-mono font-bold text-slate-700 dark:text-slate-300 truncate block text-[11px]">
-                  YOLO26 + ByteTrack
+                  {browserEngineOn && showDemoVideo ? 'YOLO26n · în browser' : showStream ? 'edge · YOLO26' : 'oprit'}
                 </span>
               </div>
             </div>
