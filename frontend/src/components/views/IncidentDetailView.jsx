@@ -11,7 +11,9 @@ import {
   MapPin,
   Calendar,
   AlertTriangle,
-  Video
+  Video,
+  Link2,
+  Download
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
@@ -31,7 +33,8 @@ export default function IncidentDetailView() {
     acknowledgeEvent,
     markFalsePositive,
     reopenEvent,
-    regenerateReport
+    regenerateReport,
+    showToast
   } = useSecurity();
 
   const [falsePositiveNote, setFalsePositiveNote] = useState('');
@@ -75,6 +78,21 @@ export default function IncidentDetailView() {
       return isoString;
     }
   };
+
+  const handleCopyLink = async () => {
+    const url = window.location.href;
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast('Link copiat. Îl poți trimite în Slack sau într-un tichet.');
+    } catch {
+      showToast('Copierea a eșuat; linkul este în bara de adrese.');
+    }
+  };
+
+  // The real snapshot is downloadable (blurred JPEG); the pending placeholder is not.
+  // Mock fixtures use same-origin stills, so the browser can download them too.
+  const snapshotUrl = selectedEvent.snapshot_url || '';
+  const canDownloadSnapshot = Boolean(snapshotUrl) && snapshotUrl !== 'blob:pending';
 
   const handleRegenerate = async () => {
     setIsRegenerating(true);
@@ -147,6 +165,15 @@ export default function IncidentDetailView() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto lg:ml-auto shrink-0">
+          {/* The deep link is stable now (fixture ids no longer embed Date.now()), so the
+              operator can share exactly this incident. */}
+          <button
+            onClick={handleCopyLink}
+            className="no-print px-3 py-2 rounded-lg border border-slate-500/40 hover:bg-white/10 text-xs font-bold flex items-center gap-1.5 shrink-0"
+            title="Copiază linkul acestui incident"
+          >
+            <Link2 size={14} /> Copiază link
+          </button>
           {/* The snapshot is the moment of the incident; this shows the same camera now. */}
           <button
             onClick={() => {
@@ -175,7 +202,19 @@ export default function IncidentDetailView() {
               <MapPin size={14} className="text-[#D73833]" />
               Camera: {selectedEvent.camera_id} ({selectedEvent.zone_id})
             </span>
-            <span className="text-slate-400">Durată: {selectedEvent.duration_s}s</span>
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="text-slate-400">Durată: {selectedEvent.duration_s}s</span>
+              {canDownloadSnapshot && (
+                <a
+                  href={snapshotUrl}
+                  download={`${selectedEvent.event_id}.jpg`}
+                  className="no-print text-[#33E1FF] hover:underline flex items-center gap-1 font-bold"
+                  title="Descarcă dovada (JPEG cu fețele blurate)"
+                >
+                  <Download size={13} /> Descarcă
+                </a>
+              )}
+            </div>
           </div>
 
           <div className="flex-1 relative rounded-lg overflow-hidden bg-black border border-slate-700 min-h-[260px] flex items-center justify-center">
