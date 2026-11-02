@@ -28,7 +28,7 @@ Demo static: <https://andreisugu.github.io/LocalSight/>
 | Identificarea build-ului live | footer-ul sidebar-ului: `build <sha>` (sau `build dev` local) | [`Sidebar.jsx`](frontend/src/components/layout/Sidebar.jsx) |
 | Modele ONNX servite din repo | funcționează | [`frontend/public/models/`](frontend/public/models/) (9,9 MB + 232 KB) |
 | Motor browser: YOLO + YuNet + tracker + zone + evenimente | funcționează în Live, `/lab` și `/bench` | [`frontend/src/engine/`](frontend/src/engine/) |
-| WASM pe 4 fire pe Pages | funcționează prin service worker COOP/COEP, fără cache | [`frontend/public/coi-serviceworker.js`](frontend/public/coi-serviceworker.js) |
+| WASM pe 4 fire pe Pages | funcționează prin service worker COOP/COEP, cu cache versionat pe build | [`frontend/public/coi-serviceworker.js`](frontend/public/coi-serviceworker.js) |
 | Raport de tură | calculat din incidentele vizibile, marcat `șablon` | `/reports` |
 | Detecție de vestă hi-vis (PPE) | funcționează; badge `VESTĂ` / `FĂRĂ VESTĂ` / `PPE ?` pe canvas | [`frontend/src/engine/vest.js`](frontend/src/engine/vest.js); `NO_PPE` cere un om de ≥150 px în cadru |
 | Camere | 3 clipuri demo + camera browser (getUserMedia) | selectorul de cameră din Live |
@@ -40,11 +40,13 @@ Cifrele de browser sunt măsurate pe hardware-ul de dezvoltare, pe clipul de 108
 **5,2–6,0 fps** în Chromium și **5,2 fps** în Firefox, pe WASM cu 4 fire și cadrul
 procesat la 1280 px. Fără cap, la 1920×1080, aceleași fire dau ~3,7 fps. Firele vin din
 `frontend/public/coi-serviceworker.js`: un service worker care re-servește navigările cu
-COOP/COEP (GitHub Pages nu poate trimite antete custom), fără să cacheze nimic. Fără el
-(dev, browser fără service worker) motorul cade pe un singur fir: 1,5–1,8 fps. Firefox este
-ținut intenționat pe WASM — WebGPU în workeri dădea 0,4–0,7 fps și putea bloca sesiunea ONNX
-Runtime. Chrome/Edge folosesc WebGPU când există adapter; cifra depinde de GPU. Sub 2 fps,
-panoul din Live avertizează după 10 s de rulare.
+COOP/COEP (GitHub Pages nu poate trimite antete custom) și ține un cache versionat pe SHA-ul
+build-ului: HTML-ul rămâne network-first, iar fișierele imuabile (assets hash-uite, modele,
+clipuri, still-uri) sunt cache-first. Un deploy nou activează alt worker și șterge cache-ul
+vechi. Fără el (dev, browser fără service worker) motorul cade pe un singur fir:
+1,5–1,8 fps. Firefox este ținut intenționat pe WASM — WebGPU în workeri dădea 0,4–0,7 fps și
+putea bloca sesiunea ONNX Runtime. Chrome/Edge folosesc WebGPU când există adapter; cifra
+depinde de GPU. Sub 2 fps, panoul din Live avertizează după 10 s de rulare.
 
 Teste: 422 Node (`node --test`, motor, utilitare, date, servicii, componente și raport), 5 E2E Playwright la baza
 `/` și 5 E2E pe forma de deploy (`/LocalSight/`, COI + motor pornit); CI rulează unit,
