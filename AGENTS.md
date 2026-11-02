@@ -5,11 +5,12 @@ un hackathon) și merge într-o direcție diferită: pipeline-ul întreg — det
 blur de fețe, incidente — trebuie să ruleze **în browser**, cu `onnxruntime-web` pe WebGPU,
 publicat static pe GitHub Pages. Nicio imagine nu pleacă din tab.
 
-**Starea de azi:** există un build static mock live
-(`https://andreisugu.github.io/LocalSight/`, `VITE_USE_MOCK=true`). Motorul din browser
-**nu e scris încă**: există un branch de spike și designul din `docs/browser-engine.md`.
-Până aterizează portul, codul Python din `ml/` și `backend/` este implementarea de
-referință din care se portează.
+**Starea de azi:** site-ul static e live
+(`https://andreisugu.github.io/LocalSight/`, `VITE_USE_MOCK=true`) și motorul din browser
+rulează în tab: YOLO26n + YuNet + tracker + zone + reguli + blur + detectarea de vestă
+hi-vis. Build-ul servit de `pages.yml` nu are backend; `ml/` și `backend/` rămân
+implementarea de referință. Pe Firefox motorul alege intenționat WASM (WebGPU încă nu e
+stabil acolo); pe Chrome/Edge folosește WebGPU când există adapter.
 
 Acest fișier e sursa de adevăr pentru agenți. `CLAUDE.md` doar trimite aici. Citește-l
 înainte să modifici ceva și actualizează-l în același commit când o regulă durabilă se
@@ -17,7 +18,7 @@ schimbă.
 
 ## Harta repo-ului
 
-- `frontend/` — **produsul**. React 18 + Vite + Tailwind, JavaScript, servit static.
+- `frontend/` — **produsul**. React 19 + Vite + Tailwind, JavaScript, servit static.
   Aici crește motorul din browser (`docs/browser-engine.md` propune `frontend/src/engine/`).
   Build-ul static ia modelele din `frontend/public/models/` și clipurile din
   `frontend/public/media/`.
@@ -44,6 +45,8 @@ npm run dev                                              # Vite pe :5173
 npm run build                                            # build normal; UI-ul cere API real la runtime
 VITE_USE_MOCK=true npm run build                         # build static, fără backend
 VITE_USE_MOCK=true VITE_BASE=/LocalSight/ npm run build  # exact ce face pages.yml
+node --test src/engine/*.test.mjs                        # logica motorului (Node, fără browser)
+npm run test:e2e                                         # Playwright, 5 teste
 ```
 
 Testele Python, prin `uv` (nu pip, nu venv manual):
@@ -75,6 +78,15 @@ a eșuat și de ce.
 3. `docs/performance.md` — cifrele măsurate; nu optimiza după intuiție.
 4. `docs/contract.md` — plicul evenimentului (`event_id`, `confidence`, severitate).
    Abaterea acceptată în browser: `snapshot_url` devine `blob:`.
+
+## Cod moștenit din SafeSight
+
+- Fișierele scrise înainte de fork se înlocuiesc **oportunist**, doar când un change atinge
+  deja fișierul pentru un motiv de produs. Nu porni o rescriere în val.
+- Dacă înlocuirea depășește ~150 de linii, o faci pe branch separat, nu îngropată într-un fix.
+- Inventarul, proveniența și ce s-a amânat stau în `docs/rewrite-backlog.md`; adaugă acolo
+  orice amâni, cu o linie de motiv.
+- `backend/`, `ml/`, `data/` sunt referință, nu produs: nu le rescrii și nu le cureți.
 
 ## Reguli de lucru
 
@@ -114,4 +126,5 @@ Citește documentul relevant și fișierele atinse; propune un plan de 3 linii; 
 ## Descoperire progresivă
 
 `docs/browser-engine.md` · `docs/media.md` · `docs/performance.md` · `docs/contract.md` ·
-`frontend/README.md` · `frontend/public/models/README.md` · `demo/run_sheet.md`
+`docs/qa/` · `docs/rewrite-backlog.md` · `frontend/README.md` ·
+`frontend/public/models/README.md` · `demo/run_sheet.md`
