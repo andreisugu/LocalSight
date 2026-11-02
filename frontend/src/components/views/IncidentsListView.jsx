@@ -3,33 +3,33 @@ import { AlertOctagon, ChevronRight, Search } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { STATUS_TOKENS } from '../../constants/theme';
-import { TYPE_LABELS, USE_MOCK } from '../../services/api';
+import { USE_MOCK } from '../../services/api';
+import { TYPE_LABELS } from '../../data/labels';
 import SafeImage from '../common/SafeImage';
-import {
-  STATUS_FILTERS,
-  countByStatus,
-  filterIncidents,
-  formatIncidentTime,
-  summaryLine,
-} from '../../utils/incidentList';
+import { Panel, Pill } from '../ui';
+import { formatDateTime } from '../../utils/time';
+import { STATUS_FILTERS, countByStatus, filterIncidents, summaryLine } from '../../utils/incidentList';
 
 // Rewritten screen: the table logic lives in utils/incidentList.js (tested without a
 // browser), this file only renders it. The layout is a real table on desktop and a
 // stacked card on a phone, with the same information in both.
 
+// Severity and status chips read their colours from the contract tokens, so the same value
+// cannot look different here and on the detail screen.
 function TokenBadge({ token, fallback, isDarkMode }) {
   const style = token || {};
   return (
-    <span
+    <Pill
+      shape="plain"
+      className="rounded border px-2 py-0.5 text-[10px] font-bold whitespace-nowrap"
       style={{
         backgroundColor: (isDarkMode ? style.bgDark : style.bg) || 'rgba(148,163,184,0.15)',
         color: (isDarkMode ? style.textDark : style.text) || '#94A3B8',
         borderColor: style.border || 'rgba(148,163,184,0.3)',
       }}
-      className="text-[10px] font-bold px-2 py-0.5 rounded border whitespace-nowrap"
     >
       {style.label || fallback}
-    </span>
+    </Pill>
   );
 }
 
@@ -108,7 +108,7 @@ function IncidentRow({ event, cameraName, onOpen, themeStyles, isDarkMode }) {
           className="hidden md:block text-[11px] font-mono text-right"
           style={{ color: themeStyles.textMuted }}
         >
-          {formatIncidentTime(event.detected_at)}
+          {formatDateTime(event.detected_at)}
         </time>
 
         <ChevronRight size={16} className="text-slate-500 justify-self-end" />
@@ -139,7 +139,6 @@ export default function IncidentsListView() {
   };
 
   const muted = { color: themeStyles.textMuted };
-  const surface = { backgroundColor: themeStyles.panelBg, borderColor: themeStyles.panelBorder };
 
   return (
     <div className="flex-1 p-4 md:p-6 overflow-y-auto h-full">
@@ -178,7 +177,7 @@ export default function IncidentsListView() {
           themeStyles={themeStyles}
         />
 
-        <div style={surface} className="rounded-xl border overflow-hidden">
+        <Panel size="plain" className="overflow-hidden">
           <div
             className="hidden md:grid grid-cols-[4.5rem_minmax(0,1fr)_12rem_8.5rem_1.25rem] gap-3 px-3 py-2 border-b border-white/10 text-[10px] font-bold uppercase tracking-wider"
             style={muted}
@@ -210,7 +209,7 @@ export default function IncidentsListView() {
               ))}
             </ul>
           )}
-        </div>
+        </Panel>
 
         <p className="text-[11px]" style={muted}>
           {USE_MOCK

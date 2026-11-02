@@ -6,20 +6,20 @@
 //
 // Tura și ziua operațională se primesc ca argumente: modulul rămâne pur, deci poate fi
 // testat cu un ceas fix. Orele se grupează în Europe/Bucharest, ca în restul UI-ului.
+//
+// Regula zilei operaționale (schimbă la 06:00) are un singur domiciliu, `data/clock.js`;
+// aici doar se cheamă, ca raportul și fixtures să nu poată număra zile diferite.
+
+import { operationalDateAt } from '../data/clock.js';
+import { TYPE_LABELS } from '../data/labels.js';
 
 const TIME_ZONE = 'Europe/Bucharest';
-const SHIFT_START_HOUR = 6;
 const KNOWN_TYPE_ORDER = ['RESTRICTED_ZONE', 'NO_PPE', 'SMOKING', 'CAMERA_OFFLINE'];
 const UNKNOWN_TYPE = 'UNKNOWN';
 
-// Etichetele românești deja folosite în UI (`services/api.js` TYPE_LABELS).
-const TYPE_LABELS = {
-  RESTRICTED_ZONE: 'Zonă restricționată',
-  NO_PPE: 'Echipament lipsă',
-  SMOKING: 'Fumat',
-  CAMERA_OFFLINE: 'Cameră offline',
-  [UNKNOWN_TYPE]: 'Tip necunoscut',
-};
+// The one label `data/labels.js` cannot own: its table lists the types the contract
+// defines, and this is the bucket for a row that names something else.
+const UNKNOWN_TYPE_LABEL = 'Tip necunoscut';
 
 const pad2 = (value) => String(value).padStart(2, '0');
 
@@ -28,20 +28,6 @@ const hourFormatter = new Intl.DateTimeFormat('en-GB', {
   hour: '2-digit',
   hourCycle: 'h23',
 });
-
-const zonedParts = (ms) => {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(new Date(ms));
-  return Object.fromEntries(
-    parts.filter((part) => part.type !== 'literal').map((part) => [part.type, Number(part.value)])
-  );
-};
 
 /** Epoch milliseconds from an ISO string, a Date or a number; null when unreadable. */
 function parseMs(value) {
@@ -55,14 +41,6 @@ function parseMs(value) {
   return Number.isNaN(ms) ? null : ms;
 }
 
-/** Ziua operațională (schimbă la 06:00), în aceeași regulă ca backend-ul. */
-function operationalDateAt(ms) {
-  const parts = zonedParts(ms);
-  const day = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
-  if (parts.hour < SHIFT_START_HOUR) day.setUTCDate(day.getUTCDate() - 1);
-  return `${day.getUTCFullYear()}-${pad2(day.getUTCMonth() + 1)}-${pad2(day.getUTCDate())}`;
-}
-
 const plural = (count, one, many) => (count === 1 ? one : many);
 
 const groupType = (type) => {
@@ -70,7 +48,8 @@ const groupType = (type) => {
   return type;
 };
 
-const labelForType = (type) => TYPE_LABELS[type] || type;
+const labelForType = (type) =>
+  type === UNKNOWN_TYPE ? UNKNOWN_TYPE_LABEL : TYPE_LABELS[type] || type;
 
 function shortShift(shiftLabel) {
   const label = typeof shiftLabel === 'string' && shiftLabel.trim() ? shiftLabel.trim() : 'Tură';
@@ -229,7 +208,7 @@ export function buildShiftReport(events, { now = Date.now(), shiftLabel, operati
     shift: typeof shiftLabel === 'string' && shiftLabel.trim() ? shiftLabel : 'Tură',
     date: typeof operationalDate === 'string' && operationalDate.trim()
       ? operationalDate
-      : operationalDateAt(nowMs),
+      : operationalDateAt(new Date(nowMs)),
     // Textul e compus din cifrele de mai sus: în UI e etichetat „șablon", niciodată „AI".
     source: 'template',
     kpi,

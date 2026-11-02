@@ -78,12 +78,6 @@ export function minutesIntoShiftAt(date = new Date()) {
   return ((hour - startHour + HOURS_PER_DAY) % HOURS_PER_DAY) * 60 + minute;
 }
 
-/** `HH:MM:SS` in Romania, the clock the incident timeline shows. */
-export function roTime(date = new Date()) {
-  const { hour, minute, second } = zonedParts(date);
-  return `${pad2(hour)}:${pad2(minute)}:${pad2(second)}`;
-}
-
 /** Romanian decimal separator (`2.6` → `2,6`), as the copy already writes it. */
 export function roDecimal(value) {
   return String(value).replace('.', ',');

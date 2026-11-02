@@ -14,11 +14,11 @@ import { USE_MOCK } from '../../services/api';
 import { printAsPdf } from '../../utils/print';
 import { buildShiftReport } from '../../constants/shiftReport';
 import { OPERATIONAL_DATE, OPERATIONAL_SHIFT_ID } from '../../constants/mockData';
+import { Panel } from '../ui';
+import { formatDate, formatDuration } from '../../utils/time';
 import {
   REPORT_SOURCE,
   buildReportCsv,
-  describeAckSeconds,
-  formatReportDate,
   maxHourEvents,
   reportFileBase,
   sharePercent,
@@ -28,9 +28,9 @@ import {
 //
 // Every number on this page comes from `buildShiftReport(events)` — the incident list,
 // not a fixture — so acknowledging an incident or letting the browser engine raise one
-// updates the page without a reload. The pure values the screen prints (dates, ack
-// wording, bar shares, the CSV) live in `utils/reportExport.js` and are tested there;
-// this file decides layout and copy only.
+// updates the page without a reload. The pure values the screen prints (bar shares, the
+// CSV, dates and durations through `utils/time.js`) live in `utils/reportExport.js` and are
+// tested there; this file decides layout and copy only.
 //
 // What is deliberately absent: PPE compliance. It is measured over every person
 // detection in the shift, which this incident list does not carry, so the screen says so
@@ -49,20 +49,6 @@ const VALUE_TONE = {
   warning: 'text-amber-600 dark:text-[#FFEB33]',
   safe: 'text-emerald-700 dark:text-emerald-400',
 };
-
-/** One bordered block on the page. */
-function Panel({ children, className = '', as: Tag = 'section', ...rest }) {
-  const { themeStyles } = useTheme();
-  return (
-    <Tag
-      style={{ backgroundColor: themeStyles.panelBg, borderColor: themeStyles.panelBorder }}
-      className={`rounded-xl border p-4 shadow-sm ${className}`}
-      {...rest}
-    >
-      {children}
-    </Tag>
-  );
-}
 
 /** Panel title row: icon, uppercase label, optional right-hand slot. */
 function PanelTitle({ icon: Icon, children, aside = null, tone = 'text-[#D73833]' }) {
@@ -125,7 +111,7 @@ function ReportHeader({ report, hasEvents, onCsv, onPdf }) {
           <span aria-hidden="true" style={{ color: themeStyles.textMuted }}>
             ·
           </span>
-          <time dateTime={report.date}>{formatReportDate(report.date)}</time>
+          <time dateTime={report.date}>{formatDate(report.date)}</time>
           <span aria-hidden="true" style={{ color: themeStyles.textMuted }}>
             ·
           </span>
@@ -149,7 +135,7 @@ function ShiftScope({ shiftValue, shiftOptions, report, onShiftChange }) {
   };
 
   return (
-    <Panel aria-label="Tura și data raportului" className="flex flex-wrap items-center gap-x-6 gap-y-3 text-xs">
+    <Panel as="section" size="card" aria-label="Tura și data raportului" className="flex flex-wrap items-center gap-x-6 gap-y-3 text-xs">
       <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
         <Calendar size={15} className="shrink-0 text-[#D73833]" aria-hidden="true" />
         <label htmlFor="report-shift" className="shrink-0 font-bold">
@@ -177,7 +163,7 @@ function ShiftScope({ shiftValue, shiftOptions, report, onShiftChange }) {
           // The mock build has one operational day; a native date input would show a
           // second, differently formatted date next to it.
           <span className="font-bold" data-testid="report-date-input">
-            {formatReportDate(report.date)}
+            {formatDate(report.date)}
           </span>
         ) : (
           <MockableDateField />
@@ -216,7 +202,7 @@ function MockableDateField() {
         className="rounded-lg border px-2 py-1.5 font-mono text-xs"
       />
       <span className="font-bold" data-testid="report-date-input">
-        {formatReportDate(selectedDate)}
+        {formatDate(selectedDate)}
       </span>
     </>
   );
@@ -225,7 +211,7 @@ function MockableDateField() {
 function EmptyReport({ mock }) {
   const { themeStyles } = useTheme();
   return (
-    <Panel data-testid="report-empty" className="space-y-1.5">
+    <Panel as="section" size="card" data-testid="report-empty" className="space-y-1.5">
       <p className="text-sm font-bold">Nu există evenimente în tura curentă.</p>
       <p className="text-xs leading-relaxed" style={{ color: themeStyles.textMuted }}>
         Cifrele sunt zero pentru că lista de incidente este goală; raportul nu inventează
@@ -262,7 +248,7 @@ function ReportKpis({ kpi }) {
       <KpiCard label="Evenimente Critice" value={kpi.critical_events} tone="critical" testId="report-critical" />
       <KpiCard
         label="Timp mediu de confirmare"
-        value={describeAckSeconds(kpi.avg_ack_time_s)}
+        value={formatDuration(kpi.avg_ack_time_s)}
         tone="accent"
         testId="report-avg-ack"
       />
@@ -281,7 +267,7 @@ function ReportKpis({ kpi }) {
 function StatusStrip({ report }) {
   const { themeStyles } = useTheme();
   return (
-    <Panel className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+    <Panel as="section" size="card" className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
       <div className="min-w-0">
         <p className="text-xs font-semibold" style={{ color: themeStyles.textMuted }}>
           Incidente fără PPE (NO_PPE)
@@ -317,7 +303,7 @@ function StatusStrip({ report }) {
 function ReportSummary({ report }) {
   const { themeStyles } = useTheme();
   return (
-    <Panel className="space-y-1.5">
+    <Panel as="section" size="card" className="space-y-1.5">
       <div className="flex flex-wrap items-center gap-2">
         <ShieldCheck size={15} className="shrink-0 text-[#D73833]" aria-hidden="true" />
         <h3 className="text-xs font-bold uppercase tracking-wider text-[#D73833]">Rezumat Executiv Tură:</h3>
@@ -336,7 +322,7 @@ function ReportSummary({ report }) {
 function TypeDistribution({ report }) {
   const total = report.kpi.total_events;
   return (
-    <Panel>
+    <Panel as="section" size="card">
       <PanelTitle icon={BarChart3}>Distribuție pe Tipuri de Alertă (by_type)</PanelTitle>
       <ul className="space-y-2.5 text-xs">
         {report.by_type.map((type) => (
@@ -366,7 +352,7 @@ function HourDistribution({ report }) {
   const { themeStyles } = useTheme();
   const peak = maxHourEvents(report.by_hour);
   return (
-    <Panel className="flex flex-col">
+    <Panel as="section" size="card" className="flex flex-col">
       <PanelTitle icon={TrendingUp}>Grafic Incidente pe Ore (by_hour)</PanelTitle>
       <div className="flex h-36 items-end justify-between gap-3 px-2 pt-4">
         {report.by_hour.map((hour) => (
@@ -392,7 +378,7 @@ function HourDistribution({ report }) {
 function ZoneTable({ rows }) {
   const head = 'pb-1.5 text-[10px] font-bold uppercase tracking-wider';
   return (
-    <Panel>
+    <Panel as="section" size="card">
       <PanelTitle icon={Clock}>Statistici de Confirmare pe Sector (by_zone)</PanelTitle>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs font-mono">

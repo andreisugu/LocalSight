@@ -4,7 +4,6 @@ import {
   STATUS_FILTERS,
   countByStatus,
   filterIncidents,
-  formatIncidentTime,
   summaryLine,
 } from './incidentList.js';
 
@@ -53,13 +52,6 @@ test('the input array is not mutated', () => {
   const copy = [...events];
   filterIncidents(events, { status: 'all' });
   assert.deepEqual(events, copy);
-});
-
-test('time is formatted in Bucharest time and invalid input is an em dash', () => {
-  const text = formatIncidentTime('2026-11-02T10:00:00Z');
-  assert.match(text, /^02\.11, \d{2}:\d{2}:\d{2}$/);
-  assert.equal(formatIncidentTime('not-a-date'), '—');
-  assert.equal(formatIncidentTime(null), '—');
 });
 
 test('the summary line carries camera, zone and operator', () => {

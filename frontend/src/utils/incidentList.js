@@ -1,6 +1,8 @@
-// Pure list logic for the Incidents screen: filtering, counting and time formatting.
+// Pure list logic for the Incidents screen: filtering, counting and the summary line.
 // Extracted from the inherited component so the behaviour is testable without a browser
 // and the component itself is only presentation.
+//
+// The detection time is formatted by `utils/time.js`, like every other timestamp in the UI.
 
 export const STATUS_FILTERS = [
   { id: 'all', label: 'Toate', match: () => true },
@@ -8,15 +10,6 @@ export const STATUS_FILTERS = [
   { id: 'closed', label: 'Rezolvate', match: (status) => status === 'acknowledged' || status === 'resolved' },
   { id: 'false_positive', label: 'Fals pozitiv', match: (status) => status === 'false_positive' },
 ];
-
-const DATE_FORMAT = new Intl.DateTimeFormat('ro-RO', {
-  timeZone: 'Europe/Bucharest',
-  day: '2-digit',
-  month: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-});
 
 export function countByStatus(events) {
   const counts = {};
@@ -56,17 +49,6 @@ export function filterIncidents(events, { status = 'all', query = '', typeLabels
     .filter((event) => !needle || searchableText(event, typeLabels).includes(needle))
     .slice()
     .sort((a, b) => String(b.detected_at || '').localeCompare(String(a.detected_at || '')));
-}
-
-export function formatIncidentTime(iso) {
-  if (!iso) return '—';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '—';
-  try {
-    return DATE_FORMAT.format(date);
-  } catch {
-    return '—';
-  }
 }
 
 export function summaryLine(event, cameraName) {

@@ -3,8 +3,6 @@ import assert from 'node:assert/strict';
 import {
   REPORT_SOURCE,
   buildReportCsv,
-  describeAckSeconds,
-  formatReportDate,
   incidentsForExport,
   maxHourEvents,
   reportCsvRows,
@@ -12,21 +10,7 @@ import {
   sharePercent,
 } from './reportExport.js';
 import { buildShiftReport } from '../constants/shiftReport.js';
-
-const SHIFT = 'Tura 2 (Prânz: 14:00 - 22:00)';
-
-const event = (overrides = {}) => ({
-  event_id: 'evt_stand12_1793356933120_17',
-  type: 'RESTRICTED_ZONE',
-  severity: 'CRITICAL',
-  status: 'open',
-  camera_id: 'stand12',
-  zone_id: 'engine-left',
-  detected_at: '2026-11-02T16:00:00.000Z',
-  acked_at: null,
-  report: null,
-  ...overrides,
-});
+import { SHIFT_LABEL as SHIFT, makeEvent as event } from '../test/factories.mjs';
 
 const report = (events) =>
   buildShiftReport(events, {
@@ -34,28 +18,6 @@ const report = (events) =>
     shiftLabel: SHIFT,
     operationalDate: '2026-11-02',
   });
-
-test('an ISO contract date renders as one Romanian format', () => {
-  assert.equal(formatReportDate('2026-11-02'), '02.11.2026');
-});
-
-test('a missing or malformed date renders as a dash, never a guess', () => {
-  assert.equal(formatReportDate(null), '—');
-  assert.equal(formatReportDate(''), '—');
-  assert.equal(formatReportDate('2026-11'), '—');
-  assert.equal(formatReportDate('02.11.2026'), '—');
-});
-
-test('the average acknowledgement time is shown in seconds', () => {
-  assert.equal(describeAckSeconds(43), '43 sec');
-  assert.equal(describeAckSeconds(42.6), '43 sec');
-});
-
-test('no acknowledgement shows a dash instead of zero seconds', () => {
-  assert.equal(describeAckSeconds(null), '—');
-  assert.equal(describeAckSeconds(undefined), '—');
-  assert.equal(describeAckSeconds(Number.NaN), '—');
-});
 
 test('the hour chart scales to its tallest bucket, with 1 as the floor', () => {
   assert.equal(maxHourEvents([]), 1);
