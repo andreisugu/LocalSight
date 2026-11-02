@@ -13,8 +13,6 @@ import {
   Minimize2,
   Columns,
   LayoutDashboard,
-  Activity,
-  Radio,
   Cpu,
   Camera,
   CameraOff,
@@ -27,7 +25,12 @@ import ConfidenceBadge from '../common/ConfidenceBadge';
 import { canDo } from '../../constants/eventActions';
 import { USE_MOCK } from '../../services/api';
 import { useEngine } from '../../engine/useEngine';
-import EnginePanel from '../live/EnginePanel';
+import LiveEngineCard from '../live/LiveEngineCard';
+
+// A double-click is two clicks at the same spot within this window (Chromium uses 500 ms).
+// The guard below only cares about the `detail` the browser reports and about a press that
+// belongs to a different incident; the window is the upper bound for the latter.
+const ACK_POINTER_WINDOW_MS = 1500;
 
 // The browser engine is opt-in per viewer, not per camera: a presenter enables it once and
 // the static site keeps the cheap clip-only path for everyone else.
@@ -192,6 +195,34 @@ export default function LiveView() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
+  // F1: the press that belongs to the click that is about to acknowledge. A double-click
+  // reuses the same screen point, and the first click removes its card, so without this the
+  // second click acknowledges whatever card slid under the cursor.
+  const ackPressRef = useRef(null);
+
+  const beginAckPress = (eventId) => {
+    ackPressRef.current = { eventId, at: Date.now() };
+  };
+
+  const acknowledgeWithGuard = (event, eventId) => {
+    // The button lives inside a clickable card: the ack must never also open the incident.
+    event.stopPropagation();
+    // Second click of a double-click: the browser reports `detail > 1` because the two
+    // clicks share the same coordinates and timing, even though this element is a
+    // different card. Ignore it; it is not a new decision by the operator.
+    if (event.detail > 1) return;
+    // Keyboard activation has no pointerdown (`detail === 0`). For a real click, the press
+    // must name the same incident: a card that appeared under the pointer mid-press is not
+    // something the operator aimed at.
+    const press = ackPressRef.current;
+    const samePress = press
+      && press.eventId === eventId
+      && Date.now() - press.at <= ACK_POINTER_WINDOW_MS;
+    if (event.detail > 0 && !samePress) return;
+    ackPressRef.current = null;
+    acknowledgeEvent(eventId, event);
+  };
+
   // The browser webcam is the only source whose lifecycle Live owns: getUserMedia, the
   // attach to <video> and the track teardown. The stream lives in a ref as well, so the
   // unmount hook and the request-race guard stop tracks without waiting for a render.
@@ -335,6 +366,14 @@ export default function LiveView() {
     setEnginePreference(gpuAvailable);
   }, [enginePreference, gpuAvailable]);
 
+  // Privacy: the immersive view renders the raw clip in its own React tree, so it cannot
+  // share the worker's <video>/<canvas>, and entering it would stop the worker and show
+  // unblurred faces full-screen. It is therefore never reachable while the browser engine
+  // is on; this effect also catches a preference turned on while fullscreen is open.
+  useEffect(() => {
+    if (browserEngineOn && displayMode === 'fullscreen') setDisplayMode('standard');
+  }, [browserEngineOn, displayMode]);
+
   const isOffline = activeCamera?.status === 'offline';
   // dev.py demo: VITE_DEMO_CAMERA = "stand12,taxiway-b", VITE_DEMO_CLIP = "stand12=clip.mp4,taxiway-b=..."
   // (a single plain value from older launchers still works).
@@ -440,6 +479,34 @@ export default function LiveView() {
     if (!engine.events.length) return;
     addEngineEvents(engine.events);
   }, [engine.events, addEngineEvents]);
+
+  // Readouts for the single "Motor & senzori" card. Nothing here invents a number: the
+  // browser fps exists only while the worker is running, and the clip fps only when the
+  // backend measured it.
+  const browserEngineFps = engine.status === 'running' && engine.fps ? engine.fps : null;
+  const broken = engine.status === 'error' || engine.status === 'unsupported';
+  const pipelineActive = Boolean(liveFps) || Boolean(browserEngineFps);
+  const pipelineLabel = isWebcamCamera
+    ? webcamLive
+      ? browserEngineFps
+        ? `${browserEngineFps.toFixed(1)} FPS • browser`
+        : 'cameră locală • oprit'
+      : 'cameră locală • fără flux'
+    : browserEngineFps
+      ? `${browserEngineFps.toFixed(1)} FPS • browser`
+      : liveFps
+        ? `${liveFps} FPS • Live`
+        : 'FPS necunoscut';
+  const zoneLabel = activeZone?.name || activeCamera?.subtitle || activeCamera?.name || '—';
+  const modelLabel = browserEngineOn && engineSource
+    ? 'YOLO26n · browser'
+    : showStream
+      ? 'edge · YOLO26'
+      : 'oprit';
+  const latencyLabel =
+    kpis.detection_to_alert_latency_s === '—'
+      ? '—'
+      : `${kpis.detection_to_alert_latency_s}s`;
 
   const toggleBrowserEngine = () => {
     setEnginePreference((previous) => {
@@ -766,15 +833,33 @@ export default function LiveView() {
               )}
 
               {/* Buton Full-Screen direct pe feed. Camera locală nu îl are: modul imersiv
-                  desenează alt arbore React, iar acolo <video> ar pierde srcObject. */}
+                  desenează alt arbore React, iar acolo <video> ar pierde srcObject.
+                  Cu motorul din browser pornit este dezactivat: modul imersiv randează
+                  clipul brut, fără canvas și fără blur, deci ar arăta fețe neblurate. */}
               {!isWebcamCamera && (
-                <button
-                  onClick={() => setDisplayMode('fullscreen')}
-                  className="p-1.5 rounded-lg bg-slate-500/10 hover:bg-slate-500/20 text-slate-300 border border-slate-500/20"
-                  title="Deschide în modul Full-Screen Imersiv"
+                <span
+                  className="inline-flex"
+                  title={
+                    browserEngineOn
+                      ? 'Ecran complet este dezactivat cât timp detecția din browser este pornită: modul imersiv ar afișa clipul brut, fără blur. Oprește motorul în browser pentru ecran complet.'
+                      : 'Deschide în modul Full-Screen Imersiv'
+                  }
                 >
-                  <Maximize2 size={14} />
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setDisplayMode('fullscreen')}
+                    disabled={browserEngineOn}
+                    aria-label="Ecran complet"
+                    className="p-1.5 rounded-lg bg-slate-500/10 hover:bg-slate-500/20 text-slate-300 border border-slate-500/20 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-500/10"
+                    title={
+                      browserEngineOn
+                        ? 'Ecran complet este dezactivat cât timp detecția din browser este pornită: modul imersiv ar afișa clipul brut, fără blur. Oprește motorul în browser pentru ecran complet.'
+                        : 'Deschide în modul Full-Screen Imersiv'
+                    }
+                  >
+                    <Maximize2 size={14} />
+                  </button>
+                </span>
               )}
             </div>
           </div>
@@ -821,7 +906,10 @@ export default function LiveView() {
                       // A MediaStream is not a URL: the webcam gets it through srcObject in
                       // the effect above, and must never load /media/webcam-live.mp4.
                       src={isWebcamCamera ? undefined : demoVideoSrc}
-                      className="w-full h-full object-cover"
+                      // Privacy: the raw clip is hidden from the click, not from the first
+                      // processed frame. The 2.5–3 s model warm-up must never show an
+                      // unblurred face; layout stays identical because only opacity changes.
+                      className={`w-full h-full object-cover${browserEngineOn ? ' opacity-0' : ''}`}
                       autoPlay
                       loop={!isWebcamCamera}
                       muted
@@ -829,6 +917,23 @@ export default function LiveView() {
                       aria-label={isWebcamCamera ? 'Flux cameră locală' : `Clip demo ${activeCamera?.id}`}
                       onError={isWebcamCamera ? undefined : () => setVideoFailed(true)}
                     />
+                    {/* Opaque surface between the hidden video and the canvas. Before the
+                        first processed frame the canvas is still empty and transparent, so
+                        this is what the operator sees: black plus a status line, never the
+                        raw feed. It also covers the fail-open path where the worker posts an
+                        unblurred passthrough frame: the canvas is hidden below when the
+                        engine reports an error. */}
+                    {browserEngineOn && engineSource && (
+                      <div className="absolute inset-0 bg-black flex items-center justify-center pointer-events-none">
+                        {engine.status !== 'running' && (
+                          <p className="px-4 text-center font-mono text-[10px] leading-snug text-slate-400 max-w-sm">
+                            {engine.status === 'error' || engine.status === 'unsupported'
+                              ? 'motorul nu a produs cadre procesate — fluxul brut rămâne ascuns'
+                              : 'se pregătește — fluxul brut rămâne ascuns până la primul cadru procesat'}
+                          </p>
+                        )}
+                      </div>
+                    )}
                     {/* The worker's frames are drawn into a 2d context created with
                         alpha:false, so every processed frame is fully opaque: the raw,
                         unblurred clip can never show through a blurred face. The canvas
@@ -839,7 +944,11 @@ export default function LiveView() {
                       <canvas
                         ref={canvasRef}
                         aria-hidden="true"
-                        className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                        // Fail-closed at the display: a broken engine must never leave the
+                        // worker's unblurred passthrough frame on screen.
+                        className={`absolute inset-0 w-full h-full object-cover pointer-events-none${
+                          broken ? ' opacity-0' : ''
+                        }`}
                       />
                     )}
                     {isWebcamCamera ? (
@@ -904,8 +1013,18 @@ export default function LiveView() {
                 {engineSource && !browserEngineOn && <ZoneOutline zone={activeZone} />}
 
                 {browserEngineOn && engineSource && (
-                  <div className="absolute bottom-12 right-2.5 px-2 py-1 rounded bg-black/80 text-[#33E1FF] text-[10px] font-mono border border-[#33E1FF]/40">
-                    {USE_MOCK ? 'detecție reală · ' : ''}procesat local · {engine.fps ? engine.fps.toFixed(1) : '—'} fps
+                  <div
+                    className={`absolute bottom-12 right-2.5 px-2 py-1 rounded bg-black/80 text-[10px] font-mono border ${
+                      broken
+                        ? 'text-[#D73833] border-[#D73833]/40'
+                        : 'text-[#33E1FF] border-[#33E1FF]/40'
+                    }`}
+                  >
+                    {engine.status === 'running'
+                      ? `${USE_MOCK ? 'detecție reală · ' : ''}procesat local · ${engine.fps ? engine.fps.toFixed(1) : '—'} fps`
+                      : broken
+                        ? 'motor indisponibil · flux brut ascuns'
+                        : 'se pregătește · flux brut ascuns'}
                   </div>
                 )}
 
@@ -972,73 +1091,19 @@ export default function LiveView() {
             )}
           </div>
 
-          {/* Citirea compactă a motorului, doar când rulează pe clipul demo. */}
-          {engineEnabled && <EnginePanel engine={engine} />}
-
-          {/* Bară Telemetrie Senzori Sol & Hardware Cameră */}
-          <div
-            style={{ backgroundColor: themeStyles.panelBg, borderColor: themeStyles.panelBorder }}
-            className="p-2.5 rounded-xl border shadow-sm grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs shrink-0"
-          >
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-[#FFEB33]/25 dark:bg-[#FFEB33]/15 flex items-center justify-center text-[#FFEB33]">
-                <Radio size={14} />
-              </div>
-              <div className="truncate">
-                <span className="text-[9px] text-slate-400 block font-semibold leading-tight">Zonă Activă</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block text-[11px]">
-                  {activeCamera?.subtitle || activeCamera?.name}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                <Activity size={14} />
-              </div>
-              <div>
-                <span className="text-[9px] text-slate-400 block font-semibold leading-tight">Stare Pipeline</span>
-                <span className="font-mono font-bold text-emerald-500 text-[11px] flex items-center gap-1">
-                  <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${liveFps || (webcamLive && engine.fps) ? 'bg-emerald-500' : 'bg-slate-500'}`} />
-                  {isWebcamCamera
-                    ? webcamLive
-                      ? engine.fps
-                        ? `${engine.fps.toFixed(1)} FPS • motor browser`
-                        : 'cameră locală • motor oprit'
-                      : 'cameră locală • fără flux'
-                    : liveFps
-                      ? `${liveFps} FPS • Live`
-                      : 'FPS necunoscut'}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500">
-                <Cpu size={14} />
-              </div>
-              <div className="truncate">
-                <span className="text-[9px] text-slate-400 block font-semibold leading-tight">Model Detecție</span>
-                <span className="font-mono font-bold text-slate-700 dark:text-slate-300 truncate block text-[11px]">
-                  {browserEngineOn && engineSource ? 'YOLO26n · în browser' : showStream ? 'edge · YOLO26' : 'oprit'}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-[#FFEB33]/25 dark:bg-[#FFEB33]/15 flex items-center justify-center text-[#FFEB33]">
-                <Clock size={14} />
-              </div>
-              <div>
-                <span className="text-[9px] text-slate-400 block font-semibold leading-tight">Detecție → Alertă</span>
-                <span className="font-mono font-bold text-[#FFEB33] text-[11px]">
-                  {kpis.detection_to_alert_latency_s === '—'
-                    ? '—'
-                    : `${kpis.detection_to_alert_latency_s}s`}
-                </span>
-              </div>
-            </div>
-          </div>
+          {/* O singură carte pentru motor și senzori: e mereu prezentă, are un singur titlu
+              și o singură grilă. Metricele motorului intră în aceeași grilă doar cât timp
+              worker-ul produce cadre, ca oprit să nu apară zerouri inventate. */}
+          <LiveEngineCard
+            engine={engine}
+            engineOn={browserEngineOn}
+            hasSource={Boolean(engineSource)}
+            zoneLabel={zoneLabel}
+            pipelineLabel={pipelineLabel}
+            pipelineActive={pipelineActive}
+            modelLabel={modelLabel}
+            latencyLabel={latencyLabel}
+          />
         </div>
 
         {/* FEED EVENIMENTE (DREAPTA în Standard sau GRILĂ MULTI-COLOANĂ dedesubt în Split) */}
@@ -1110,16 +1175,31 @@ export default function LiveView() {
                 const isCrit = ev.severity === 'CRITICAL';
                 const isEscalated = ev.status === 'escalated';
                 const isAcked = ev.status === 'acknowledged';
+                const openIncident = () => {
+                  setSelectedEventId(ev.event_id);
+                  setCurrentView('incident_detail');
+                };
 
                 return (
                   <div
                     key={ev.event_id}
-                    onClick={() => {
-                      setSelectedEventId(ev.event_id);
-                      setCurrentView('incident_detail');
+                    // The whole card is the "open" control, so it must be reachable and
+                    // operable without a mouse: Tab reaches it, Enter and Space open it.
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Deschide incidentul ${ev.event_id}`}
+                    onClick={openIncident}
+                    onKeyDown={(event) => {
+                      // Key events from the inner ack button bubble here; only the card
+                      // itself may open the incident.
+                      if (event.target !== event.currentTarget) return;
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        openIncident();
+                      }
                     }}
                     style={{ backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF' }}
-                    className={`p-2.5 rounded-xl border transition-all hover:scale-[1.01] cursor-pointer space-y-1.5 shadow-sm ${
+                    className={`p-2.5 rounded-xl border transition-all hover:scale-[1.01] cursor-pointer space-y-1.5 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#33E1FF] ${
                       isEscalated
                         ? 'border-[#D73833] ring-2 ring-[#D73833]/40 animate-pulse'
                         : isCrit
@@ -1186,7 +1266,9 @@ export default function LiveView() {
 
                       {canDo('ack', ev.status) && (
                         <button
-                          onClick={(e) => acknowledgeEvent(ev.event_id, e)}
+                          type="button"
+                          onPointerDown={() => beginAckPress(ev.event_id)}
+                          onClick={(e) => acknowledgeWithGuard(e, ev.event_id)}
                           className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 flex items-center gap-1 shadow-sm transition-colors"
                           title="Confirmă incidentul și anulează timerul de escaladare"
                         >
