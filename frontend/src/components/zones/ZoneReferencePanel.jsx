@@ -86,7 +86,7 @@ export default function ZoneReferencePanel({
             alt="Referință"
             className="w-full rounded-lg border border-slate-200 dark:border-white/10"
           />
-          <p className="text-[10px] font-mono opacity-60">
+          <p className="text-[10px] font-mono" style={{ color: themeStyles.textMuted }}>
             {usingDemoReference ? 'cadru demo · primul frame din clip' : 'cadru salvat al zonei'}
             {capturedAt ? ` · actualizat la ${capturedAt}` : ''}
           </p>

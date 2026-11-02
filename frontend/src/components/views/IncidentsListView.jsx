@@ -2,11 +2,11 @@ import { useMemo, useState } from 'react';
 import { AlertOctagon, ChevronRight, Search } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
-import { STATUS_TOKENS } from '../../constants/theme';
 import { USE_MOCK } from '../../services/api';
 import { TYPE_LABELS } from '../../data/labels';
 import SafeImage from '../common/SafeImage';
-import { Panel, Pill } from '../ui';
+import { Panel } from '../ui';
+import { ProvenanceChip, StatusChip } from '../incidents/Chips';
 import { formatDateTime } from '../../utils/time';
 import { STATUS_FILTERS, countByStatus, filterIncidents, summaryLine } from '../../utils/incidentList';
 
@@ -14,42 +14,26 @@ import { STATUS_FILTERS, countByStatus, filterIncidents, summaryLine } from '../
 // browser), this file only renders it. The layout is a real table on desktop and a
 // stacked card on a phone, with the same information in both.
 
-// Severity and status chips read their colours from the contract tokens, so the same value
-// cannot look different here and on the detail screen.
-function TokenBadge({ token, fallback, isDarkMode }) {
-  const style = token || {};
+// The filters are filters, not tabs: each button toggles a view of the same table, so they
+// are a labelled button group with `aria-pressed` instead of a tablist without tabpanels
+// (A10). Every button stays in the tab order, which is what a filter set should do.
+function FilterGroup({ counts, active, onChange, isDarkMode, themeStyles }) {
   return (
-    <Pill
-      shape="plain"
-      className="rounded border px-2 py-0.5 text-[10px] font-bold whitespace-nowrap"
-      style={{
-        backgroundColor: (isDarkMode ? style.bgDark : style.bg) || 'rgba(148,163,184,0.15)',
-        color: (isDarkMode ? style.textDark : style.text) || '#94A3B8',
-        borderColor: style.border || 'rgba(148,163,184,0.3)',
-      }}
-    >
-      {style.label || fallback}
-    </Pill>
-  );
-}
-
-function FilterTabs({ counts, active, onChange, isDarkMode, themeStyles }) {
-  return (
-    <div className="flex flex-wrap gap-2" role="tablist" aria-label="Filtru status">
+    <div className="flex flex-wrap gap-2" role="group" aria-label="Filtru status">
       {STATUS_FILTERS.map((filter) => {
         const selected = filter.id === active;
         return (
           <button
             key={filter.id}
-            role="tab"
-            aria-selected={selected}
+            type="button"
+            aria-pressed={selected}
             onClick={() => onChange(filter.id)}
             style={
               selected
                 ? { backgroundColor: isDarkMode ? '#D73833' : '#7EDEED', color: isDarkMode ? '#FFFFFF' : '#1F1F1F' }
                 : { borderColor: themeStyles.panelBorder }
             }
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
+            className={`min-h-[32px] px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFEB33] ${
               selected ? 'border-transparent' : 'hover:bg-white/5'
             }`}
           >
@@ -62,7 +46,7 @@ function FilterTabs({ counts, active, onChange, isDarkMode, themeStyles }) {
   );
 }
 
-function IncidentRow({ event, cameraName, onOpen, themeStyles, isDarkMode }) {
+function IncidentRow({ event, cameraName, onOpen, themeStyles }) {
   const critical = event.severity === 'CRITICAL';
   return (
     <li>
@@ -84,23 +68,25 @@ function IncidentRow({ event, cameraName, onOpen, themeStyles, isDarkMode }) {
         <span className="min-w-0">
           <span className="flex flex-wrap items-center gap-1.5">
             <span className="font-bold text-sm">{TYPE_LABELS[event.type] || event.type}</span>
-            <TokenBadge token={STATUS_TOKENS[event.severity]} fallback={event.severity} isDarkMode={isDarkMode} />
-            <TokenBadge token={STATUS_TOKENS[event.status]} fallback={event.status} isDarkMode={isDarkMode} />
+            <StatusChip value={event.severity} />
+            <StatusChip value={event.status} />
             {event.local && (
-              <span
-                className="text-[10px] font-bold px-2 py-0.5 rounded border border-[#33E1FF]/40 bg-[#33E1FF]/10 text-cyan-700 dark:text-[#33E1FF]"
+              <ProvenanceChip
+                tone="local"
                 title="Produs de motorul din browser, nu din fixture-urile demo."
               >
                 local
-              </span>
+              </ProvenanceChip>
             )}
           </span>
-          <span className="block text-xs truncate mt-0.5" style={{ color: themeStyles.textMuted }}>
+          {/* Wraps instead of clipping: at 320 px and with enlarged text spacing the
+              camera/zone/operator line must stay readable (A19). */}
+          <span className="block text-xs break-words mt-0.5" style={{ color: themeStyles.textMuted }}>
             {summaryLine(event, cameraName)}
           </span>
         </span>
 
-        <span className="hidden md:block text-xs truncate" style={{ color: themeStyles.textMuted }}>
+        <span className="hidden md:block text-xs break-words" style={{ color: themeStyles.textMuted }}>
           {cameraName(event.camera_id)}
         </span>
         <time
@@ -111,7 +97,7 @@ function IncidentRow({ event, cameraName, onOpen, themeStyles, isDarkMode }) {
           {formatDateTime(event.detected_at)}
         </time>
 
-        <ChevronRight size={16} className="text-slate-500 justify-self-end" />
+        <ChevronRight size={16} className="text-slate-500 justify-self-end" aria-hidden="true" />
       </button>
     </li>
   );
@@ -144,17 +130,30 @@ export default function IncidentsListView() {
     <div className="flex-1 p-4 md:p-6 overflow-y-auto h-full">
       <div className="max-w-6xl mx-auto space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <h2 className="font-black text-lg uppercase tracking-tight flex items-center gap-2">
-              <AlertOctagon size={20} className="text-[#D73833]" />
+              <AlertOctagon size={20} className="text-[#D73833]" aria-hidden="true" />
               Incidente
             </h2>
             <p style={muted} className="text-xs">
               Toate incidentele, inclusiv cele rezolvate. Deschide unul pentru dovadă, cronologie și raport.
             </p>
+            {/* One provenance vocabulary, explained in place instead of only in a tooltip. */}
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]" style={muted}>
+              {USE_MOCK ? (
+                <>
+                  <ProvenanceChip tone="demo" title="Fixture-uri demo plus detecțiile motorului din browser; nimic nu vine din backend.">
+                    date demo
+                  </ProvenanceChip>
+                  <span>Fixture-uri demo plus detecțiile motorului din browser; nimic nu vine din backend.</span>
+                </>
+              ) : (
+                <span>Incidentele sunt încărcate din backend.</span>
+              )}
+            </p>
           </div>
           <label className="relative block w-full sm:w-72">
-            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
             <input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
@@ -169,7 +168,7 @@ export default function IncidentsListView() {
           </label>
         </div>
 
-        <FilterTabs
+        <FilterGroup
           counts={counts}
           active={statusFilter}
           onChange={setStatusFilter}
@@ -204,7 +203,6 @@ export default function IncidentsListView() {
                   cameraName={cameraName}
                   onOpen={open}
                   themeStyles={themeStyles}
-                  isDarkMode={isDarkMode}
                 />
               ))}
             </ul>
@@ -213,7 +211,7 @@ export default function IncidentsListView() {
 
         <p className="text-[11px]" style={muted}>
           {USE_MOCK
-            ? `Ultimele ${events.length} incidente: fixture-uri demo plus detecțiile motorului local.`
+            ? `Ultimele ${events.length} incidente: date demo plus detecțiile motorului din browser.`
             : `Ultimele ${events.length} incidente încărcate din backend.`}
         </p>
       </div>

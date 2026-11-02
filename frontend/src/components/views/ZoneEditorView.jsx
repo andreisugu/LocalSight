@@ -25,8 +25,21 @@ const NO_ZONE_MESSAGE = 'Alege o zonă salvată sau apasă „Zonă nouă”.';
 const MIN_POINTS_MESSAGE = 'O zonă are nevoie de cel puțin 3 puncte.';
 const REORDER_NOTICE = 'Punctele au fost reordonate în jurul centrului zonei.';
 const TEXT_ENTRY_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
-const HINT =
-  'Trage un punct ca să-l muți · „+” de pe latură adaugă un punct · click dreapta / Delete șterge · Ctrl+Z anulează';
+const HINT_EMPTY =
+  'Click pe cadru ca să pui punctele zonei, în ordine · trage un punct ca să-l muți · Ctrl+Z anulează';
+const HINT_DRAWING =
+  'Click pe primul punct (verde) închide zona · trage punctele · „+” de pe latură adaugă un punct · Ctrl+Z anulează';
+const HINT_CLOSED =
+  'Zonă închisă · trage punctele ca să le muți · „+” de pe latură adaugă un punct · click dreapta / Delete șterge · Ctrl+Z anulează';
+
+/**
+ * The instructions for the drawing surface. They live on the help line above the frame, as
+ * the state changes, instead of on a pill that covered the polygon (M13).
+ */
+function editorHint(points, closed) {
+  if (closed) return HINT_CLOSED;
+  return points >= 3 ? HINT_DRAWING : HINT_EMPTY;
+}
 
 /**
  * Zone configuration screen.
@@ -37,7 +50,7 @@ const HINT =
  */
 
 /** Page title plus the camera picker: which camera's zones the editor is showing. */
-function EditorHeader({ cameraChoices, selectedCameraId, onCameraChange }) {
+function EditorHeader({ cameraChoices, selectedCameraId, onCameraChange, hint }) {
   const { themeStyles } = useTheme();
   return (
     <header
@@ -50,7 +63,7 @@ function EditorHeader({ cameraChoices, selectedCameraId, onCameraChange }) {
           Configurare zone
         </h2>
         <p className="mt-1 text-xs font-mono" style={{ color: themeStyles.textMuted }}>
-          {HINT}
+          {hint}
         </p>
       </div>
 
@@ -303,6 +316,7 @@ export default function ZoneEditorView() {
           cameraChoices={cameraChoices}
           selectedCameraId={selectedCameraId}
           onCameraChange={changeCamera}
+          hint={editorHint(draft.points.length, draft.closed)}
         />
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">

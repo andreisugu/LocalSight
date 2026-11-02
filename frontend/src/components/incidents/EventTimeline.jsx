@@ -31,7 +31,7 @@ export default function EventTimeline({ event }) {
       className="rounded-lg border border-white/10 p-3 space-y-2"
     >
       <h3 className="text-xs font-bold uppercase tracking-wider text-[#B91C1C] dark:text-[#FF8A80] flex items-center gap-1">
-        <Clock size={13} /> Cronologie eveniment (5 pași)
+        <Clock size={13} aria-hidden="true" /> Cronologie eveniment (5 pași)
       </h3>
       <ol className="flex flex-col gap-1 sm:grid sm:grid-cols-5 sm:gap-1.5 sm:text-center font-mono text-[10px]">
         {steps.map((step) => (
