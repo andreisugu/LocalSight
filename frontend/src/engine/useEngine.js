@@ -38,6 +38,11 @@ const LOOP_WATCHDOG_MS = 1000;
 // A WebGPU session that is still "loading" after this long is treated as wedged, not slow:
 // the worker is terminated (it may be blocked synchronously) and rebuilt on wasm.
 const ENGINE_STALL_MS = 30_000;
+// A cold first visit downloads ~38.9 MB (28.7 MB ORT wasm + 9.9 MB YOLO) before the
+// worker can say `ready`; on venue wifi that legitimately takes minutes. The old timer
+// started at worker creation and killed such a worker as if WebGPU had wedged. The ready
+// timeout is generous; the 30 s stall timer only starts after `ready`.
+const ENGINE_READY_TIMEOUT_MS = 180_000;
 
 /**
  * @param {{ videoRef: import('react').RefObject<HTMLVideoElement>,
@@ -137,6 +142,9 @@ export function useEngine({
     let disposed = false;
     let inFlight = false;
     let receivedFrame = false;
+    let modelReady = false;
+    let readyTimer = null;
+    let stallTimer = null;
     // The worker outlives a source swap on purpose: recreating it would reload the ONNX
     // graphs. Only the frame loop is torn down and restarted.
     let loopActive = false;
@@ -217,6 +225,15 @@ export function useEngine({
         return;
       }
       if (message.type === 'ready') {
+        modelReady = true;
+        if (readyTimer) clearTimeout(readyTimer);
+        if (!stallTimer) {
+          stallTimer = setTimeout(() => {
+            if (disposed || receivedFrame || effectiveProvider === 'wasm') return;
+            console.warn('[engine] ready but no frame after 30 s; restarting on wasm');
+            setForcedProvider('wasm');
+          }, ENGINE_STALL_MS);
+        }
         setStats((previous) => ({
           ...previous,
           status: 'loading',
@@ -348,13 +365,16 @@ export function useEngine({
     }, LOOP_WATCHDOG_MS);
 
     // ONNX Runtime can block the worker thread inside WebGPU session creation, so a
-    // timeout *inside* the worker would never fire. The supervisor lives on the page: if
-    // no frame arrives, kill the worker and start a clean one on wasm.
-    const stallTimer = setTimeout(() => {
-      if (disposed || receivedFrame || effectiveProvider === 'wasm') return;
-      console.warn('[engine] no frame after 30 s; restarting on wasm');
+    // timeout *inside* the worker would never fire. The supervisor lives on the page.
+    // Phase 1 waits for `ready` (model download included); phase 2, armed in the `ready`
+    // handler above, watches for the first frame. Killing during a slow download is worse
+    // than a long "se încarcă" state, because it can never finish that way.
+    readyTimer = setTimeout(() => {
+      if (disposed || modelReady) return;
+      if (effectiveProvider === 'wasm') return;
+      console.warn('[engine] models not ready after 180 s; restarting on wasm');
       setForcedProvider('wasm');
-    }, ENGINE_STALL_MS);
+    }, ENGINE_READY_TIMEOUT_MS);
 
     const init = { type: 'init' };
     if (effectiveProvider) {
@@ -381,7 +401,8 @@ export function useEngine({
       disposed = true;
       stopLoop();
       clearInterval(watchdog);
-      clearTimeout(stallTimer);
+      if (readyTimer) clearTimeout(readyTimer);
+      if (stallTimer) clearTimeout(stallTimer);
       LOOP_EVENTS.forEach((name) => video.removeEventListener(name, onLoopHint));
       video.removeEventListener('loadstart', resetCounters);
       video.removeEventListener('emptied', onSourceReset);
