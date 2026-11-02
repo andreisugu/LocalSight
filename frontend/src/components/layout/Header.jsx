@@ -1,168 +1,226 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  Check,
+  ChevronDown,
   Menu,
-  Search,
   Moon,
+  RefreshCw,
+  Search,
   Sun,
   WifiOff,
-  RefreshCw,
+  X,
   Zap,
-  ChevronDown,
-  Check,
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { USE_MOCK } from '../../services/api';
 
-// Public assets are prefixed with the Vite base so the build also works from a
-// repo subpath (GitHub Pages); same pattern as src/engine/detectors.js.
-const LOGO_SRC = `${import.meta.env.BASE_URL}logo.svg`;
+// Public assets are prefixed with the Vite base so the build also works from a repo
+// subpath (GitHub Pages); same rule as the engine assets.
+const BRAND_LOGO = `${import.meta.env.BASE_URL}logo.svg`;
 
-// A name from localStorage can be any length (F7: 10 000 characters broke the header).
-// Cap it for display only; the stored value is untouched.
-const MAX_OPERATOR_NAME_CHARS = 80;
+// A name restored from localStorage has no length limit (F7: 10 000 characters broke the
+// header). Only the visible copy is capped; the stored value is left alone.
+const NAME_PREVIEW_LIMIT = 80;
 
-function displayOperatorName(name) {
-  return String(name || '').replace(/\s+/g, ' ').trim().slice(0, MAX_OPERATOR_NAME_CHARS);
-}
+// The mock build has no edge ingest. These entries fabricate the same envelopes the
+// backend would push, with the labels mockData already uses for the incident types.
+const SIMULATED_EVENTS = [
+  {
+    type: 'RESTRICTED_ZONE',
+    severity: 'CRITICAL',
+    label: 'Persoană în Zonă Motor',
+    badge: 'CRITICAL',
+    itemClass: 'text-[#D73833] hover:bg-[#D73833]/15',
+    badgeClass: 'bg-[#D73833] text-white',
+  },
+  {
+    type: 'NO_PPE',
+    severity: 'WARNING',
+    label: 'Lucrător fără Vestă EIP',
+    badge: 'WARNING',
+    itemClass: 'text-amber-500 hover:bg-[#FFEB33]/15',
+    badgeClass: 'bg-[#FFEB33] text-[#1F1F1F]',
+  },
+  {
+    type: 'SMOKING',
+    severity: 'WARNING',
+    label: 'Fumat în Zonă Alimentare',
+    badge: 'WARNING',
+    itemClass: 'text-amber-500 hover:bg-[#FFEB33]/15',
+    badgeClass: 'bg-[#FFEB33] text-[#1F1F1F]',
+  },
+  {
+    type: 'CAMERA_OFFLINE',
+    severity: 'WARNING',
+    label: 'Camera Rampa Sud Offline',
+    badge: 'OFFLINE',
+    itemClass: 'text-slate-400 hover:bg-slate-500/10',
+    badgeClass: 'bg-slate-600 text-white',
+  },
+];
 
-function isTypingTarget(target) {
+function isTextField(target) {
   if (!target) return false;
   const tag = target.tagName;
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
 }
 
+function previewOperatorName(name) {
+  return String(name || '').replace(/\s+/g, ' ').trim().slice(0, NAME_PREVIEW_LIMIT);
+}
+
 /**
- * A dropdown that closes on Escape and on a click outside its wrapper. The toggle button
- * lives inside the wrapper, so clicking it is "inside" and is handled by its own onClick.
+ * Owns one dropdown's open flag and closes it on Escape or on a pointer down outside its
+ * wrapper. The toggle button is inside the wrapper, so its own onClick is the only thing
+ * that opens the menu — the outside listener never fires for it.
  */
-function useMenu() {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+function useDismissableMenu() {
+  const [isOpen, setOpen] = useState(false);
+  const containerRef = useRef(null);
 
   useEffect(() => {
-    if (!open) return undefined;
-    const onPointerDown = (event) => {
-      if (ref.current && !ref.current.contains(event.target)) setOpen(false);
+    if (!isOpen) return undefined;
+
+    const closeOnOutsidePointer = (event) => {
+      if (!containerRef.current?.contains(event.target)) setOpen(false);
     };
-    const onKeyDown = (event) => {
+    const closeOnEscape = (event) => {
       if (event.key === 'Escape') setOpen(false);
     };
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open]);
 
-  return { open, setOpen, ref };
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isOpen]);
+
+  return { isOpen, setOpen, containerRef };
 }
 
 export default function Header() {
   const { isDarkMode, toggleTheme, themeStyles } = useTheme();
   const {
-    searchQuery,
-    setSearchQuery,
-    isSidebarCollapsed,
-    setIsSidebarCollapsed,
-    isWsConnected,
-    isReconnecting,
     activeOperator,
     availableOperators,
-    switchOperator,
+    isReconnecting,
+    isSidebarCollapsed,
+    isWsConnected,
     operatorName,
+    searchQuery,
     setOperatorName,
+    setSearchQuery,
+    setIsSidebarCollapsed,
     simulateIncomingWsEvent,
+    switchOperator,
     toggleWsSimulation,
   } = useSecurity();
 
-  const demoMenu = useMenu();
-  const userMenu = useMenu();
+  const simulationMenu = useDismissableMenu();
+  const operatorMenu = useDismissableMenu();
   const searchRef = useRef(null);
-  const [operatorDraft, setOperatorDraft] = useState(operatorName);
-  const shownOperatorName = displayOperatorName(operatorName);
+  const [nameDraft, setNameDraft] = useState(operatorName);
+  const shownOperatorName = previewOperatorName(operatorName);
+  const avatarInitial = (operatorName || 'O').charAt(0).toUpperCase() || 'O';
+  const operatorBadge = activeOperator ? activeOperator.badge : 'OPERATOR';
 
+  // Switching the role resets the custom name in the provider; keep the draft in step.
   useEffect(() => {
-    setOperatorDraft(operatorName);
+    setNameDraft(operatorName);
   }, [operatorName]);
 
-  // `/` focuses the search from anywhere except a field; Escape clears it. Both are the
-  // shortcuts an operator expects on a dashboard, and neither needs a new dependency.
+  // `/` focuses the search from anywhere but a text field; Escape inside the field clears
+  // it. Both are dashboard habits and neither needs a dependency.
   useEffect(() => {
-    const onKeyDown = (event) => {
-      if (event.key === '/' && !isTypingTarget(event.target) && searchRef.current) {
-        event.preventDefault();
-        searchRef.current.focus();
-      }
+    const focusSearchOnSlash = (event) => {
+      if (event.key !== '/' || isTextField(event.target)) return;
+      event.preventDefault();
+      searchRef.current?.focus();
     };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    document.addEventListener('keydown', focusSearchOnSlash);
+    return () => document.removeEventListener('keydown', focusSearchOnSlash);
   }, []);
 
-  const commitOperator = () => {
-    setOperatorName(operatorDraft);
+  const commitOperatorName = () => setOperatorName(nameDraft);
+
+  const toggleRail = () => setIsSidebarCollapsed(!isSidebarCollapsed);
+  const clearSearch = () => setSearchQuery('');
+
+  const chooseOperator = (operatorId) => {
+    switchOperator(operatorId);
+    operatorMenu.setOpen(false);
   };
 
-  const toggleDemoMenu = () => {
-    demoMenu.setOpen((current) => !current);
-    userMenu.setOpen(false);
+  const chooseSimulatedEvent = (type, severity) => {
+    simulateIncomingWsEvent(type, severity);
+    simulationMenu.setOpen(false);
   };
 
-  const toggleUserMenu = () => {
-    userMenu.setOpen((current) => !current);
-    demoMenu.setOpen(false);
+  const toggleSimulationMenu = () => {
+    simulationMenu.setOpen(!simulationMenu.isOpen);
+    operatorMenu.setOpen(false);
+  };
+
+  const toggleOperatorMenu = () => {
+    operatorMenu.setOpen(!operatorMenu.isOpen);
+    simulationMenu.setOpen(false);
   };
 
   const menuSurface = {
-    backgroundColor: isDarkMode ? '#282828' : '#FFFFFF',
-    borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : '#E5E7EB',
-    color: isDarkMode ? '#F5F5F5' : '#1F1F1F',
+    backgroundColor: isDarkMode ? themeStyles.panelBg : '#FFFFFF',
+    borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.15)' : themeStyles.panelBorder,
+    color: themeStyles.textColor,
   };
 
   return (
     <header
       style={{
-        backgroundColor: themeStyles.navBg || (isDarkMode ? '#181818' : '#FFFFFF'),
-        borderColor: themeStyles.navBorder || (isDarkMode ? 'rgba(255, 255, 255, 0.10)' : '#E5E7EB'),
-        color: isDarkMode ? '#F5F5F5' : '#1F1F1F',
+        backgroundColor: themeStyles.navBg,
+        borderColor: themeStyles.navBorder,
+        color: themeStyles.textColor,
       }}
-      className="no-print h-16 px-2 sm:px-4 md:px-6 flex items-center justify-between gap-2 border-b shadow-md z-30 sticky top-0 shrink-0 select-none transition-colors"
+      className="no-print sticky top-0 z-30 flex h-16 shrink-0 select-none items-center gap-2 border-b px-2 shadow-md transition-colors sm:px-4 md:px-6"
     >
-      <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
         <button
-          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center shrink-0"
+          type="button"
+          onClick={toggleRail}
           title={isSidebarCollapsed ? 'Deschide meniu navigare' : 'Restrânge meniu navigare'}
           aria-label="Comută meniu navigare"
           aria-expanded={!isSidebarCollapsed}
+          className="flex shrink-0 items-center justify-center rounded-xl bg-white/10 p-2 transition-colors hover:bg-white/20"
         >
           <Menu size={18} />
         </button>
+
         <img
-          src={LOGO_SRC}
+          src={BRAND_LOGO}
           alt="LocalSight"
-          className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover shadow-md border border-white/20 shrink-0"
+          className="h-8 w-8 shrink-0 rounded-full border border-white/20 object-cover shadow-md sm:h-10 sm:w-10"
         />
+
         <div className="min-w-0">
-          <h1 className="font-black text-base sm:text-xl tracking-tight leading-none uppercase drop-shadow-sm truncate">
+          <h1 className="truncate text-base font-black uppercase leading-none tracking-tight drop-shadow-sm sm:text-xl">
             LocalSight
           </h1>
-          <p className="hidden sm:block text-xs font-medium text-slate-400 tracking-wide mt-0.5 truncate">
+          <p className="mt-0.5 hidden truncate text-xs font-medium tracking-wide text-slate-400 sm:block">
             Management condiții siguranță
           </p>
         </div>
       </div>
 
-      {/* C-10: only a real loss of signal is announced; mock builds stay quiet. */}
+      {/* C-10: announce a real loss of signal only; the mock build is always connected. */}
       {!isWsConnected && (
-        <div className="hidden lg:flex items-center gap-2 px-3 py-1 bg-[#D73833] text-white rounded-lg text-xs font-bold shadow-md animate-pulse">
-          <WifiOff size={14} />
-          <span>Semnal Edge Pierdut (Polling activat)</span>
+        <div className="hidden animate-pulse items-center gap-2 rounded-lg bg-[#D73833] px-3 py-1 text-xs font-bold text-white shadow-md lg:flex">
+          <WifiOff size={14} className="shrink-0" />
+          <span className="whitespace-nowrap">Semnal Edge Pierdut (Polling activat)</span>
           <button
+            type="button"
             onClick={toggleWsSimulation}
             disabled={isReconnecting}
-            className="ml-2 px-2.5 py-1 bg-black/40 hover:bg-black/60 rounded text-[10px] flex items-center gap-1.5 font-mono transition-colors"
+            className="ml-2 flex items-center gap-1.5 rounded bg-black/40 px-2.5 py-1 font-mono text-[10px] transition-colors hover:bg-black/60 disabled:opacity-70"
           >
             <RefreshCw size={11} className={isReconnecting ? 'animate-spin' : ''} />
             {isReconnecting ? 'Se reconectează…' : 'Reconectează'}
@@ -170,11 +228,12 @@ export default function Header() {
         </div>
       )}
 
-      <div className="flex-1 max-w-xs md:max-w-sm mx-4 hidden sm:block">
+      <div className="mx-4 hidden max-w-xs flex-1 sm:block md:max-w-sm">
         <div className="relative">
           <Search
             size={16}
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
           />
           <input
             ref={searchRef}
@@ -182,73 +241,68 @@ export default function Header() {
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.preventDefault();
-                if (searchQuery) setSearchQuery('');
-                else event.currentTarget.blur();
-              }
+              if (event.key !== 'Escape') return;
+              event.preventDefault();
+              if (searchQuery) setSearchQuery('');
+              else event.currentTarget.blur();
             }}
             placeholder="Caută incidente"
             aria-label="Caută incidente"
             title="Caută în incidente (/)"
-            className="w-full pl-10 pr-9 py-2 text-xs rounded-xl bg-white/5 hover:bg-white/10 focus:bg-white/15 border border-white/10 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#FFEB33] transition-all shadow-inner"
+            className="w-full rounded-xl border border-white/10 bg-white/5 py-2 pl-10 pr-9 text-xs shadow-inner transition-all placeholder-slate-400 hover:bg-white/10 focus:bg-white/15 focus:outline-none focus:ring-2 focus:ring-[#FFEB33]"
           />
           {searchQuery && (
             <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs font-bold"
+              type="button"
+              onClick={clearSearch}
               title="Șterge căutarea"
               aria-label="Șterge căutarea"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 transition-colors hover:text-white"
             >
-              ✕
+              <X size={13} />
             </button>
           )}
         </div>
       </div>
 
-      <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 shrink-0">
+      <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2 md:gap-3">
         {/* Mock-only triggers; the static build has no ingest path. */}
         {USE_MOCK && (
-          <div className="relative" ref={demoMenu.ref}>
+          <div className="relative" ref={simulationMenu.containerRef}>
             <button
-              onClick={toggleDemoMenu}
+              type="button"
+              onClick={toggleSimulationMenu}
               aria-haspopup="menu"
-              aria-expanded={demoMenu.open}
-              className="px-2 sm:px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+              aria-expanded={simulationMenu.isOpen}
               title="Generează evenimente de test (doar în modul mock)"
+              className="flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-2 py-1.5 text-xs font-bold shadow-sm transition-colors hover:bg-white/20 sm:px-3"
             >
-              <Zap size={14} className="text-[#FFEB33] fill-[#FFEB33]" />
+              <Zap size={14} className="fill-[#FFEB33] text-[#FFEB33]" />
               <span className="hidden md:inline">Simulare</span>
               <ChevronDown size={12} className="opacity-80" />
             </button>
 
-            {demoMenu.open && (
+            {simulationMenu.isOpen && (
               <div
                 role="menu"
+                aria-label="Evenimente de test"
                 style={menuSurface}
-                className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-1rem)] rounded-xl border p-2 shadow-2xl space-y-1 text-xs z-50 font-sans"
+                className="absolute right-0 z-50 mt-2 w-64 max-w-[calc(100vw-1rem)] space-y-1 rounded-xl border p-2 font-sans text-xs shadow-2xl"
               >
-                <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b pb-1 mb-1">
+                <p className="mb-1 border-b px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   Evenimente de test (mod mock)
-                </div>
-                {[
-                  { type: 'RESTRICTED_ZONE', severity: 'CRITICAL', label: 'Persoană în Zonă Motor', tone: 'text-[#D73833] hover:bg-[#D73833]/15', chip: 'bg-[#D73833] text-white' },
-                  { type: 'NO_PPE', severity: 'WARNING', label: 'Lucrător fără Vestă EIP', tone: 'text-amber-500 hover:bg-[#FFEB33]/15', chip: 'bg-[#FFEB33] text-[#1F1F1F]' },
-                  { type: 'SMOKING', severity: 'WARNING', label: 'Fumat în Zonă Alimentare', tone: 'text-amber-500 hover:bg-[#FFEB33]/15', chip: 'bg-[#FFEB33] text-[#1F1F1F]' },
-                  { type: 'CAMERA_OFFLINE', severity: 'WARNING', label: 'Camera Rampa Sud Offline', tone: 'text-slate-400 hover:bg-slate-500/10', chip: 'bg-slate-600 text-white' },
-                ].map((item) => (
+                </p>
+                {SIMULATED_EVENTS.map((item) => (
                   <button
                     key={item.type}
+                    type="button"
                     role="menuitem"
-                    onClick={() => {
-                      simulateIncomingWsEvent(item.type, item.severity);
-                      demoMenu.setOpen(false);
-                    }}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-lg font-bold flex items-center justify-between ${item.tone}`}
+                    onClick={() => chooseSimulatedEvent(item.type, item.severity)}
+                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left font-bold ${item.itemClass}`}
                   >
                     <span>{item.label}</span>
-                    <span className={`text-[10px] font-mono px-1.5 rounded ${item.chip}`}>
-                      {item.type === 'CAMERA_OFFLINE' ? 'OFFLINE' : item.severity}
+                    <span className={`rounded px-1.5 font-mono text-[10px] ${item.badgeClass}`}>
+                      {item.badge}
                     </span>
                   </button>
                 ))}
@@ -258,112 +312,132 @@ export default function Header() {
         )}
 
         <button
+          type="button"
           onClick={toggleTheme}
           style={{
-            backgroundColor: isDarkMode ? '#282828' : '#F5F5F5',
-            borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.15)' : '#E5E7EB',
+            backgroundColor: isDarkMode ? themeStyles.panelBg : '#F5F5F5',
+            borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.15)' : themeStyles.panelBorder,
           }}
-          className="p-2 rounded-xl border transition-all text-xs flex items-center justify-center shadow-sm"
+          className="flex items-center justify-center rounded-xl border p-2 text-xs shadow-sm transition-all"
           title={isDarkMode ? 'Comută pe tema luminoasă' : 'Comută pe tema întunecată'}
           aria-label="Comută tema interfeței"
         >
-          {isDarkMode ? <Sun size={16} className="text-[#FFEB33]" /> : <Moon size={16} className="text-[#1F1F1F]" />}
+          {isDarkMode ? (
+            <Sun size={16} className="text-[#FFEB33]" />
+          ) : (
+            <Moon size={16} className="text-[#1F1F1F]" />
+          )}
         </button>
 
-        <div className="relative min-w-0" ref={userMenu.ref}>
+        <div className="relative min-w-0" ref={operatorMenu.containerRef}>
           <button
-            onClick={toggleUserMenu}
+            type="button"
+            onClick={toggleOperatorMenu}
             aria-haspopup="menu"
-            aria-expanded={userMenu.open}
-            className="flex items-center gap-2 pl-1.5 sm:pl-2 pr-2 sm:pr-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 transition-all shadow-sm max-w-[calc(100vw-1rem)]"
+            aria-expanded={operatorMenu.isOpen}
             title="Schimbă operatorul activ"
+            className="flex max-w-[calc(100vw-1rem)] items-center gap-2 rounded-xl border border-white/20 bg-white/10 py-1.5 pl-1.5 pr-2 shadow-sm transition-all hover:bg-white/20 sm:pl-2 sm:pr-3"
           >
-            <div
+            <span
               style={{
                 backgroundColor: isDarkMode ? '#D73833' : '#7EDEED',
                 color: isDarkMode ? '#FFFFFF' : '#1F1F1F',
               }}
-              className="w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center shadow-inner shrink-0"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold shadow-inner"
             >
-              {operatorName?.[0]?.toUpperCase() || 'O'}
-            </div>
-            <div className="hidden lg:block text-left text-xs leading-tight min-w-0">
-              <p className="font-bold flex items-center gap-1 min-w-0">
-                <span className="truncate max-w-[10rem]" title={shownOperatorName}>
+              {avatarInitial}
+            </span>
+            <span className="hidden min-w-0 text-left text-xs leading-tight lg:block">
+              <span className="flex items-center gap-1 font-bold">
+                <span className="max-w-[10rem] truncate" title={shownOperatorName}>
                   {shownOperatorName || 'Operator'}
                 </span>
-                <ChevronDown size={11} className="opacity-70 shrink-0" />
-              </p>
-              <p className="text-[10px] text-slate-400 font-medium truncate">
-                {activeOperator ? activeOperator.badge : 'OPERATOR'}
-              </p>
-            </div>
+                <ChevronDown size={11} className="shrink-0 opacity-70" />
+              </span>
+              <span className="block truncate text-[10px] font-medium text-slate-400">
+                {operatorBadge}
+              </span>
+            </span>
           </button>
 
-          {userMenu.open && availableOperators && (
+          {operatorMenu.isOpen && availableOperators && (
             <div
               role="menu"
+              aria-label="Operator activ"
               style={menuSurface}
-              className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-1rem)] rounded-xl border p-2 shadow-2xl space-y-1 text-xs z-50 font-sans"
+              className="absolute right-0 z-50 mt-2 w-64 max-w-[calc(100vw-1rem)] space-y-1 rounded-xl border p-2 font-sans text-xs shadow-2xl"
             >
-              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b pb-1 mb-1">
+              <p className="mb-1 border-b px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 Rol
-              </div>
-              {availableOperators.map((op) => {
-                const isSelected = activeOperator && op.id === activeOperator.id;
+              </p>
+              {availableOperators.map((operator) => {
+                const isSelected = activeOperator?.id === operator.id;
                 return (
                   <button
-                    key={op.id}
+                    key={operator.id}
+                    type="button"
                     role="menuitemradio"
-                    aria-checked={Boolean(isSelected)}
-                    onClick={() => {
-                      switchOperator(op.id);
-                      userMenu.setOpen(false);
-                    }}
+                    aria-checked={isSelected}
+                    onClick={() => chooseOperator(operator.id)}
                     style={{
                       backgroundColor: isSelected ? (isDarkMode ? '#D73833' : '#7EDEED') : 'transparent',
-                      color: isSelected
-                        ? (isDarkMode ? '#FFFFFF' : '#1F1F1F')
-                        : (isDarkMode ? '#F5F5F5' : '#1F1F1F'),
+                      color: isSelected && isDarkMode ? '#FFFFFF' : themeStyles.textColor,
                     }}
-                    className={`w-full text-left px-2.5 py-2 rounded-lg flex items-center justify-between transition-colors ${
-                      isSelected ? 'font-bold shadow-sm' : isDarkMode ? 'hover:bg-white/5' : 'hover:bg-slate-100'
+                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition-colors ${
+                      isSelected
+                        ? 'font-bold shadow-sm'
+                        : isDarkMode
+                          ? 'hover:bg-white/5'
+                          : 'hover:bg-slate-100'
                     }`}
                   >
-                    <div>
-                      <p className="font-semibold text-xs leading-none">{op.name}</p>
-                      <p className={`text-[10px] mt-0.5 ${isSelected ? 'text-white/80' : 'text-slate-400'}`}>
-                        {op.role}
-                      </p>
-                    </div>
+                    <span>
+                      <span className="block text-xs font-semibold leading-none">{operator.name}</span>
+                      <span
+                        className={`mt-0.5 block text-[10px] ${
+                          isSelected
+                            ? isDarkMode
+                              ? 'text-white/80'
+                              : 'text-[#1F1F1F]/70'
+                            : 'text-slate-400'
+                        }`}
+                      >
+                        {operator.role}
+                      </span>
+                    </span>
                     {isSelected && (
-                      <Check size={14} className={isDarkMode ? 'text-white shrink-0' : 'text-[#1F1F1F] shrink-0'} />
+                      <Check
+                        size={14}
+                        className={`shrink-0 ${isDarkMode ? 'text-white' : 'text-[#1F1F1F]'}`}
+                      />
                     )}
                   </button>
                 );
               })}
 
-              <div className="pt-2 border-t border-white/10 mt-1 space-y-1.5">
+              <div
+                style={{ borderTopColor: menuSurface.borderColor }}
+                className="mt-1 space-y-1.5 border-t pt-2"
+              >
                 <label
                   htmlFor="operator-name"
-                  className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block px-1"
+                  className="block px-1 text-[10px] font-bold uppercase tracking-wider text-slate-400"
                 >
                   Numele tău (apare în jurnal)
                 </label>
                 <input
                   id="operator-name"
                   type="text"
-                  value={operatorDraft}
-                  onChange={(event) => setOperatorDraft(event.target.value)}
-                  onBlur={commitOperator}
+                  value={nameDraft}
+                  onChange={(event) => setNameDraft(event.target.value)}
+                  onBlur={commitOperatorName}
                   onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      commitOperator();
-                      userMenu.setOpen(false);
-                    }
+                    if (event.key !== 'Enter') return;
+                    commitOperatorName();
+                    operatorMenu.setOpen(false);
                   }}
-                  className="w-full px-2.5 py-1 rounded text-xs bg-black/20 border border-white/20 focus:outline-none focus:ring-1 focus:ring-[#FFEB33]"
                   placeholder="Ex: I. Popescu"
+                  className="w-full rounded border border-white/20 bg-black/20 px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#FFEB33]"
                 />
               </div>
             </div>

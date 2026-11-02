@@ -25,44 +25,41 @@ const VIEW_COMPONENTS = {
   live: LiveView,
 };
 
-function MainAppLayout() {
+function AppShell() {
   const { themeStyles } = useTheme();
   const { currentView } = useSecurity();
-  const scrollRef = useRef(null);
+  const contentRef = useRef(null);
 
   // The previous screen owned the scroll position; opening an incident from a scrolled
   // list must not start halfway down the detail. The key on the scroller also discards
-  // any nested scroll state, and focusing it lets a keyboard user continue from the new
-  // view instead of from the sidebar.
+  // nested scroll state, and the focus moves a keyboard user to the new view instead of
+  // leaving them in the sidebar.
   useEffect(() => {
-    const node = scrollRef.current;
-    if (!node) return;
-    node.scrollTop = 0;
-    node.focus({ preventScroll: true });
+    const content = contentRef.current;
+    if (!content) return;
+    content.scrollTop = 0;
+    content.focus({ preventScroll: true });
   }, [currentView]);
 
   const ActiveView = VIEW_COMPONENTS[currentView] || LiveView;
 
   return (
     <div
-      style={{
-        backgroundColor: themeStyles.appBg,
-        color: themeStyles.textColor,
-      }}
-      className="h-screen w-screen flex flex-col overflow-hidden antialiased selection:bg-[#FFEB33] selection:text-[#1F1F1F]"
+      style={{ backgroundColor: themeStyles.appBg, color: themeStyles.textColor }}
+      className="flex h-screen w-screen flex-col overflow-hidden antialiased selection:bg-[#FFEB33] selection:text-[#1F1F1F]"
     >
       <Header />
-      <div className="flex-1 flex overflow-hidden">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <Sidebar />
-        <div
+        <main
           key={currentView}
-          ref={scrollRef}
+          ref={contentRef}
           tabIndex={-1}
           aria-label="Conținutul paginii"
-          className="flex-1 overflow-y-auto overflow-x-hidden relative min-h-0 outline-none"
+          className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden outline-none"
         >
           <ActiveView />
-        </div>
+        </main>
       </div>
       <Toast />
     </div>
@@ -73,7 +70,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <SecurityProvider>
-        <MainAppLayout />
+        <AppShell />
       </SecurityProvider>
     </ThemeProvider>
   );
