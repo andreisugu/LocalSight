@@ -5,7 +5,8 @@
 //
 // The order per frame is the reference's: detect, blur the faces, render, then let the
 // pipeline (tracker -> zones -> rule engine -> event) run on the boxes. Blur stays first
-// class: nothing leaves this worker before the faces are blurred.
+// class: nothing leaves this worker before the faces are blurred, and a frame that cannot
+// be blurred never leaves at all (see `guardBitmap`).
 import {
   LETTERBOX_PAD,
   YOLO_INPUT_SIZE,
@@ -16,6 +17,7 @@ import {
   runYuNet,
 } from './detectors.js';
 import { decodeYolo, decodeYuNet } from './decode.js';
+import { clampRect, expandedRect, headBandRects } from './blur.js';
 import { SNAPSHOT_PENDING, createPipeline } from './pipeline.js';
 import { createTracker } from './tracker.js';
 import { EDGE, MIN_PERSON_PX, VestTracker, hivisRatio } from './vest.js';
@@ -46,6 +48,14 @@ let letterboxCanvas = null;
 let letterboxCtx = null;
 let faceCanvas = null;
 let faceCtx = null;
+
+// Fail-closed placeholder. `guardCanvas` is the one offscreen canvas that never receives a
+// source frame, so when the models are missing (or a blur pass throws) this is the only
+// bitmap that can reach the main thread. A raw frame then has no path out of the worker.
+let guardCanvas = null;
+let guardCtx = null;
+const GUARD_BG = '#0B0B0B';
+const GUARD_TITLE = 'PRIVACY: modelul de blur nu este disponibil';
 
 let lastFrameAt = 0;
 let fps = 0;
@@ -264,12 +274,76 @@ function detectFaces(width, height) {
   };
 }
 
-function clampRect(x1, y1, x2, y2, width, height) {
-  const left = Math.max(0, Math.min(width, Math.floor(x1)));
-  const top = Math.max(0, Math.min(height, Math.floor(y1)));
-  const right = Math.max(0, Math.min(width, Math.ceil(x2)));
-  const bottom = Math.max(0, Math.min(height, Math.ceil(y2)));
-  return { left, top, width: right - left, height: bottom - top };
+// `clampRect` lives in blur.js: the same geometry draws the blur and is pinned by tests.
+
+// --- Fail closed ---------------------------------------------------------------
+// A privacy guard that degrades to "show the raw frame" is not a guard. When the models
+// are missing, or a pass that stands between the camera and the screen throws, the frame
+// stays in the worker and the main thread gets this opaque placeholder instead.
+
+// Ellipsis instead of clipping: an error message must stay readable inside the frame.
+function fitText(ctx, text, maxWidth) {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let end = text.length;
+  while (end > 1 && ctx.measureText(`${text.slice(0, end)}…`).width > maxWidth) end -= 1;
+  return `${text.slice(0, end)}…`;
+}
+
+// Draws the placeholder on a canvas that has never held a source frame, then transfers it.
+function guardBitmap(width, height, detail) {
+  if (!guardCanvas || guardCanvas.width !== width || guardCanvas.height !== height) {
+    guardCanvas = new OffscreenCanvas(width, height);
+    guardCtx = guardCanvas.getContext('2d', { alpha: false });
+  }
+  guardCtx.fillStyle = GUARD_BG;
+  guardCtx.fillRect(0, 0, width, height);
+  const titlePx = Math.max(12, Math.round(width / 42));
+  const detailPx = Math.max(11, Math.round(titlePx * 0.62));
+  const padding = Math.round(titlePx * 1.2);
+  const maxTextWidth = width - padding * 2;
+  // Below the LIVE/ÎNREGISTRARE badges the view draws over the frame, so the message is
+  // readable in Live and still says the same thing in /lab.
+  const titleTop = Math.max(padding, Math.round(height * 0.16));
+  guardCtx.textBaseline = 'top';
+  guardCtx.fillStyle = '#FF8A8A';
+  guardCtx.font = `bold ${titlePx}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+  guardCtx.fillText(fitText(guardCtx, GUARD_TITLE, maxTextWidth), padding, titleTop);
+  guardCtx.fillStyle = '#C9C9C9';
+  guardCtx.font = `${detailPx}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+  guardCtx.fillText(
+    fitText(guardCtx, String(detail || ''), maxTextWidth),
+    padding,
+    titleTop + Math.round(titlePx * 1.6),
+  );
+  return guardCanvas.transferToImageBitmap();
+}
+
+// Overwrite whatever a failed frame left in the scratch canvas: the placeholder is drawn
+// elsewhere, but the source pixels must not survive anywhere in the worker either.
+function blankFrame(width, height) {
+  frameCtx.fillStyle = GUARD_BG;
+  frameCtx.fillRect(0, 0, width, height);
+}
+
+// The only message a frame that could not be blurred may produce. `fps: 0` is deliberate:
+// the engine did not process this frame, and a rate here would be a number the UI can
+// mistake for a working engine.
+function postGuardedFrame(width, height, detail) {
+  const bitmap = guardBitmap(width, height, detail);
+  post(
+    {
+      type: 'result',
+      bitmap,
+      fps: 0,
+      persons: 0,
+      faces: 0,
+      ms: 0,
+      vest: EMPTY_VEST,
+      events: [],
+      error: detail || 'modelul de blur nu este disponibil',
+    },
+    [bitmap],
+  );
 }
 
 // --- PPE colour, on the raw frame ----------------------------------------------
@@ -370,17 +444,17 @@ function blurRect(ctx, rect) {
 
 function blurFaces(ctx, faces, width, height) {
   for (const face of faces) {
-    const margin = Math.max(1, 0.2 * Math.max(face.x2 - face.x1, face.y2 - face.y1));
-    const rect = clampRect(
-      face.x1 - margin,
-      face.y1 - margin,
-      face.x2 + margin,
-      face.y2 + margin,
-      width,
-      height,
-    );
-    blurRect(ctx, rect);
+    blurRect(ctx, expandedRect(face.x1, face.y1, face.x2, face.y2, width, height));
   }
+}
+
+// The safety net `privacy.py` has and the browser port had dropped: after the face boxes,
+// blur the top 35% of every person box. YuNet misses profile and distant faces; the person
+// detector does not, so this covers the face YuNet never boxed. Ordered faces first, then
+// persons, exactly like `FaceBlurrer.blur_with_faces`, so an overlap is blurred twice.
+function blurHeads(ctx, detections, width, height) {
+  const boxes = detections.map((detection) => detection.bbox);
+  for (const rect of headBandRects(boxes, width, height)) blurRect(ctx, rect);
 }
 
 function drawBoxes(ctx, boxes, colour, label) {
@@ -426,41 +500,31 @@ async function handleFrame(message) {
     bitmap.close();
     return;
   }
-  const nowS = mediaSeconds(message);
-  updateFps();
   const target = targetFrameSize(sourceWidth, sourceHeight);
   const width = target.width;
   const height = target.height;
+
+  // Fail closed before a single source pixel is read: once either graph failed to load,
+  // nothing from the camera leaves this worker for the rest of its life. The page keeps an
+  // opaque placeholder and the panel says "eroare", instead of a raw feed at full rate.
+  if (modelError) {
+    bitmap.close();
+    postGuardedFrame(width, height, modelError.message);
+    return;
+  }
+
+  const nowS = mediaSeconds(message);
+  updateFps();
   ensureFrameCanvas(width, height);
   frameCtx.drawImage(bitmap, 0, 0, width, height);
   bitmap.close();
-
-  if (modelError) {
-    // Models unavailable: mirror the video so the page still shows something, and let the
-    // overlay report the failure. No crash, no retry storm.
-    const passthrough = frameCanvas.transferToImageBitmap();
-    post(
-      {
-        type: 'result',
-        bitmap: passthrough,
-        fps: Math.round(fps * 10) / 10,
-        persons: 0,
-        faces: 0,
-        ms: 0,
-        vest: EMPTY_VEST,
-        events: [],
-        error: modelError.message,
-      },
-      [passthrough],
-    );
-    return;
-  }
 
   const started = performance.now();
   let persons = [];
   let faces = [];
   let events = [];
   let error = null;
+  let detected = false;
   try {
     await ensureModels();
     const yoloSize = yoloInputSize();
@@ -486,9 +550,18 @@ async function handleFrame(message) {
       padX: face.padX,
       padY: face.padY,
     });
+    detected = true;
   } catch (caught) {
     error = caught instanceof Error ? caught.message : String(caught);
     if (!modelError) modelError = new Error(error);
+  }
+
+  // Without detections there is nothing to blur: `blurFaces` would have no boxes and the
+  // raw frame would go out "processed". It does not go out at all.
+  if (!detected) {
+    blankFrame(width, height);
+    postGuardedFrame(width, height, error || 'detecția a eșuat');
+    return;
   }
 
   // The pipeline speaks frame-normalized boxes (0..1); the detector returns frame pixels.
@@ -520,9 +593,26 @@ async function handleFrame(message) {
     }
   }
 
-  blurFaces(frameCtx, faces, width, height);
-  drawBoxes(frameCtx, persons, '#FFEB33', 'PERSON');
-  drawBoxes(frameCtx, faces, '#33E1FF', null);
+  // Blur, then boxes: a throw here means the frame is only partially covered, so it is
+  // never forwarded. A render failure also stops the engine: the next frame could not be
+  // trusted either.
+  let blurred = false;
+  try {
+    blurFaces(frameCtx, faces, width, height);
+    blurHeads(frameCtx, detections, width, height);
+    drawBoxes(frameCtx, persons, '#FFEB33', 'PERSON');
+    drawBoxes(frameCtx, faces, '#33E1FF', null);
+    blurred = true;
+  } catch (caught) {
+    error = caught instanceof Error ? caught.message : String(caught);
+    if (!modelError) modelError = new Error(error);
+  }
+
+  if (!blurred) {
+    blankFrame(width, height);
+    postGuardedFrame(width, height, error || 'blurul a eșuat');
+    return;
+  }
 
   // A failure here is a wiring bug, not a broken model: report it per frame instead of
   // poisoning `modelError`, which would stop the engine for good.

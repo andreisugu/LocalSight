@@ -88,10 +88,15 @@ export function useEngine({
     if (!video || !canvas) return undefined;
 
     if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') {
+      // No worker or no offscreen canvas means no blur: this browser cannot run the private
+      // engine at all, so no run is started. The raw feed must never be presented as the
+      // processed one (the view hides the video while the engine is requested).
       setStats({
         ...INITIAL_STATS,
         status: 'unsupported',
-        message: 'Acest browser nu are module workers sau OffscreenCanvas.',
+        message:
+          'Acest browser nu poate rula motorul privat (Worker sau OffscreenCanvas lipsește); '
+          + 'fluxul brut nu este afișat ca procesat.',
       });
       return undefined;
     }
@@ -115,6 +120,10 @@ export function useEngine({
     let rafHandle = 0;
 
     const draw = (bitmap) => {
+      // A worker that cannot blur sends a placeholder bitmap, never a missing one. If a
+      // result still arrives without pixels, the last processed frame stays on screen: the
+      // canvas is only ever painted from the worker, so nothing raw can appear here.
+      if (!bitmap) return;
       const ctx = canvas.getContext('2d', { alpha: false });
       if (!ctx) {
         bitmap.close();
