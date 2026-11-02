@@ -45,7 +45,7 @@ doar ce cod a fost scris înainte de direcția LocalSight și cât de mult l-am 
 |---|---|---|---|
 | `components/layout/Header.jsx` | VojuAriana (6/16) | **parțial**: structura, meniurile și focusul sunt rescrise (185+/122−), dar 173 de linii rămân (importuri, chei de context, JSX, clase) | nu se declară înlocuit până nu scade logică; restul e prezentare |
 | `components/views/IncidentDetailView.jsx` | muxxq (4/9) | parțial rescris: copiază link, descarcă dovada, etichete demo/local; layout-ul de bază e încă moștenit | restul layout-ului, într-un pass separat |
-| `components/views/IncidentsListView.jsx` | VojuAriana (1/3) | **parțial**: căutarea globală, chip-urile și textele sunt noi; 161 de linii din structura listei rămân | rescriere completă într-un pass separat |
+| `components/views/IncidentsListView.jsx` | VojuAriana (1/3) | **logică înlocuită**: filtrare/formatare în `utils/incidentList.js` (8 teste), markup nou (181+/143−); 66 de linii rămase = `TokenBadge`, importuri, câteva clase | parțial textual, complet pe logică |
 | `components/views/SettingsView.jsx` | VojuAriana (3/7) | parțial rescris (onestitate) | rescrie ca „Sistem" de la zero la următorul pass de UI |
 | `components/layout/Sidebar.jsx` | andreisugu (8/17) | parțial rescris (responsive, footer) | refăcut la un design pass, nu înainte |
 | `components/common/Toast.jsx` | VojuAriana (2/4) | moștenit | mic; înlocuiește-l când umbli la notificări |
@@ -55,6 +55,7 @@ doar ce cod a fost scris înainte de direcția LocalSight și cât de mult l-am 
 | `utils/print.js` | muxxq (1/1) | moștenit, folosit de 7 fișiere | înlocuiește-l cu un export CSV/PDF real, nu `window.print` |
 | `utils/sound.js` | VojuAriana (1/1) | **înlocuit** (41+/32−) + 4 teste; 5 linii rămase sunt acolade/goale | gata |
 | `constants/eventActions.js` | muxxq (1/1) | moștenit (matricea de acțiuni) | înlocuiește-l cu tabelul din contract la următoarea modificare de statusuri |
+| `App.jsx` | VojuAriana (5/10) | **rescris structural**: hartă de rute, reset scroll/focus la schimbarea ecranului; 43 de linii rămase = importuri/layout | parțial textual, logica de navigare e a noastră |
 | `main.jsx` | VojuAriana (1/2) | aproape tot al nostru (ErrorBoundary) | nu merită un pass separat |
 | `components/video/BoundingBox.jsx` | VojuAriana (2/2) | **mort** — 0 importuri | candidat la ștergere; cere confirmare înainte |
 | `components/views/LiveView.jsx` | andreisugu (15/24) | parțial rescris (motor, webcam, card) | shell-ul mai e moștenit; îl refacem la următorul pass mare de Live |
@@ -77,6 +78,9 @@ tracker, vest, blur, report, webgpu, decode), `LiveEngineCard`, `SafeImage`, `Er
 | `1e15a73` | `utils/sound.js` | +41 / −32 | un singur AudioContext + 4 teste | 5 — acolade/goale |
 | `009fdaf` | `ConfidenceBadge.jsx` + `utils/confidence.js` | +21/−11, +54 nou | formatter testat, fără valori inventate | 11 — importuri/semnătură |
 | `ab3bac5` | `IncidentDetailView.jsx` | +42 / −3 | copiază link, descarcă dovada | 342 — layout moștenit |
+| `5b05796` | `IncidentsListView.jsx` + `utils/incidentList.js` | +181/−143, +77 nou | listă rescrisă, filtre testate | 66 — TokenBadge/importuri |
+| `1381d99` | `App.jsx` | +35 / −30 | hartă de rute, scroll/focus | 43 — importuri/layout |
+| `f0b0eae` | `worker.js` / `useEngine.js` | +12/−12, +12/−1 | snapshot-ul e deținut de pagină | nu se aplică (engine al nostru) |
 
 ## Ce am amânat
 
