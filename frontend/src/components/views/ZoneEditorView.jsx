@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useReducer, useState } from 'react';
 import { PenTool } from 'lucide-react';
-import { useTheme } from '../../context/ThemeContext';
+
 import { useSecurity } from '../../context/SecurityContext';
+import { useTheme } from '../../context/ThemeContext';
 import { DEMO_REFERENCE_FRAMES } from '../../constants/mockData';
 import {
   buildZonePayload,
@@ -40,14 +41,6 @@ function editorHint(points, closed) {
   if (closed) return HINT_CLOSED;
   return points >= 3 ? HINT_DRAWING : HINT_EMPTY;
 }
-
-/**
- * Zone configuration screen.
- *
- * The polygon and the parameters are one draft document (`utils/zoneDraft.js`); this
- * file only wires that document to the store, the keyboard and the four panels, and owns
- * nothing that could be tested without a DOM.
- */
 
 /** Page title plus the camera picker: which camera's zones the editor is showing. */
 function EditorHeader({ cameraChoices, selectedCameraId, onCameraChange, hint }) {
@@ -112,18 +105,107 @@ function NoCamerasNotice() {
   );
 }
 
-export default function ZoneEditorView() {
+/** The drawing surface and its toolbar: the polygon itself, left column on wide screens. */
+function DrawingColumn({ editor, referenceUrl }) {
+  const { cameraZones, draft, check, jsonOpen, jsonText, setJsonText, setJsonOpen, dispatch, actions } = editor;
+
+  return (
+    <section className="min-w-0 space-y-3 xl:col-span-2">
+      <ZoneToolbar
+        zones={cameraZones}
+        zoneId={draft.zoneId}
+        onSelectZone={actions.chooseZone}
+        onNewZone={actions.startNewZone}
+        onApplyShape={actions.applyShapeToDraft}
+        canUndo={draft.past.length > 0}
+        canRedo={draft.future.length > 0}
+        onUndo={() => dispatch({ type: 'undo' })}
+        onRedo={() => dispatch({ type: 'redo' })}
+        jsonOpen={jsonOpen}
+        onToggleJson={() => setJsonOpen((open) => !open)}
+        jsonText={jsonText}
+        onJsonTextChange={setJsonText}
+        onApplyJson={actions.commitJsonPoints}
+      />
+
+      <ZoneCanvas
+        points={draft.points}
+        closed={draft.closed}
+        selectedIndex={draft.selectedIndex}
+        crossing={check.crossing}
+        hasCrossing={check.hasCrossing}
+        referenceUrl={referenceUrl}
+        onAddPoint={actions.addPointOnFrame}
+        onClose={() => dispatch({ type: 'close' })}
+        onSelect={(index) => dispatch({ type: 'select', index })}
+        onBeginGesture={() => dispatch({ type: 'begin-gesture' })}
+        onEndGesture={() => dispatch({ type: 'end-gesture' })}
+        onMovePoint={(index, point) => dispatch({ type: 'move-point', index, point })}
+        onInsertPoint={(index, point) => dispatch({ type: 'insert-point', index, point })}
+        onDeletePoint={actions.deletePointAt}
+        onReorder={actions.sortPointsAroundCentre}
+        onRedraw={() => dispatch({ type: 'redraw' })}
+      />
+    </section>
+  );
+}
+
+/** The parameters form and the reference-frame panel, stacked in the right column. */
+function ParametersColumn({ editor, referenceUrl, usingDemoReference }) {
+  const { draft, zone, saving, canSave, uploading, capturing, capturedAt, dispatch, actions } = editor;
+
+  return (
+    <aside className="min-w-0 space-y-3" aria-label="Parametrii și cadrul zonei">
+      <ZoneParameters
+        zoneId={draft.zoneId}
+        idLocked={Boolean(zone) && !draft.isNew}
+        fields={draft.fields}
+        zoneExists={Boolean(zone)}
+        saving={saving}
+        canSave={canSave}
+        pointCount={draft.points.length}
+        onIdChange={(value) => dispatch({ type: 'set-id', zoneId: value })}
+        onFieldChange={(field, value) => dispatch({ type: 'set-field', field, value })}
+        onSave={actions.persistDraft}
+        onDelete={actions.removeDraftZone}
+      />
+
+      <ZoneReferencePanel
+        referenceUrl={referenceUrl}
+        usingDemoReference={usingDemoReference}
+        hasZone={Boolean(zone)}
+        uploading={uploading}
+        capturing={capturing}
+        capturedAt={capturedAt}
+        onUpload={actions.uploadFrame}
+        onCaptureFromLive={actions.grabLiveFrame}
+        onClear={actions.dropReference}
+        onError={editor.showToast}
+      />
+    </aside>
+  );
+}
+
+/**
+ * Zone configuration editor.
+ *
+ * The polygon and the parameters are one draft document (`utils/zoneDraft.js`). This hook
+ * owns everything stateful about that document — the store wiring, the guards, the keyboard
+ * and the reference frame — so the component below is only layout and cannot silently drop
+ * a guard while it is being re-arranged.
+ */
+function useZoneEditor() {
   const {
     cameras,
-    selectedCameraId,
-    setSelectedCameraId,
     activeCamera,
     zones,
+    selectedCameraId,
+    setSelectedCameraId,
     saveZone,
     deleteZone,
+    clearReferenceFrame,
     captureReferenceFrame,
     captureReferenceFromLive,
-    clearReferenceFrame,
     showToast,
   } = useSecurity();
 
@@ -193,22 +275,22 @@ export default function ZoneEditorView() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [draft, showToast]);
 
-  function changeCamera(event) {
+  function switchCamera(event) {
     dispatch({ type: 'camera-changed' });
     setSelectedCameraId(event.target.value);
   }
 
-  function selectZone(zoneId) {
+  function chooseZone(zoneId) {
     dispatch({ type: 'select-zone', zoneId });
   }
 
-  function createZone() {
+  function startNewZone() {
     const id = uniqueZoneId(`${selectedCameraId}-zona`, zones);
     dispatch({ type: 'create', zoneId: id });
     showToast('Zonă nouă: desenează poligonul, apoi salvează.');
   }
 
-  function addPoint(point) {
+  function addPointOnFrame(point) {
     if (draft.zoneId) {
       dispatch({ type: 'add-point', point });
       return;
@@ -216,7 +298,7 @@ export default function ZoneEditorView() {
     showToast(NO_ZONE_MESSAGE);
   }
 
-  function applyShape(shape) {
+  function applyShapeToDraft(shape) {
     if (draft.zoneId) {
       dispatch({ type: 'apply-shape', shape });
       return;
@@ -224,7 +306,7 @@ export default function ZoneEditorView() {
     showToast(NO_ZONE_MESSAGE);
   }
 
-  function removePoint(index) {
+  function deletePointAt(index) {
     if (!canDeletePoint(draft, index)) {
       showToast(MIN_POINTS_MESSAGE);
       return;
@@ -232,12 +314,12 @@ export default function ZoneEditorView() {
     dispatch({ type: 'delete-point', index });
   }
 
-  function reorderPoints() {
+  function sortPointsAroundCentre() {
     dispatch({ type: 'reorder' });
     showToast(REORDER_NOTICE);
   }
 
-  function applyJsonPoints() {
+  function commitJsonPoints() {
     const { points, error } = parsePointList(jsonText);
     if (error) {
       showToast(error);
@@ -247,7 +329,7 @@ export default function ZoneEditorView() {
     showToast('Coordonate aplicate pe cadru.');
   }
 
-  async function saveDraft() {
+  async function persistDraft() {
     const [failure] = check.errors;
     if (failure) {
       showToast(failure.message);
@@ -262,7 +344,7 @@ export default function ZoneEditorView() {
     }
   }
 
-  async function deleteDraftZone() {
+  async function removeDraftZone() {
     if (!draft.zoneId || !zone) return;
     const confirmed = window.confirm(
       `Ștergi zona „${draft.zoneId}”? Acțiunea nu poate fi anulată.`
@@ -273,7 +355,7 @@ export default function ZoneEditorView() {
     dispatch({ type: 'delete-result', remainingZones: remaining });
   }
 
-  async function uploadReference(file) {
+  async function uploadFrame(file) {
     if (!draft.zoneId) return;
     setUploading(true);
     try {
@@ -284,7 +366,7 @@ export default function ZoneEditorView() {
     }
   }
 
-  async function captureFromLive() {
+  async function grabLiveFrame() {
     if (!draft.zoneId) return;
     setCapturing(true);
     try {
@@ -295,97 +377,77 @@ export default function ZoneEditorView() {
     }
   }
 
-  function clearReference() {
+  function dropReference() {
     if (!draft.zoneId) return;
     clearReferenceFrame(draft.zoneId);
     setCapturedAt(null);
   }
 
-  if (!activeCamera) return <NoCamerasNotice />;
+  return {
+    actions: {
+      addPointOnFrame,
+      applyShapeToDraft,
+      chooseZone,
+      commitJsonPoints,
+      deletePointAt,
+      dropReference,
+      grabLiveFrame,
+      persistDraft,
+      removeDraftZone,
+      sortPointsAroundCentre,
+      startNewZone,
+      switchCamera,
+      uploadFrame,
+    },
+    activeCamera,
+    cameraChoices,
+    cameraZones,
+    canSave,
+    capturedAt,
+    capturing,
+    check,
+    dispatch,
+    draft,
+    jsonOpen,
+    jsonText,
+    saving,
+    selectedCameraId,
+    setJsonOpen,
+    setJsonText,
+    showToast,
+    uploading,
+    zone,
+  };
+}
+
+export default function ZoneEditorView() {
+  const editor = useZoneEditor();
+
+  if (!editor.activeCamera) return <NoCamerasNotice />;
 
   // The static build has no edge to upload a reference frame, so the first frame of the
   // camera's demo clip is the background. An uploaded frame still wins.
-  const demoReferenceUrl = DEMO_REFERENCE_FRAMES[selectedCameraId] || null;
-  const referenceUrl = zone?.reference_frame_url || demoReferenceUrl || null;
-  const usingDemoReference = !zone?.reference_frame_url && Boolean(demoReferenceUrl);
+  const demoReferenceUrl = DEMO_REFERENCE_FRAMES[editor.selectedCameraId] || null;
+  const referenceUrl = editor.zone?.reference_frame_url || demoReferenceUrl || null;
+  const usingDemoReference = !editor.zone?.reference_frame_url && Boolean(demoReferenceUrl);
 
   return (
     <div className="flex-1 h-full overflow-y-auto">
       <div className="mx-auto w-full max-w-7xl space-y-4 p-4 md:p-6">
         <EditorHeader
-          cameraChoices={cameraChoices}
-          selectedCameraId={selectedCameraId}
-          onCameraChange={changeCamera}
-          hint={editorHint(draft.points.length, draft.closed)}
+          cameraChoices={editor.cameraChoices}
+          selectedCameraId={editor.selectedCameraId}
+          onCameraChange={editor.actions.switchCamera}
+          hint={editorHint(editor.draft.points.length, editor.draft.closed)}
         />
 
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <div className="min-w-0 space-y-3 xl:col-span-2">
-            <ZoneToolbar
-              zones={cameraZones}
-              zoneId={draft.zoneId}
-              onSelectZone={selectZone}
-              onNewZone={createZone}
-              onApplyShape={applyShape}
-              canUndo={draft.past.length > 0}
-              canRedo={draft.future.length > 0}
-              onUndo={() => dispatch({ type: 'undo' })}
-              onRedo={() => dispatch({ type: 'redo' })}
-              jsonOpen={jsonOpen}
-              onToggleJson={() => setJsonOpen((open) => !open)}
-              jsonText={jsonText}
-              onJsonTextChange={setJsonText}
-              onApplyJson={applyJsonPoints}
-            />
-
-            <ZoneCanvas
-              points={draft.points}
-              closed={draft.closed}
-              selectedIndex={draft.selectedIndex}
-              crossing={check.crossing}
-              hasCrossing={check.hasCrossing}
-              referenceUrl={referenceUrl}
-              onAddPoint={addPoint}
-              onClose={() => dispatch({ type: 'close' })}
-              onSelect={(index) => dispatch({ type: 'select', index })}
-              onBeginGesture={() => dispatch({ type: 'begin-gesture' })}
-              onEndGesture={() => dispatch({ type: 'end-gesture' })}
-              onMovePoint={(index, point) => dispatch({ type: 'move-point', index, point })}
-              onInsertPoint={(index, point) => dispatch({ type: 'insert-point', index, point })}
-              onDeletePoint={removePoint}
-              onReorder={reorderPoints}
-              onRedraw={() => dispatch({ type: 'redraw' })}
-            />
-          </div>
-
-          <aside className="min-w-0 space-y-3" aria-label="Parametrii și cadrul zonei">
-            <ZoneParameters
-              zoneId={draft.zoneId}
-              idLocked={Boolean(zone) && !draft.isNew}
-              fields={draft.fields}
-              zoneExists={Boolean(zone)}
-              saving={saving}
-              canSave={canSave}
-              pointCount={draft.points.length}
-              onIdChange={(value) => dispatch({ type: 'set-id', zoneId: value })}
-              onFieldChange={(field, value) => dispatch({ type: 'set-field', field, value })}
-              onSave={saveDraft}
-              onDelete={deleteDraftZone}
-            />
-
-            <ZoneReferencePanel
-              referenceUrl={referenceUrl}
-              usingDemoReference={usingDemoReference}
-              hasZone={Boolean(zone)}
-              uploading={uploading}
-              capturing={capturing}
-              capturedAt={capturedAt}
-              onUpload={uploadReference}
-              onCaptureFromLive={captureFromLive}
-              onClear={clearReference}
-              onError={showToast}
-            />
-          </aside>
+          <DrawingColumn editor={editor} referenceUrl={referenceUrl} />
+          <ParametersColumn
+            editor={editor}
+            referenceUrl={referenceUrl}
+            usingDemoReference={usingDemoReference}
+          />
         </div>
       </div>
     </div>

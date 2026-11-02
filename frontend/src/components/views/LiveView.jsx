@@ -1,19 +1,21 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useTheme } from '../../context/ThemeContext';
+
 import { useSecurity } from '../../context/SecurityContext';
+import { useTheme } from '../../context/ThemeContext';
 import { useEngine } from '../../engine/useEngine';
-import LiveEngineCard from '../live/LiveEngineCard';
+import { DEMO_REFERENCE_FRAMES } from '../../constants/mockData';
 import CameraToolbar from '../live/CameraToolbar';
-import MediaStage from '../live/MediaStage';
-import KpiStrip from '../live/KpiStrip';
-import IncidentFeed from '../live/IncidentFeed';
 import FullscreenStage from '../live/FullscreenStage';
+import IncidentFeed from '../live/IncidentFeed';
+import KpiStrip from '../live/KpiStrip';
+import LiveEngineCard from '../live/LiveEngineCard';
+import MediaStage from '../live/MediaStage';
 import { NoCameraScreen } from '../live/LiveEmptyStates';
 import {
-  useEnginePreference,
-  useWebcamFeed,
-  useMediaFailures,
   useEngineIncidents,
+  useEnginePreference,
+  useMediaFailures,
+  useWebcamFeed,
 } from '../live/useLiveMedia';
 import {
   WEBCAM_CAMERA_ID,
@@ -25,29 +27,53 @@ import {
   pickActiveZone,
   toEngineZones,
 } from '../live/liveMedia';
-import { DEMO_REFERENCE_FRAMES } from '../../constants/mockData';
 
 // The Live screen is a composition: the rules live in liveMedia.js, the effects in
 // useLiveMedia.js, and every block below is its own component. What remains here is the
 // wiring the engine requires (one <video> and one <canvas> for the life of the view).
+
+/** Left column of the split layout: toolbar, media stage and the engine/sensor card. */
+function StageColumn({ children }) {
+  return <section className="flex-1 flex flex-col space-y-2 min-w-0">{children}</section>;
+}
+
+/** Immersive view: the raw clip rendered in its own tree, never with the engine running. */
+function FullscreenLive({ camera, plan, failures, onToggleEngine, onExit }) {
+  return (
+    <FullscreenStage
+      activeCamera={camera}
+      isOffline={plan.isOffline}
+      showStream={plan.showStream}
+      showDemoVideo={plan.showDemoVideo}
+      demoVideoSrc={plan.demoVideoSrc}
+      noLiveForCamera={plan.noLiveForCamera}
+      demoCameraLabel={plan.demoCameraLabel}
+      onStreamError={failures.onStreamError}
+      onVideoError={failures.onVideoError}
+      onToggleEngine={onToggleEngine}
+      onExit={onExit}
+    />
+  );
+}
+
 export default function LiveView() {
   const { isDarkMode, themeStyles } = useTheme();
   const {
     kpis,
+    health,
     cameras,
     activeCamera,
-    setSelectedCameraId,
-    toggleEngine,
-    filteredEvents,
+    zones,
     filterMode,
+    filteredEvents,
+    searchQuery,
+    toggleEngine,
+    setSelectedCameraId,
     setFilterMode,
     acknowledgeEvent,
     setSelectedEventId,
     setCurrentView,
-    zones,
     addEngineEvents,
-    health,
-    searchQuery,
     reportActiveCamera,
     recordCoverageSample,
   } = useSecurity();
@@ -192,16 +218,10 @@ export default function LiveView() {
 
   if (displayMode === 'fullscreen') {
     return (
-      <FullscreenStage
-        activeCamera={activeCamera}
-        isOffline={plan.isOffline}
-        showStream={plan.showStream}
-        showDemoVideo={plan.showDemoVideo}
-        demoVideoSrc={plan.demoVideoSrc}
-        noLiveForCamera={plan.noLiveForCamera}
-        demoCameraLabel={plan.demoCameraLabel}
-        onStreamError={failures.onStreamError}
-        onVideoError={failures.onVideoError}
+      <FullscreenLive
+        camera={activeCamera}
+        plan={plan}
+        failures={failures}
         onToggleEngine={toggleEngine}
         onExit={() => setDisplayMode('standard')}
       />
@@ -226,16 +246,18 @@ export default function LiveView() {
     setCurrentView('incident_detail');
   };
 
+  // Two columns from `lg` (1024px), not `xl` (1280px): at the required 1024×768 viewport
+  // the incident feed — the alert surface with every "Confirmă" — started at y=824 inside a
+  // 704px scroller, i.e. completely below the fold. The stage keeps `flex-1 min-w-0`, so it
+  // simply narrows.
+  const columnFlow = displayMode === 'split' ? 'flex-col' : 'flex-col lg:flex-row';
+
   return (
     <div className="min-h-full w-full p-3 md:p-4 space-y-3 select-none">
       <KpiStrip kpis={kpis} themeStyles={themeStyles} />
 
-      {/* Two columns from `lg` (1024px), not `xl` (1280px): at the required 1024×768
-          viewport the incident feed — the alert surface with every "Confirmă" — used to
-          start at y=824 in a 704px scroller, i.e. completely below the fold. The stage
-          keeps `flex-1 min-w-0`, so it simply narrows. */}
-      <div className={`flex ${displayMode === 'split' ? 'flex-col' : 'flex-col lg:flex-row'} gap-3`}>
-        <div className="flex-1 flex flex-col space-y-2 min-w-0">
+      <div className={`flex ${columnFlow} gap-3`}>
+        <StageColumn>
           <CameraToolbar
             cameras={cameras}
             activeCamera={activeCamera}
@@ -289,7 +311,7 @@ export default function LiveView() {
             cameraLabel={activeCamera.name || activeCamera.code || activeCamera.id}
             referenceUrl={referenceFrameUrl}
           />
-        </div>
+        </StageColumn>
 
         <IncidentFeed
           events={filteredEvents}

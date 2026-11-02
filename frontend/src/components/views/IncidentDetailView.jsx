@@ -11,65 +11,85 @@ import DecisionPanel from '../incidents/DecisionPanel';
 // Screen shell only. Every rule the page depends on (times, timeline, action matrix,
 // report label, download eligibility) is a pure function in utils/incidentDetail.js and is
 // covered by node tests; this file wires those values to the context actions.
-function IncidentDetailView() {
-  const {
-    selectedEvent,
-    setCurrentView,
-    setSelectedCameraId,
-    acknowledgeEvent,
-    markFalsePositive,
-    reopenEvent,
-    regenerateReport,
-    showToast,
-  } = useSecurity();
 
-  const backToList = () => setCurrentView('incidents');
+const SCREEN = 'flex-1 h-full overflow-y-auto p-4 md:p-6';
+const SHELL = 'max-w-6xl mx-auto space-y-4 select-none';
+const EVIDENCE_GRID = 'grid grid-cols-1 lg:grid-cols-2 gap-4 items-start';
 
-  if (!selectedEvent) return <IncidentEmptyState onBack={backToList} />;
+/**
+ * Everything a click on this page can do, built once per incident so the panels receive
+ * plain callbacks. The screen itself does not know how an ack or a report is stored.
+ */
+function incidentActions(event, store) {
+  const openView = (view) => store.setCurrentView(view);
+
+  const goBack = () => openView('incidents');
 
   // The address bar already holds the deep link; copying it is one click, and a failed
   // clipboard (permissions, insecure context) still tells the operator where it is.
   const copyLink = async () => {
     const copied = await copyIncidentLink(window.location.href, (text) => navigator.clipboard.writeText(text));
-    showToast(
+    store.showToast(
       copied
         ? 'Link copiat. Îl poți trimite în Slack sau într-un tichet.'
         : 'Copierea a eșuat; linkul este în bara de adrese.'
     );
   };
 
-  const openCameraNow = () => {
-    setSelectedCameraId(selectedEvent.camera_id); setCurrentView('live');
+  const viewCamera = () => {
+    store.setSelectedCameraId(event.camera_id);
+    openView('live');
   };
 
+  const acknowledge = (clickEvent) => store.acknowledgeEvent(event.event_id, clickEvent);
+  const flagFalsePositive = (note) => store.markFalsePositive(event.event_id, note);
+  const reopen = () => store.reopenEvent(event.event_id);
+  const retryReport = () => store.regenerateReport(event.event_id);
+  const exportPdf = () => printAsPdf(`LocalSight_incident_${event.event_id}`);
+
+  return { acknowledge, copyLink, exportPdf, flagFalsePositive, goBack, reopen, retryReport, viewCamera };
+}
+
+/** Report above, operator decisions below: one narrow column beside the evidence. */
+function DecisionColumn({ event, actions }) {
   return (
-    <div className="flex-1 h-full overflow-y-auto p-4 md:p-6">
-      <div className="max-w-6xl mx-auto space-y-4 select-none">
+    <div className="space-y-4 min-w-0">
+      <ReportPanel event={event} mock={USE_MOCK} onRetry={actions.retryReport} />
+      <DecisionPanel
+        event={event}
+        onAck={actions.acknowledge}
+        onFalsePositive={actions.flagFalsePositive}
+        onReopen={actions.reopen}
+        onExport={actions.exportPdf}
+      />
+    </div>
+  );
+}
+
+function IncidentDetailView() {
+  const store = useSecurity();
+  const { selectedEvent } = store;
+
+  if (!selectedEvent) {
+    return <IncidentEmptyState onBack={() => store.setCurrentView('incidents')} />;
+  }
+
+  const actions = incidentActions(selectedEvent, store);
+
+  return (
+    <div className={SCREEN}>
+      <div className={SHELL}>
         <IncidentHeader
           event={selectedEvent}
           mock={USE_MOCK}
-          onBack={backToList}
-          onCopyLink={copyLink}
-          onViewCamera={openCameraNow}
+          onBack={actions.goBack}
+          onCopyLink={actions.copyLink}
+          onViewCamera={actions.viewCamera}
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        <div className={EVIDENCE_GRID}>
           <EvidencePanel event={selectedEvent} />
-
-          <div className="space-y-4 min-w-0">
-            <ReportPanel
-              event={selectedEvent}
-              mock={USE_MOCK}
-              onRetry={() => regenerateReport(selectedEvent.event_id)}
-            />
-            <DecisionPanel
-              event={selectedEvent}
-              onAck={(clickEvent) => acknowledgeEvent(selectedEvent.event_id, clickEvent)}
-              onFalsePositive={(note) => markFalsePositive(selectedEvent.event_id, note)}
-              onReopen={() => reopenEvent(selectedEvent.event_id)}
-              onExport={() => printAsPdf(`LocalSight_incident_${selectedEvent.event_id}`)}
-            />
-          </div>
+          <DecisionColumn event={selectedEvent} actions={actions} />
         </div>
       </div>
     </div>

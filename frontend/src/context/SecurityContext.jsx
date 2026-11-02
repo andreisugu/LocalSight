@@ -1,6 +1,6 @@
 // The app store. Every screen reads it through `useSecurity()`.
 //
-// The provider is now a composition root and nothing else: state and behaviour live in
+// The provider is a composition root and nothing else: state and behaviour live in
 // focused hooks (`useRouting`, `useIncidentStore`, `useZoneStore`, `useOperator`, …), and
 // everything that can be pure lives in `utils/` with node tests. This file only wires the
 // hooks together, because they depend on each other: the incident list needs the camera and
@@ -30,13 +30,24 @@ import { initialShowDemoData, storeShowDemoData } from '../utils/demoPreference.
 // instead of handing components an empty object that fails later and further away.
 const Store = createContext(null);
 
-export const SecurityProvider = ({ children }) => {
+/** Flattens the named key groups into the one object the provider hands out. */
+function flattenGroups(groups) {
+  return groups.reduce((flat, group) => Object.assign(flat, group), {});
+}
+
+/**
+ * Builds the store value from the focused hooks. Kept out of the provider component so the
+ * render below is one line and the wiring reads top to bottom: stores first, then the
+ * derived hooks that consume them, then the key groups.
+ */
+function useStoreValue() {
   const { toastMessage, showToast } = useToast();
   const operator = useOperator({ showToast });
 
   const cameraStore = useCameraStore({ showToast });
   const zoneStore = useZoneStore({ showToast });
   const routing = useRouting();
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   // Which camera the Live view is really feeding to its browser engine, not just which one
   // is selected. `null` means "Live owns nothing right now" (another screen, engine off,
@@ -200,25 +211,29 @@ export const SecurityProvider = ({ children }) => {
     clearCoverageSamples: coverage.clearCoverageSamples,
   };
 
-  const value = {
-    ...navigation,
-    ...sidebar,
-    ...operatorKeys,
-    ...cameraKeys,
-    ...incidentKeys,
-    ...zoneKeys,
-    ...metricKeys,
-    ...connectionKeys,
-    ...demoKeys,
-    ...backgroundKeys,
-    ...coverageKeys,
-  };
+  return flattenGroups([
+    navigation,
+    sidebar,
+    operatorKeys,
+    cameraKeys,
+    incidentKeys,
+    zoneKeys,
+    metricKeys,
+    connectionKeys,
+    demoKeys,
+    backgroundKeys,
+    coverageKeys,
+  ]);
+}
+
+export function SecurityProvider({ children }) {
+  const value = useStoreValue();
 
   return <Store.Provider value={value}>{children}</Store.Provider>;
-};
+}
 
-export const useSecurity = () => {
+export function useSecurity() {
   const store = useContext(Store);
   if (!store) throw new Error('useSecurity must be used within a SecurityProvider');
   return store;
-};
+}

@@ -1,19 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Video,
   AlertOctagon,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
   PenTool,
+  FileText,
   Settings,
   ShieldCheck,
-  Video,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
-import { useTheme } from '../../context/ThemeContext';
-import { useSecurity } from '../../context/SecurityContext';
+
 import { USE_MOCK } from '../../services/api';
 import { detectorLabel } from '../../engine/detectorFlag';
 import { readEngineSettings } from '../../utils/engineSettings';
+import { useSecurity } from '../../context/SecurityContext';
+import { useTheme } from '../../context/ThemeContext';
 import { IconButton, Panel, Pill } from '../ui';
 
 // Below Tailwind's `sm` (640px) a 240px rail would leave ~135px of content on a 375px
@@ -334,8 +335,33 @@ function SidebarFooter({ collapsed, health, edgeLabel, edgeActive, edgeSuffix, o
   );
 }
 
-export default function Sidebar() {
-  const { isDarkMode, themeStyles } = useTheme();
+/** The rail markup: fixed width, its own border and the `inert` target for the hook. */
+function SidebarShell({ collapsed, dark, palette, railRef, children }) {
+  return (
+    <aside
+      ref={railRef}
+      data-testid="sidebar"
+      aria-label="Navigare"
+      style={{
+        backgroundColor: dark ? palette.navBg : '#FFFFFF',
+        borderColor: palette.navBorder,
+        width: collapsed ? '0px' : '15rem',
+      }}
+      className={`no-print z-20 flex h-full shrink-0 select-none flex-col justify-between overflow-hidden border-r shadow-md transition-all duration-300 max-sm:fixed max-sm:bottom-0 max-sm:left-0 max-sm:top-16 max-sm:z-40 max-sm:h-auto ${
+        collapsed ? 'border-r-0' : ''
+      }`}
+    >
+      {children}
+    </aside>
+  );
+}
+
+/**
+ * Everything the rail needs from the store and the viewport, in one place: the attention
+ * counters, the collapse preference, the inert toggle and the two handlers. The component
+ * below is then pure layout.
+ */
+function useSidebarState() {
   const {
     currentView,
     setCurrentView,
@@ -348,6 +374,7 @@ export default function Sidebar() {
   const edgeSeen = health?.edge_last_seen_s;
   const edgeActive = Boolean(health?.db && edgeSeen != null && edgeSeen < 60);
   const edgeLabel = edgeActive ? 'ACTIV' : edgeSeen == null ? 'FĂRĂ DATE' : 'ÎNTÂRZIAT';
+  const edgeSuffix = edgeSeen == null ? 'edge fără date' : `edge acum ${Math.round(edgeSeen)}s`;
 
   // Re-render every 30 s so the age of the oldest escalated case keeps moving.
   const [now, setNow] = useState(() => Date.now());
@@ -396,16 +423,6 @@ export default function Sidebar() {
     return () => phone.removeEventListener('change', applyViewport);
   }, [isSidebarCollapsed, setIsSidebarCollapsed]);
 
-  const edgeSuffix = edgeSeen == null ? 'edge fără date' : `edge acum ${Math.round(edgeSeen)}s`;
-
-  const goToView = (viewId) => {
-    setCurrentView(viewId);
-    // The rail covers the screen on a phone: close it after choosing.
-    if (isPhoneViewport()) setIsSidebarCollapsed(true);
-  };
-
-  const collapseRail = () => setIsSidebarCollapsed(true);
-
   // A collapsed rail keeps its width at 0 but its buttons stay in the tab order at
   // negative coordinates (WCAG 2.4.7 / 2.4.3). `inert` removes the whole subtree from
   // both the tab order and the accessibility tree; the header's rail toggle is the way
@@ -419,47 +436,66 @@ export default function Sidebar() {
     else node.removeAttribute('inert');
   }, [isSidebarCollapsed]);
 
+  const goToView = (viewId) => {
+    setCurrentView(viewId);
+    // The rail covers the screen on a phone: close it after choosing.
+    if (isPhoneViewport()) setIsSidebarCollapsed(true);
+  };
+
+  const collapseRail = () => setIsSidebarCollapsed(true);
+
+  return {
+    asideRef,
+    attention,
+    collapsed: isSidebarCollapsed,
+    collapseRail,
+    currentView,
+    edgeActive,
+    edgeLabel,
+    edgeSuffix,
+    goToView,
+    health,
+  };
+}
+
+export default function Sidebar() {
+  const { isDarkMode, themeStyles } = useTheme();
+  const rail = useSidebarState();
+
   return (
     <>
       {/* On a phone the rail covers the content, so a backdrop closes it by click: no
           need to hunt for the collapse button. */}
-      {!isSidebarCollapsed && (
+      {!rail.collapsed && (
         <div
           aria-hidden="true"
-          onClick={collapseRail}
+          onClick={rail.collapseRail}
           className="no-print fixed inset-x-0 bottom-0 top-16 z-30 bg-black/60 sm:hidden"
         />
       )}
 
-      <aside
-        ref={asideRef}
-        data-testid="sidebar"
-        aria-label="Navigare"
-        style={{
-          backgroundColor: isDarkMode ? themeStyles.navBg : '#FFFFFF',
-          borderColor: themeStyles.navBorder,
-          width: isSidebarCollapsed ? '0px' : '15rem',
-        }}
-        className={`no-print z-20 flex h-full shrink-0 select-none flex-col justify-between overflow-hidden border-r shadow-md transition-all duration-300 max-sm:fixed max-sm:bottom-0 max-sm:left-0 max-sm:top-16 max-sm:z-40 max-sm:h-auto ${
-          isSidebarCollapsed ? 'border-r-0' : ''
-        }`}
+      <SidebarShell
+        collapsed={rail.collapsed}
+        dark={isDarkMode}
+        palette={themeStyles}
+        railRef={rail.asideRef}
       >
         <NavList
-          currentView={currentView}
-          collapsed={isSidebarCollapsed}
-          attention={attention}
-          onSelect={goToView}
+          currentView={rail.currentView}
+          collapsed={rail.collapsed}
+          attention={rail.attention}
+          onSelect={rail.goToView}
         />
 
         <SidebarFooter
-          collapsed={isSidebarCollapsed}
-          health={health}
-          edgeLabel={edgeLabel}
-          edgeActive={edgeActive}
-          edgeSuffix={edgeSuffix}
-          onCollapse={collapseRail}
+          collapsed={rail.collapsed}
+          health={rail.health}
+          edgeLabel={rail.edgeLabel}
+          edgeActive={rail.edgeActive}
+          edgeSuffix={rail.edgeSuffix}
+          onCollapse={rail.collapseRail}
         />
-      </aside>
+      </SidebarShell>
     </>
   );
 }
