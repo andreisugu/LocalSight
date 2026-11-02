@@ -1,19 +1,32 @@
-// Minimal IoU tracker: the browser stand-in for ByteTrack on the Python edge.
+// Minimal IoU + centre-distance tracker: the browser stand-in for ByteTrack on the Python
+// edge.
 //
 // ByteTrack has two association stages (confident and weak detections) and a Kalman
 // filter per track. With one camera in a tab, neither earns its port: the rule engine
 // only needs a stable integer id per person for a few seconds, and an id change after a
 // long occlusion costs at most one rule window. Reference: `docs/browser-engine.md` §3.
 //
-// Deterministic by construction: greedy matching over all (track, detection) pairs sorted
-// by descending IoU with the track id and the input index as tie-breakers, so the same
-// frames always produce the same ids. Ageing is counted in frames, not milliseconds, so a
+// Two association passes. The first is IoU, which is exact when the same person overlaps
+// their previous box. At 1.3-1.5 fps on WASM a walker moves far enough between processed
+// frames that IoU drops to zero, so a second pass matches what IoU left over by centre
+// distance, relative to the larger box height (people move roughly one person-height per
+// step, while people standing next to each other stay a body-width apart). The second
+// pass runs only on the leftovers of the first, greedily by smallest distance, so a
+// confidently overlapping pair can never be overruled and two nearby people cannot
+// collapse into one track.
+//
+// Deterministic by construction: both passes are greedy over all remaining
+// (track, detection) pairs sorted by score (descending IoU, then ascending centre
+// distance) with the track id and the input index as tie-breakers, so the same frames
+// always produce the same ids. Ageing is counted in frames, not milliseconds, so a
 // dropped frame cannot age a track faster than a processed one.
 //
 // Pure functions and plain objects: no DOM, no inference, no imports.
 
 const DEFAULT_IOU_THRESHOLD = 0.3;
 const DEFAULT_MAX_AGE_FRAMES = 30;
+const DEFAULT_CENTER_MATCH = true;
+const DEFAULT_CENTER_DISTANCE_FACTOR = 0.8;
 
 /**
  * @typedef {[number, number, number, number]} Bbox Normalized `[x1, y1, x2, y2]`.
@@ -56,6 +69,29 @@ export function iou(a, b) {
 }
 
 /**
+ * Height of a normalized box, clamped at zero for a degenerate input.
+ *
+ * @param {Bbox} box
+ * @returns {number}
+ */
+function heightOf(box) {
+  return Math.max(0, box[3] - box[1]);
+}
+
+/**
+ * Euclidean distance between two box centres, in frame-normalized units.
+ *
+ * @param {Bbox} a
+ * @param {Bbox} b
+ * @returns {number}
+ */
+function centerDistance(a, b) {
+  const dx = (a[0] + a[2] - b[0] - b[2]) / 2;
+  const dy = (a[1] + a[3] - b[1] - b[3]) / 2;
+  return Math.hypot(dx, dy);
+}
+
+/**
  * @param {unknown} box
  * @param {string} field
  * @returns {Bbox}
@@ -69,26 +105,50 @@ function requireBox(box, field) {
 }
 
 /**
- * Create an IoU tracker.
+ * Create an IoU + centre-distance tracker.
  *
  * A detection is matched to at most one track and a track to at most one detection per
- * frame, greedily by descending IoU. An unmatched track keeps its box and id for up to
+ * frame. First pass: greedy by descending IoU. Second pass, only over what the first
+ * pass left unmatched: greedy by ascending centre distance, where a pair is eligible
+ * when the distance between centres is at most `centerDistanceFactor` times the larger
+ * of the two box heights. An unmatched track keeps its box and id for up to
  * `maxAgeFrames` frames, so a one-frame detection drop does not split a presence; after
  * that it is dropped and the next matching detection gets a fresh id. Unmatched
  * detections always start a new track, in input order.
  *
+ * `centerMatch` exists for callers that need the pure IoU behaviour (and for tests of
+ * that stage in isolation); the browser engine keeps it on.
+ *
  * @param {object} [options]
  * @param {number} [options.iouThreshold] Minimum IoU for a match, in (0, 1]. Defaults to 0.3.
  * @param {number} [options.maxAgeFrames] Missed frames a track survives. Defaults to 30.
+ * @param {boolean} [options.centerMatch] Match leftovers by centre distance. Defaults to true.
+ * @param {number} [options.centerDistanceFactor] Centre distance budget, in box heights.
+ *   Defaults to 0.8.
  * @returns {{ update: (detections: TrackerDetection[], nowMs?: number) => TrackedBox[] }}
- * @throws {RangeError} An option is outside its range.
+ * @throws {RangeError|TypeError} An option has the wrong type or is outside its range.
  */
-export function createTracker({ iouThreshold = DEFAULT_IOU_THRESHOLD, maxAgeFrames = DEFAULT_MAX_AGE_FRAMES } = {}) {
+export function createTracker({
+  iouThreshold = DEFAULT_IOU_THRESHOLD,
+  maxAgeFrames = DEFAULT_MAX_AGE_FRAMES,
+  centerMatch = DEFAULT_CENTER_MATCH,
+  centerDistanceFactor = DEFAULT_CENTER_DISTANCE_FACTOR,
+} = {}) {
   if (typeof iouThreshold !== 'number' || !(iouThreshold > 0 && iouThreshold <= 1)) {
     throw new RangeError('iouThreshold must be in (0, 1]');
   }
   if (!Number.isInteger(maxAgeFrames) || maxAgeFrames < 0) {
     throw new RangeError('maxAgeFrames must be an integer >= 0');
+  }
+  if (typeof centerMatch !== 'boolean') {
+    throw new TypeError('centerMatch must be a boolean');
+  }
+  if (
+    typeof centerDistanceFactor !== 'number' ||
+    !Number.isFinite(centerDistanceFactor) ||
+    centerDistanceFactor <= 0
+  ) {
+    throw new RangeError('centerDistanceFactor must be a finite number > 0');
   }
 
   /**
@@ -150,6 +210,36 @@ export function createTracker({ iouThreshold = DEFAULT_IOU_THRESHOLD, maxAgeFram
       takenTracks.add(pair.track.trackId);
       takenItems.add(pair.item.index);
       matchedByTrack.set(pair.track.trackId, pair.item);
+    }
+
+    // Second pass: people seen at a low frame rate move more than their own overlap.
+    // Only the leftovers of the IoU pass are candidates, so a pair with a real overlap
+    // is never reassigned by distance and a stationary person's track cannot be taken
+    // by a neighbour who happens to stand close.
+    if (centerMatch) {
+      const distances = [];
+      for (const track of tracks) {
+        if (takenTracks.has(track.trackId)) continue;
+        for (const item of items) {
+          if (takenItems.has(item.index)) continue;
+          const distance = centerDistance(track.bbox, item.bbox);
+          const budget = centerDistanceFactor * Math.max(heightOf(track.bbox), heightOf(item.bbox));
+          if (distance > budget) continue;
+          distances.push({ track, item, distance });
+        }
+      }
+      distances.sort(
+        (left, right) =>
+          left.distance - right.distance ||
+          left.track.trackId - right.track.trackId ||
+          left.item.index - right.item.index,
+      );
+      for (const pair of distances) {
+        if (takenTracks.has(pair.track.trackId) || takenItems.has(pair.item.index)) continue;
+        takenTracks.add(pair.track.trackId);
+        takenItems.add(pair.item.index);
+        matchedByTrack.set(pair.track.trackId, pair.item);
+      }
     }
 
     const nextTracks = [];
