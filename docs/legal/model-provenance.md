@@ -149,7 +149,9 @@ Licensor cannot bind code owned by other authors without their consent.
 
 Before commercial licensing, obtain a written CLA/assignment or explicit licence from every
 contributor, or replace their code and document the replacement. Keep the evidence with the
-commercial paperwork. This is a **blocking** item independent of the model licence.
+commercial paperwork. A starting template is in
+[`contributor-assignment-template.md`](contributor-assignment-template.md); a lawyer should
+adapt it. This is a **blocking** item independent of the model licence.
 
 ### 3.2 Runtime libraries and notices — resolved
 

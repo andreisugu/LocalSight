@@ -88,9 +88,9 @@ The two EfficientDet rows describe the current build; the detector swap removed
 | **Assets** | | | |
 | `docs/assets/*.png` (5 UI screenshots, including the model selector) | — | project-produced | OK — re-check that no unblurred face is visible; they contain frames of the demo footage, so the footage question applies |
 | `frontend/public/media/*.mp4` (3 web cuts) | — | derived from the clips above | **requires action** — unresolved provenance, same question as their sources |
-| `frontend/public/media/stills/apron-stand.jpg` | — | Unsplash License | OK — no attribution required; credit Unsplash in the demo |
-| `frontend/public/media/stills/taxiway-heathrow.jpg` | — | CC BY-SA 2.0, © Derek Harper (Geograph) | **attribution required**; the file stays CC BY-SA, the code is unaffected |
-| `frontend/public/media/stills/baggage-hall.jpg` | — | CC0 (djedj, Pixabay) | OK |
+| `frontend/public/media/stills/apron-stand.jpg` | — | Unsplash License (https://unsplash.com/license) | OK — no attribution required; credit Unsplash in the demo |
+| `frontend/public/media/stills/taxiway-heathrow.jpg` | — | CC BY-SA 2.0, © Derek Harper (Geograph); https://creativecommons.org/licenses/by-sa/2.0/ | **attribution required**; the file stays CC BY-SA, the code is unaffected |
+| `frontend/public/media/stills/baggage-hall.jpg` | — | CC0 (djedj, Pixabay); https://creativecommons.org/publicdomain/zero/1.0/ | OK |
 | `frontend/public/media/stills/zone-*.jpg` (3) | — | derived from the demo clips | **requires action** — same unresolved provenance as `stand12.mp4`, `taxiway-b.mp4`, `baggage-area.mp4`; no licence claimed |
 
 The served runtime notices are in `frontend/public/LICENSES.txt` (`dist/LICENSES.txt`):

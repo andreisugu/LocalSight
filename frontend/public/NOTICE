@@ -76,9 +76,11 @@ grant. Replace them or obtain a written licence before commercial redistribution
 not reuse the clips outside this showcase.
 
 Three stills have a stated licence of their own:
-- media/stills/apron-stand.jpg — Unsplash License.
-- media/stills/taxiway-heathrow.jpg — CC BY-SA 2.0, (c) Derek Harper (Geograph).
-- media/stills/baggage-hall.jpg — CC0 (djedj, Pixabay).
+- media/stills/apron-stand.jpg — Unsplash License (https://unsplash.com/license).
+- media/stills/taxiway-heathrow.jpg — CC BY-SA 2.0, (c) Derek Harper (Geograph);
+  licence: https://creativecommons.org/licenses/by-sa/2.0/
+- media/stills/baggage-hall.jpg — CC0 (djedj, Pixabay);
+  https://creativecommons.org/publicdomain/zero/1.0/
 
 media/stills/zone-stand12.jpg, zone-taxiway-b.jpg and zone-baggage-area.jpg are frames
 re-encoded from the demo clips above, so they carry the same unresolved provenance.

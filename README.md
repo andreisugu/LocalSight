@@ -154,6 +154,7 @@ Scenariul de prezentare, pas cu pas: [`demo/run_sheet_browser.md`](demo/run_shee
 | YuNet | MIT | © Shiqi Yu / OpenCV Zoo |
 | ONNX Runtime Web | MIT | © Microsoft |
 | Runtime JS/WASM: React, lucide, protobuf, flatbuffers | MIT / ISC / BSD-3 / Apache-2.0 | texte complete în [`frontend/public/LICENSES.txt`](frontend/public/LICENSES.txt) |
+| Still-uri stock: apron / taxiway / baggage | Unsplash / CC BY-SA 2.0 / CC0 | atribuite în [`frontend/public/NOTICE`](frontend/public/NOTICE); taxiway cere atribuire Derek Harper |
 | Contribuții upstream | **de confirmat** | upstream fără LICENSE; BSL afirmat de Licensor; acordurile contribuitorilor trebuie documentate |
 | Clipuri și still-uri demo | **nespecificat** | provenance necompletată; nu sunt acoperite pentru redistribuire comercială |
 
