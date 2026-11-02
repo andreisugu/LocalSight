@@ -67,6 +67,17 @@ needs a notice, an EULA check or a legal read, but does not force you to open-so
 | `frontend/public/media/stills/apron-stand.jpg` | — | Unsplash License | OK — no attribution required; credit Unsplash in the demo |
 | `frontend/public/media/stills/taxiway-heathrow.jpg` | — | CC BY-SA 2.0, © Derek Harper (Geograph) | **attribution required**; the file stays CC BY-SA, the code is unaffected |
 | `frontend/public/media/stills/baggage-hall.jpg` | — | CC0 (djedj, Pixabay) | OK |
+| `frontend/public/media/stills/zone-stand12.jpg` | — | derived from the demo clips | **requires action** — same unresolved provenance as `stand12.mp4`; no licence claimed |
+| `frontend/public/media/stills/zone-taxiway-b.jpg` | — | derived from the demo clips | **requires action** — same unresolved provenance as `taxiway-b.mp4`; no licence claimed |
+| `frontend/public/media/stills/zone-baggage-area.jpg` | — | derived from the demo clips | **requires action** — same unresolved provenance as `baggage-area.mp4`; no licence claimed |
+
+The three `zone-*.jpg` files are re-encoded frames of the committed web cuts, used by
+the zone editor as reference backgrounds (`frontend/src/data/media.js`). They are not
+separate licensed assets: fixing the clip provenance above fixes them too.
+
+The static build ships `frontend/public/NOTICE` as `dist/NOTICE`, linked from the
+sidebar footer. It carries the Ultralytics AGPL-3.0 notice, the YuNet MIT notice and a
+pointer to this file; it is a summary, not a substitute for the audit below.
 
 ## Removed from this fork — Python and container stack (historical)
 

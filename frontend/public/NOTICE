@@ -1,0 +1,79 @@
+LocalSight — third-party notices
+================================
+
+This file ships inside the static build (dist/NOTICE) and is linked from the sidebar
+("Licențe"). It is a summary for the visitor, not a replacement for the licence texts.
+The repository's own code is under the Business Source License 1.1 (see LICENSE); the
+third-party components below keep their own licences.
+
+The full audit — versions, where each file is served from, and the open questions — is
+in THIRD_PARTY.md at the repository root.
+
+1. Ultralytics YOLO26n weights — AGPL-3.0
+----------------------------------------
+File: yolo26n.onnx, served to every visitor at /models/yolo26n.onnx.
+
+Copyright (c) Ultralytics.
+Licensed under the GNU Affero General Public License, version 3 (AGPL-3.0).
+
+The model architecture and the weights come from Ultralytics, and an ONNX export does
+not change their licence. Ultralytics' own licensing terms require an Enterprise
+License for commercial, proprietary, SaaS or embedded use; otherwise AGPL-3.0 applies
+to the combined work, including network use under section 13.
+
+Licence text: https://www.gnu.org/licenses/agpl-3.0.txt
+Ultralytics licensing: https://www.ultralytics.com/license
+
+Corresponding source for this demo: https://github.com/andreisugu/LocalSight
+The repository is public, and this file plus the model are distributed from it.
+
+2. YuNet face detector — MIT
+----------------------------
+File: yunet.onnx, served at /models/yunet.onnx. Model from the OpenCV Zoo
+(face_detection_yunet_2023mar), with the declared input rewritten to a dynamic shape.
+
+Copyright (c) 2020 Shiqi Yu
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this
+software and associated documentation files (the "Software"), to deal in the Software
+without restriction, including without limitation the rights to use, copy, modify,
+merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be included in all copies
+or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR
+THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+3. ONNX Runtime Web — MIT
+-------------------------
+onnxruntime-web 1.31.1, MIT. Its WASM/WebGPU artifacts are built into dist/assets/.
+Copyright (c) Microsoft Corporation. Licence: https://github.com/microsoft/onnxruntime/blob/main/LICENSE
+
+4. Demo video and stills — provenance not recorded
+--------------------------------------------------
+The clips (media/*.mp4) and the stills (media/stills/*) are demo material. Their source,
+licence and camera operator are NOT recorded in this repository (data/videos/README.md
+still says "de completat" for each clip). No licence is claimed for them, and they are
+not part of the BSL-licensed work. Do not redistribute them outside this demo until the
+provenance is filled in.
+
+Three stills have a stated licence of their own:
+- media/stills/apron-stand.jpg — Unsplash License.
+- media/stills/taxiway-heathrow.jpg — CC BY-SA 2.0, (c) Derek Harper (Geograph).
+- media/stills/baggage-hall.jpg — CC0 (djedj, Pixabay).
+
+media/stills/zone-stand12.jpg, zone-taxiway-b.jpg and zone-baggage-area.jpg are frames
+re-encoded from the demo clips above, so they carry the same unresolved provenance.
+
+5. Other build/test tooling
+---------------------------
+React, Vite, Tailwind CSS, PostCSS, Autoprefixer, lucide-react and Playwright are
+permissive (MIT / ISC / Apache-2.0). They are listed with versions and obligations in
+THIRD_PARTY.md.

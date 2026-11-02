@@ -12,6 +12,25 @@ Nu am modificat cod de aplicație. Singurul fișier adăugat în repo este acest
 
 ---
 
+## Stare curentă (actualizat 2026-11-02)
+
+Acest document rămâne **snapshot-ul QA** din `prep/qa-ui`: constatările de mai jos nu au
+fost rescrise. Tabelul spune doar ce s-a reparat după audit, în ce commit, și cum a fost
+verificat pe ramura `prep/ops-fix` (pornită din `749f496`).
+
+| ID | Stare | Commit care a reparat | Verificare |
+|---|---|---|---|
+| **F1** | **Rezolvat** | `48804bb` — rescrierea Live: `shouldAcceptAck` + id-ul incidentului capturat pe `pointerdown` | `liveMedia.test.mjs` (guard-ul de dublu-click) + fluxul de confirmare din `smoke.spec.js` |
+| **F2** | **Rezolvat** | `6e37286` — `eventIds.js`: id-uri din ancă fixă (`EVENT_ID_ANCHOR_MS`), nu din `Date.now()` | `smoke.spec.js`, testul de deep link, **fără** congelarea ceasului |
+| **F3** | **Rezolvat** | `b610c76` — sidebar colapsat automat sub 640 px (`matchMedia`, preferință explicită respectată) | verificare manuală la 375×812 pe `prep/ops-fix`; nu are încă test automat |
+| F4–F14 | **Deschise / neatinse** | — | rămân snapshot-ul din `prep/qa-ui`; nu fac obiectul acestui val |
+
+Verificarea pe commit: `npm run test:unit` → **406 pass**, `npm run test:e2e` → **5/5**,
+plus suita nouă `playwright.pages.config.js` (build sub `/LocalSight/`, COI, motor).
+
+> Notă: F14 (două tab-uri nu partajează starea) rămâne prin design în build-ul mock, fără
+> backend; nu e marcată ca reparată.
+
 ## Sumar
 
 | Severitate | Număr |

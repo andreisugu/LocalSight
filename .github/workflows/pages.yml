@@ -1,7 +1,14 @@
 name: Deploy static mock build to GitHub Pages
 
+# Deploys are gated on CI. `ci.yml` runs on every push to main (and every PR); this
+# workflow no longer triggers on `push` at all, so a red CI cannot publish: it starts
+# only when the CI run for main has completed, and the build job below checks that the
+# conclusion was `success`. Manual `workflow_dispatch` stays available for re-running a
+# known-good ref, and falls back to `github.sha` because there is no workflow_run payload.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -16,13 +23,30 @@ concurrency:
 
 jobs:
   build:
+    # workflow_dispatch has no `workflow_run` object: the `||` is evaluated before the
+    # condition, so a manual run is never rejected for a missing conclusion.
+    #
+    # `event == 'push'` + `head_branch == 'main'` is a security check, not a duplicate of
+    # the trigger filter: CI also runs on pull requests, and checking out a fork's SHA
+    # with Pages write permission would let that PR publish. Only a push to main is
+    # trusted content.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: frontend
     steps:
-      - name: Checkout
+      # The CI run that triggered this workflow is not the default-branch commit that
+      # GitHub would check out on a workflow_run event; build the SHA CI actually tested.
+      - name: Checkout the commit CI tested
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -34,16 +58,37 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # VITE_BUILD_SHA is compiled into the bundle and shown truthfully in the sidebar
+      # footer ("build <sha>"), so the live page names the commit that produced it.
       - name: Build (mock mode, served under /LocalSight/)
         run: npm run build
         env:
           VITE_USE_MOCK: "true"
           VITE_BASE: "/LocalSight/"
+          VITE_BUILD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       # Pages serves 404.html for unknown paths, so the history-router deep
       # links (/zones, /incidents/<id>) get the app shell instead of a 404.
       - name: SPA fallback
         run: cp dist/index.html dist/404.html
+
+      # The same checks CI runs, on the exact artifact this workflow will upload, plus
+      # the two things only this workflow can prove: the notices file is in dist/, and
+      # the bundle really carries the commit SHA it claims.
+      - name: Verify the deploy artifact
+        env:
+          BUILD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          node scripts/check-base.mjs
+          test -s dist/NOTICE
+          grep -q 'Cross-Origin-Opener-Policy' dist/coi-serviceworker.js
+          # The footer prints the short SHA; the bundler may constant-fold the slice, so
+          # check exactly what a visitor can read, not the 40-char input.
+          SHORT_SHA="${BUILD_SHA:0:7}"
+          if ! grep -qF "$SHORT_SHA" dist/assets/*.js; then
+            echo "build stamp $SHORT_SHA is missing from dist/assets/*.js" >&2
+            exit 1
+          fi
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -56,6 +101,7 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

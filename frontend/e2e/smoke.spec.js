@@ -103,12 +103,9 @@ test('zone editor renders the drawing canvas', async ({ page }) => {
 test('a deep link to an incident loads the detail view directly', async ({ page }) => {
   const problems = watchPageErrors(page);
 
-  // Mock event ids embed the load time (mockData builds them from Date.now()), so
-  // a second full load would invent new ids and the captured link would point at
-  // nothing. Freezing Date makes the static build deterministic for this test;
-  // timers keep running because only the clock is fixed, not the scheduler.
-  await page.clock.setFixedTime(new Date('2026-11-02T09:00:00Z'));
-
+  // No clock freeze is needed: fixture ids come from EVENT_ID_ANCHOR_MS, not from
+  // Date.now(), so a second document load resolves the same incident. That is the
+  // property the deep-link contract depends on, so the test exercises it directly.
   // The id comes from the running app, so the test does not hardcode mock data.
   await page.goto('/incidents');
   await page.getByRole('listitem').first().getByRole('button').click();
