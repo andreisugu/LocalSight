@@ -49,7 +49,7 @@ export default function ReportsView() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `SafeSight_raport_${shiftReport.date}_${shiftReport.shift}.csv`.replace(/[^\w.-]+/g, '_');
+    link.download = `LocalSight_raport_${shiftReport.date}_${shiftReport.shift}.csv`.replace(/[^\w.-]+/g, '_');
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -77,7 +77,7 @@ export default function ReportsView() {
         </button>
         {/* Export PDF: dialogul de tipărire al browserului */}
         <button
-          onClick={() => printAsPdf(`SafeSight_raport_${shiftReport.date}_${shiftReport.shift}`.replace(/[^\w.-]+/g, '_'))}
+          onClick={() => printAsPdf(`LocalSight_raport_${shiftReport.date}_${shiftReport.shift}`.replace(/[^\w.-]+/g, '_'))}
           className="no-print px-3.5 py-2 rounded-lg bg-[#D73833] hover:bg-[#b82e2a] text-white font-bold text-xs flex items-center gap-2 shadow"
         >
           <FileDown size={15} /> Export PDF

@@ -316,7 +316,7 @@ export default function IncidentDetailView() {
 
               {/* Buton 4: Export PDF (dialogul de tipărire al browserului) */}
               <button
-                onClick={() => printAsPdf(`SafeSight_incident_${selectedEvent.event_id}`)}
+                onClick={() => printAsPdf(`LocalSight_incident_${selectedEvent.event_id}`)}
                 className="py-2.5 px-3 rounded-lg font-bold bg-[#D73833]/20 hover:bg-[#D73833]/30 text-[#D73833] border border-[#D73833]/40 flex items-center justify-center gap-2"
               >
                 <FileDown size={15} />
