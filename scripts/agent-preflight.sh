@@ -1,76 +1,47 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Sincronizează cele două repo-uri SafeSight înainte de un task.
-# Merge și din repo-ul public, și din cel privat; sibling-ul este opțional.
+# Sincronizează repo-ul LocalSight înainte de un task.
+# Un singur remote: `origin`. Nu mai există repo de docs separat — `docs/` e în acest repo.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MAIN="${SAFETARMAC_MAIN_DIR:-$ROOT/../craiova-hack-2026}"
-DOCS="${SAFESIGHT_DOCS_DIR:-${SAFETARMAC_DOCS_DIR:-$ROOT/../safesight-docs}}"
-if [[ ! -d "$DOCS/.git" && -d "$ROOT/../safetarmac-docs/.git" ]]; then
-  DOCS="$ROOT/../safetarmac-docs"
+REMOTE="${LOCALSIGHT_PREFLIGHT_REMOTE:-origin}"
+
+if ! git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+  echo "✗ nu e un repo git: $ROOT" >&2
+  exit 1
 fi
 
-status=0
+echo "== LocalSight ($ROOT)"
 
-sync_repo() {
-  local name="$1" path="$2" required="$3"
+if ! git -C "$ROOT" fetch --prune "$REMOTE"; then
+  echo "✗ fetch a eșuat pe $REMOTE" >&2
+  exit 1
+fi
 
-  # A git worktree has `.git` as a file, not a directory: ask git instead of testing -d.
-  if ! git -C "$path" rev-parse --git-dir >/dev/null 2>&1; then
-    if [[ "$required" == "1" ]]; then
-      echo "✗ $name lipsește: $path" >&2
-      status=1
-    else
-      echo "• $name nu e clonat lângă repo: $path (sar peste)"
-    fi
-    return 0
+branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD)"
+if [[ "$branch" == "HEAD" ]]; then
+  echo "✗ detached HEAD; treci pe un branch numit înainte de task." >&2
+  exit 1
+fi
+
+dirty="$(git -C "$ROOT" status --porcelain)"
+if [[ -n "$dirty" ]]; then
+  echo "  ! modificări locale; nu fac pull. Rezolvă sau fă stash înainte de task."
+  exit 1
+fi
+
+if [[ "$branch" == "main" ]]; then
+  if ! git -C "$ROOT" pull --ff-only "$REMOTE" main; then
+    echo "✗ pull --ff-only a eșuat; istoric divergent." >&2
+    exit 1
   fi
-
-  echo "== $name ($path)"
-
-  if ! git -C "$path" fetch --prune origin; then
-    echo "✗ $name: fetch a eșuat" >&2
-    status=1
-    return 0
-  fi
-
-  local branch dirty behind
-  branch="$(git -C "$path" rev-parse --abbrev-ref HEAD)"
-  dirty="$(git -C "$path" status --porcelain)"
-
-  if [[ -n "$dirty" ]]; then
-    echo "  ! modificări locale; nu fac pull. Rezolvă sau fă stash înainte de task."
-    status=1
-  elif [[ "$branch" == "main" ]]; then
-    if ! git -C "$path" pull --ff-only origin main; then
-      echo "✗ $name: pull --ff-only a eșuat; istoric divergent." >&2
-      status=1
-    fi
-  else
-    echo "  • pe branch-ul $branch; am făcut doar fetch (nu schimb branch-ul)."
-  fi
-
-  behind="$(git -C "$path" rev-list --count "HEAD..@{u}" 2>/dev/null || echo "?")"
-  echo "  → $(git -C "$path" rev-parse --short HEAD) pe $branch, în urma origin: $behind commituri"
-}
-
-if [[ -f "$ROOT/docs/contract.md" ]]; then
-  sync_repo "main" "$ROOT" "1"
-  sync_repo "docs" "$DOCS" "0"
-elif [[ -f "$ROOT/lib/theme.typ" ]]; then
-  sync_repo "docs" "$ROOT" "1"
-  sync_repo "main" "$MAIN" "0"
 else
-  echo "✗ nu recunosc repo-ul: $ROOT" >&2
-  exit 1
+  echo "  • pe branch-ul $branch; am făcut doar fetch (nu schimb branch-ul)."
 fi
 
-if [[ "$status" -ne 0 ]]; then
-  echo ""
-  echo "Preflight: ATENȚIE. Nu începe taskul până nu rezolvi ce e mai sus."
-  exit 1
-fi
+behind="$(git -C "$ROOT" rev-list --count "HEAD..@{u}" 2>/dev/null || echo "?")"
+echo "  → $(git -C "$ROOT" rev-parse --short HEAD) pe $branch, în urma $REMOTE: $behind commituri"
 
 echo ""
-echo "Preflight OK: ambele repo-uri sunt sincronizate."
+echo "Preflight OK: $REMOTE e sincronizat."

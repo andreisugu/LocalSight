@@ -1,6 +1,11 @@
-# Run SafeSight on Linux, macOS or Windows
+# Rularea implementării de referință — Linux, macOS sau Windows
+
+> **Implementarea de referință (SafeSight), nu produsul.** Produsul merge în browser: [`docs/browser-engine.md`](docs/browser-engine.md).
+> Showcase-ul static pornește din [`README.md`](README.md).
 
 Un singur script cross-platform, cu Python 3.12+. Nu are nevoie de bash, make sau Docker.
+Ghidul de față pornește pipeline-ul Python din `ml/` + `backend/`, pe care portul din browser
+îl urmează; nu descrie build-ul static.
 
 ## Cerințe
 
@@ -103,7 +108,8 @@ python scripts/dev.py ml -- --source ../data/videos/<clip>.mp4 --zones fixtures/
 python scripts/dev.py check
 ```
 
-Rulează testele backend (**90**), testele ML (**38**), smoke-ul `automation` și build-ul frontend.
+Rulează testele backend, testele ML, smoke-ul `automation` și build-ul frontend. Numărul de
+teste crește; nu-l cita din memorie, ci din output.
 
 ## Windows
 
