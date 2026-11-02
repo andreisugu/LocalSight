@@ -45,7 +45,7 @@ COOP/COEP (GitHub Pages nu poate trimite antete custom), fără să cacheze nimi
 Runtime. Chrome/Edge folosesc WebGPU când există adapter; cifra depinde de GPU. Sub 2 fps,
 panoul din Live avertizează după 10 s de rulare.
 
-Teste: 232 Node (`node --test`, motor + utilitare + raport) și 5 E2E Playwright; CI
+Teste: 399 Node (`node --test`, motor + utilitare + raport) și 5 E2E Playwright; CI
 rulează unit, build-ul de frontend, e2e și o gardă pentru subpath-ul de Pages.
 
 ## Pagini
@@ -175,7 +175,10 @@ Ce cod a rămas de la fiecare autor se măsoară pe linii cu
 liniile rămase. Standardul de „înlocuit" — implementare nouă, logică testată, nu doar clase
 schimbate — și lista a ce s-a amânat sunt în
 [`docs/rewrite-backlog.md`](docs/rewrite-backlog.md); raportul generat este
-[`docs/provenance.md`](docs/provenance.md).
+[`docs/provenance.md`](docs/provenance.md). La 2 noiembrie 2026: **97,0%** din liniile de
+cod de produs sunt ale noastre, **3,0%** sunt schelet JSX/etichete/valori de design, iar
+auditul nu mai găsește **nicio linie de logică** moștenită. Stack-ul Python a fost scos din
+fork; rămâne în istoricul git și în upstream.
 
 ## Credite
 

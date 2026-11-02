@@ -44,28 +44,28 @@ doar ce cod a fost scris înainte de direcția LocalSight și cât de mult l-am 
 
 | Fișier | Proveniență | Stare | Decizie |
 |---|---|---|---|
-| `components/layout/Header.jsx` | VojuAriana (6/16) | **parțial**: structura, meniurile și focusul sunt rescrise (185+/122−), dar 173 de linii rămân (importuri, chei de context, JSX, clase) | nu se declară înlocuit până nu scade logică; restul e prezentare |
-| `components/views/IncidentDetailView.jsx` | muxxq (4/9) | parțial rescris: copiază link, descarcă dovada, etichete demo/local; layout-ul de bază e încă moștenit | restul layout-ului, într-un pass separat |
+| `components/layout/Header.jsx` | VojuAriana (6/16) | **înlocuit** (`f705119`): 173→115 linii, logică în hook-uri; rămâne schelet JSX/importuri | gata |
+| `components/views/IncidentDetailView.jsx` | muxxq (4/9) | **înlocuit** (`e303dbc`): 432→78 linii, 7 componente, helper cu 18 teste; audit 342→25 linii (0 logică) | gata |
 | `components/views/IncidentsListView.jsx` | VojuAriana (1/3) | **logică înlocuită**: filtrare/formatare în `utils/incidentList.js` (8 teste), markup nou (181+/143−); 66 de linii rămase = `TokenBadge`, importuri, câteva clase | parțial textual, complet pe logică |
 | `components/views/SettingsView.jsx` | VojuAriana (3/7) | **înlocuit** (347→66 linii; +269/−296), logică în `utils/systemView.js` + 13 teste; audit: 0 linii de logică | gata |
 | `components/views/ReportsView.jsx` | VojuAriana | **înlocuit** (496 linii; +444/−352), pagina rescrisă, valorile în `utils/reportExport.js` + 12 teste; light mode lizibil; audit: 57 de linii (importuri, etichete, stiluri, JSX) | gata |
 | `components/views/ZoneEditorView.jsx` | VojuAriana | **înlocuit**: logica la `990028f`, shell-ul refăcut la `8095b9e` (+159/−121); audit: 36 de linii (importuri, chei de context, JSX) | gata |
-| `components/layout/Sidebar.jsx` | andreisugu (8/17) | parțial rescris (responsive, footer) | refăcut la un design pass, nu înainte |
+| `components/layout/Sidebar.jsx` | andreisugu (8/17) | **înlocuit** (`f705119`): 162→69 linii; nav din tabel, același comportament responsive | gata |
 | `components/common/Toast.jsx` | VojuAriana (2/4) | **înlocuit** (20→11; +27/−9), `role=status`/`aria-live`, audit: 0 logică | gata |
-| `components/common/ConfidenceBadge.jsx` | VojuAriana (1/1) | **logică nouă**: `utils/confidence.js` + 6 teste; 11 linii rămase sunt importuri/semnătură | parțial (markup-ul e încă aproape identic) |
-| `context/ThemeContext.jsx` | VojuAriana (1/1) | **logică înlocuită**: persistență + `utils/themePreference.js` + 6 teste; rămân 24 de linii de schelet React (context/provider/hook) | parțial textual, complet pe logică |
-| `constants/theme.js` | VojuAriana | date pure (paletă/statusuri), fără logică | păstrat intenționat; o schimbare e design, nu proveniență |
+| `components/common/ConfidenceBadge.jsx` | VojuAriana (1/1) | **înlocuit** (`f705119`): 11→9 linii, markup nou peste `utils/confidence.js` + 6 teste | gata |
+| `context/ThemeContext.jsx` | VojuAriana (1/1) | **înlocuit** (`2b556cb`): 24→15 linii de schelet React, persistență în `utils/themePreference.js` + 6 teste | gata |
+| `constants/theme.js` | VojuAriana | **înlocuit** (`2b556cb`): barrel de 5 linii peste `src/theme/*`; audit 125→0 | gata |
 | `utils/polygon.js` | muxxq (1/1) | **rescris ca implementare** (63+/20−) + 14 teste; 45 de linii rămase sunt matematica identică și comentarii | înlocuit ca logică, nu ca text; nu pretindem altfel |
-| `utils/print.js` | muxxq (1/1) | moștenit, folosit de 7 fișiere | înlocuiește-l cu un export CSV/PDF real, nu `window.print` |
+| `utils/print.js` | muxxq (1/1) | **înlocuit** (`f705119`): 12→4 linii, același contract `afterprint` | gata |
 | `utils/sound.js` | VojuAriana (1/1) | **înlocuit** (41+/32−) + 4 teste; 5 linii rămase sunt acolade/goale | gata |
-| `constants/eventActions.js` | muxxq (1/1) | moștenit (matricea de acțiuni) | înlocuiește-l cu tabelul din contract la următoarea modificare de statusuri |
-| `App.jsx` | VojuAriana (5/10) | **rescris structural**: hartă de rute, reset scroll/focus la schimbarea ecranului; 43 de linii rămase = importuri/layout | parțial textual, logica de navigare e a noastră |
+| `constants/eventActions.js` | muxxq (1/1) | **înlocuit** (`f705119`): matrice înghețată + `Object.hasOwn`; 11→3 linii | gata |
+| `App.jsx` | VojuAriana (5/10) | **înlocuit** (`f705119`): hartă de rute, scroll/focus; 43→35 linii de schelet | gata |
 | `main.jsx` | VojuAriana (1/2) | aproape tot al nostru (ErrorBoundary) | nu merită un pass separat |
 | `components/video/BoundingBox.jsx` | VojuAriana (2/2) | **șters 2026-11-02** — 0 importuri, cod mort | gata |
 | `components/views/LiveView.jsx` | andreisugu (15/24) | **înlocuit** (1298→234; +2102/−1220, 15 fișiere) | logică în `liveMedia.js` (19 teste) + `useLiveMedia.js`; ecranul e compus din 11 componente sub `components/live/`. Audit: 0 logică, 38 de linii = importuri, destructurare și schelet JSX |
-| `context/SecurityContext.jsx` | andreisugu (17/29) | parțial rescris (routing, engine events, ack) | taie-l în contexte mai mici doar când îl atinge un feature mare |
-| `constants/mockData.js` | andreisugu (9/16) | parțial rescris (stills, id-uri stabile) | separă fixture-urile de logică la următorul pass de date |
-| `services/api.js` | andreisugu (10/22) | parțial rescris (mock/API) | de înlocuit cu un client subțire când apare un backend real |
+| `context/SecurityContext.jsx` | andreisugu (17/29) | **înlocuit** (`ad4a246`): 855→164 linii, 10 hook-uri + 6 helperi cu 61 teste; audit 427→10 linii (acolade/goale) | gata |
+| `constants/mockData.js` | andreisugu (9/16) | **înlocuit** (`6e37286`): barrel de 14 linii peste `src/data/*`; audit 61→0 | gata |
+| `services/api.js` | andreisugu (10/22) | **înlocuit** (`6e37286`): 480→51 linii, `mockApi`/`http`/`backendApi` separate; audit 147→3 | gata |
 
 **Al nostru, nu se rescrie:** tot `frontend/src/engine/` (worker, pipeline, zones, events,
 tracker, vest, blur, report, webgpu, decode), `LiveEngineCard`, `SafeImage`, `ErrorBoundary`,
@@ -85,12 +85,34 @@ tracker, vest, blur, report, webgpu, decode), `LiveEngineCard`, `SafeImage`, `Er
 | `ab3bac5` | `IncidentDetailView.jsx` | +42 / −3 | copiază link, descarcă dovada | 342 — layout moștenit |
 | `e303dbc` | `IncidentDetailView.jsx` + 7 componente + `utils/incidentDetail.js` | +460/−406, +469 nou | ecran rescris, helper cu 18 teste, light mode reparat | 25 — importuri/JSX (0 logică) |
 | `990028f` | `ZoneEditorView.jsx` + 3 componente + `utils/zoneDraft.js` | +2048/−944 | editor rescris, state machine cu 39 teste | 74 — importuri/JSX (0 logică) |
+| `d205b04` | `backend/`, `ml/`, `automation/`, scripturi | −17 942 | stack-ul de referință scos din fork | eliminat |
+| `ad4a246` | `SecurityContext.jsx` + 10 hook-uri + 6 helperi | 855→164 | context împărțit, 61 teste | 10 — acolade/goale |
+| `6e37286` | `services/api.js` + `constants/mockData.js` + `data/` + `services/` | 480→51, 680→14 | date și API rebuild | 3 / 0 |
+| `f705119` | `Header`, `Sidebar`, `App`, `print`, `eventActions`, `ConfidenceBadge` | +561/−460 | chrome rebuilt, 0 logică | 115/69/35/4/3/9 |
+| `2b556cb` | `theme.js`, `index.css`, `tailwind.config.js`, `ThemeContext` | +329/−234 | tokenuri + CSS split, valori identice | 0/3/25/15 |
+| `8095b9e` | `ReportsView`, `ZoneEditorView`, `reportExport` | +444/−352 | shell-uri rescrise, CSV testat | 57/36 (0 logică) |
+| `48804bb` | `LiveView` + 11 componente + `liveMedia` | +2102/−1220 | ecran compus, 19 teste | 38 (0 logică) |
 | `5b05796` | `IncidentsListView.jsx` + `utils/incidentList.js` | +181/−143, +77 nou | listă rescrisă, filtre testate | 66 — TokenBadge/importuri |
 | `1381d99` | `App.jsx` | +35 / −30 | hartă de rute, scroll/focus | 43 — importuri/layout |
 | `f0b0eae` | `worker.js` / `useEngine.js` | +12/−12, +12/−1 | snapshot-ul e deținut de pagină | nu se aplică (engine al nostru) |
 | `3990c27` | `SettingsView.jsx` + `Toast.jsx` + `utils/systemView.js` | +269/−296, +27/−9, +201 nou | pagină „Sistem & Audit" și toast accesibil, logică testată | 0 logică; doar importuri/JSX/clase |
 | `8095b9e` | `ReportsView.jsx` + `ZoneEditorView.jsx` + `utils/reportExport.js` | +444/−352, +159/−121, +316 nou | pagini rescrise, CSV compus și testat (12 teste), light mode reparat | 57 / 36 — importuri, etichete, stiluri, JSX (0 logică) |
 | `48804bb` | `LiveView.jsx` + 11 componente + `liveMedia.js` / `useLiveMedia.js` | +2102 / −1220 | ecran rescris: surse, webcam, etichete și guardul de ack mutate în module testate; invarianții de privacy neschimbați | 38 — importuri, destructurare, `if`-ul de fullscreen și scheletul JSX (0 logică) |
+
+## Rezultat final (2026-11-02)
+
+```text
+frontend 22 364 linii de cod
+  tu       21 693 (97,0%)
+  colegi      671 (3,0%)
+  logică moștenită: 0
+```
+
+Restul de 3% este schelet JSX, importuri, chei de context, etichete vizibile și valorile
+de design pe care API-ul trebuie să le păstreze; nu conține funcții, ramuri sau calcule.
+Stack-ul Python (`backend/`, `ml/`, `automation/`) a fost șters din fork (`d205b04`) și
+rămâne în istoric/upstream. `polygon.js` păstrează matematica identică (rescrisă cu teste),
+iar `tailwind.config.js` păstrează valorile de configurare.
 
 ## Ce am amânat
 
