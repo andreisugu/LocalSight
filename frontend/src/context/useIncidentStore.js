@@ -16,6 +16,7 @@ import { templateReport } from '../engine/report.js';
 import { localSightApi, USE_MOCK } from '../services/api.js';
 import { filterFeedEvents } from '../utils/eventFeed.js';
 import { mergeEngineEvents } from '../utils/engineEventFeed.js';
+import { useEvidencePersistence } from './useEvidencePersistence.js';
 import {
   acknowledgeLocally,
   applyEscalations,
@@ -43,6 +44,21 @@ export function useIncidentStore({
   const [searchQuery, setSearchQuery] = useState('');
   // Ids whose confirmation request is already in flight: a second click is a no-op.
   const pendingAcks = useRef(new Set());
+
+  // Incidents, acks and snapshots survive a reload in IndexedDB. Hydration runs once and
+  // merges into the state above; the writes below are fire-and-forget, so a browser that
+  // refuses storage still shows the incident (see `services/evidencePersistence.js`).
+  const {
+    supported: evidenceSupported,
+    hydrated: evidenceHydrated,
+    stats: evidenceStats,
+    retention: evidenceRetention,
+    persistEvent,
+    persistStatus,
+    clearStore,
+    refreshStats: refreshEvidenceStats,
+    isBlocked,
+  } = useEvidencePersistence({ setEvents });
 
   const filteredEvents = useMemo(
     () => filterFeedEvents(events, { filterMode, searchQuery }),
@@ -115,10 +131,20 @@ export function useIncidentStore({
     if (!canDo('ack', previous?.status)) return;
     if (pendingAcks.current.has(eventId)) return;
     pendingAcks.current.add(eventId);
-    setEvents((prev) => acknowledgeLocally(prev, eventId, operatorName));
+    // One timestamp for the screen and for the stored override: a reload must show the
+    // same confirmation time the operator saw.
+    const at = new Date();
+    setEvents((prev) => acknowledgeLocally(prev, eventId, operatorName, at));
     try {
       const updated = await localSightApi.acknowledgeEvent(eventId, operatorName);
       setEvents((prev) => mergeEvent(prev, eventId, updated));
+      persistStatus({
+        ...previous,
+        status: 'acknowledged',
+        acked_at: at.toISOString(),
+        acked_by: operatorName,
+        ...updated,
+      });
       showToast(`Evenimentul ${eventId.slice(-6)} confirmat de ${operatorName}. Escaladare anulată.`);
     } catch (error) {
       await recoverFromFailedAction(eventId, previous, error, 'Confirmarea a eșuat');
@@ -133,6 +159,13 @@ export function useIncidentStore({
     try {
       const updated = await localSightApi.markFalsePositive(eventId, operatorName, note);
       setEvents((prev) => mergeEvent(prev, eventId, updated));
+      persistStatus({
+        ...previous,
+        status: 'false_positive',
+        false_positive_by: operatorName,
+        false_positive_note: note,
+        ...updated,
+      });
       showToast('Marcat ca Fals Pozitiv. Feedback înregistrat pentru modelul AI.');
     } catch (error) {
       await recoverFromFailedAction(eventId, previous, error, 'Marcarea ca fals pozitiv a eșuat');
@@ -145,6 +178,14 @@ export function useIncidentStore({
     try {
       const updated = await localSightApi.reopenEvent(eventId, operatorName);
       setEvents((prev) => mergeEvent(prev, eventId, updated));
+      persistStatus({
+        ...previous,
+        status: 'open',
+        escalated_at: null,
+        acked_at: null,
+        acked_by: null,
+        ...updated,
+      });
       showToast('Eveniment redeschis. Timerul de escaladare a repornit.');
     } catch (error) {
       await recoverFromFailedAction(eventId, previous, error, 'Redeschiderea a eșuat');
@@ -166,13 +207,39 @@ export function useIncidentStore({
   // local by construction (`snapshot_url: blob:pending`, no backend model), so they are
   // marked `local` and keep `status: 'open'`. Dedupe by `event_id` makes the call safe to
   // repeat on every engine render, and the list limit matches the WebSocket feed.
+  //
+  // The feed replays its whole recent list on every engine render, so the store dedupes by
+  // id too (`persistEvent`): one incident is written once, no matter how often it renders.
   const addEngineEvents = useCallback((incoming) => {
-    setEvents((prev) => mergeEngineEvents(prev, incoming, {
+    const accepted = (Array.isArray(incoming) ? incoming : [])
+      .filter((event) => event && !isBlocked(event.event_id));
+    setEvents((prev) => mergeEngineEvents(prev, accepted, {
       cameras,
       zones,
       buildReport: templateReport,
     }));
-  }, [cameras, zones]);
+    // Persist the decorated row the list shows (local, report, escalation threshold), not
+    // the raw worker payload; its `blob:` URL is still alive here, which is what lets the
+    // snapshot be fetched and stored.
+    const decorated = mergeEngineEvents([], accepted, {
+      cameras,
+      zones,
+      buildReport: templateReport,
+    });
+    for (const event of decorated) persistEvent(event);
+  }, [cameras, zones, persistEvent, isBlocked]);
+
+  // "Delete local data" from Settings: the durable store goes, and so do the incidents
+  // that only exist because of it. Demo fixtures are not local data: they stay, and in
+  // mock mode they return to their seeded values, overrides included.
+  const clearLocalData = useCallback(async () => {
+    const cleared = await clearStore();
+    if (!cleared) return false;
+    setEvents((prev) => (
+      USE_MOCK ? INITIAL_EVENTS.slice() : prev.filter((event) => event.local !== true)
+    ));
+    return true;
+  }, [clearStore, setEvents]);
 
   return {
     events,
@@ -188,5 +255,14 @@ export function useIncidentStore({
     reopenEvent,
     regenerateReport,
     addEngineEvents,
+    // The Settings panel reads this: no other screen does, and the keys above stay frozen.
+    localEvidence: {
+      supported: evidenceSupported,
+      hydrated: evidenceHydrated,
+      stats: evidenceStats,
+      retention: evidenceRetention,
+      refreshStats: refreshEvidenceStats,
+      clearLocalData,
+    },
   };
 }

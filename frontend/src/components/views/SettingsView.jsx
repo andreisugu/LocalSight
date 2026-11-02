@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Box, Cpu, Database, Lock, Server, Settings, ShieldCheck, Terminal, Video } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Box, Cpu, Database, HardDrive, Lock, Server, Settings, ShieldCheck, Terminal, Trash2, Video } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { TYPE_LABELS } from '../../services/api';
@@ -44,6 +44,14 @@ const TONE_TEXT = {
   demo: 'text-amber-600 dark:text-amber-400',
 };
 
+/** Approximate storage size; the number comes from the stored blobs plus the records. */
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function Chip({ tone = 'neutral', children }) {
   const tones = {
     demo: 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400',
@@ -84,7 +92,37 @@ function SummaryCell({ tile, themeStyles }) {
 
 export default function SettingsView() {
   const { themeStyles } = useTheme();
-  const { cameras, zones, events, health, setSelectedEventId, setCurrentView } = useSecurity();
+  const {
+    cameras,
+    zones,
+    events,
+    health,
+    setSelectedEventId,
+    setCurrentView,
+    localEvidence,
+    showToast,
+  } = useSecurity();
+
+  // The stored-count panel is a read of IndexedDB, so it is refreshed when the screen
+  // opens (and by the provider after every write) instead of once at boot.
+  const { refreshStats } = localEvidence;
+  useEffect(() => {
+    refreshStats();
+  }, [refreshStats]);
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  const removeLocalData = async () => {
+    setClearing(true);
+    const cleared = await localEvidence.clearLocalData();
+    setClearing(false);
+    setConfirmingClear(false);
+    showToast(
+      cleared
+        ? 'Datele locale au fost șterse. Incidentele demo rămân.'
+        : 'Ștergerea datelor locale a eșuat.'
+    );
+  };
 
   // Persisted engine settings. The panel writes and reads the same localStorage key the
   // engine reads on its next start, so what is shown here is what the worker will do.
@@ -370,6 +408,132 @@ export default function SettingsView() {
               </>
             )}
           </ul>
+        </section>
+
+        <section aria-labelledby="local-data-heading" style={surface} className="space-y-3 rounded-xl border p-4">
+          <h3 id="local-data-heading" className="flex flex-wrap items-center gap-2 text-sm font-bold uppercase">
+            <HardDrive size={16} aria-hidden="true" className="text-[#0284C7] dark:text-[#FFEB33]" />
+            Date locale
+            {localEvidence.supported ? (
+              <Chip tone="neutral">INDEXEDDB</Chip>
+            ) : (
+              <Chip tone="demo">INDISPONIBIL</Chip>
+            )}
+          </h3>
+          <p className="text-xs" style={muted}>
+            Incidentele produse de motor, confirmările și snapshot-urile lor sunt păstrate doar în acest
+            browser, în IndexedDB. Nimic nu se încarcă în rețea; după o reîncărcare, incidentele și
+            dovada lor revin din acest tab.
+          </p>
+
+          <dl className="grid gap-3 text-xs sm:grid-cols-2">
+            <div className="space-y-0.5">
+              <dt className="text-[10px] font-bold uppercase tracking-wider" style={muted}>
+                Stocare
+              </dt>
+              <dd
+                className={`font-semibold ${
+                  localEvidence.supported ? TONE_TEXT.ok : TONE_TEXT.warn
+                }`}
+              >
+                {localEvidence.supported
+                  ? 'IndexedDB disponibil'
+                  : 'IndexedDB indisponibil'}
+              </dd>
+              <p className="text-[11px] leading-snug" style={muted}>
+                {localEvidence.supported
+                  ? 'Incidentele supraviețuiesc reîncărcării paginii.'
+                  : 'Mod privat, stocare blocată sau alt tab ține baza deschisă: incidentele nu supraviețuiesc reîncărcării.'}
+              </p>
+            </div>
+
+            <div className="space-y-0.5">
+              <dt className="text-[10px] font-bold uppercase tracking-wider" style={muted}>
+                Incidente salvate
+              </dt>
+              <dd className="font-mono font-bold tabular-nums">
+                {localEvidence.hydrated
+                  ? `${localEvidence.stats.count} / ${localEvidence.retention.maxEvents}`
+                  : 'se citește…'}
+              </dd>
+              <p className="text-[11px] leading-snug" style={muted}>
+                {localEvidence.stats.evidenceCount}{' '}
+                {localEvidence.stats.evidenceCount === 1 ? 'snapshot' : 'snapshot-uri'} ·{' '}
+                {formatBytes(localEvidence.stats.bytes)} aproximativ
+              </p>
+            </div>
+
+            <div className="space-y-0.5">
+              <dt className="text-[10px] font-bold uppercase tracking-wider" style={muted}>
+                Confirmări salvate
+              </dt>
+              <dd className="font-mono font-bold tabular-nums">
+                {localEvidence.hydrated ? localEvidence.stats.ackCount : 'se citește…'}
+              </dd>
+              <p className="text-[11px] leading-snug" style={muted}>
+                Confirmările, marcarile ca fals pozitiv și redeschiderile se aplică din nou la pornire.
+              </p>
+            </div>
+
+            <div className="space-y-0.5">
+              <dt className="text-[10px] font-bold uppercase tracking-wider" style={muted}>
+                Retenție
+              </dt>
+              <dd className="font-semibold">
+                ultimele {localEvidence.retention.maxEvents} incidente, maximum{' '}
+                {localEvidence.retention.maxAgeDays} zile
+              </dd>
+              <p className="text-[11px] leading-snug" style={muted}>
+                Ce depășește regula se șterge automat, împreună cu snapshot-ul și confirmarea lui;
+                URL-urile vechi sunt revocate, ca tabul să nu crească nelimitat.
+              </p>
+            </div>
+          </dl>
+
+          <div className="border-t pt-3" style={{ borderColor: themeStyles.panelBorder }}>
+            {confirmingClear ? (
+              <div role="group" aria-label="Confirmare ștergere date locale" className="space-y-2">
+                <p role="alert" className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                  Ștergi {localEvidence.stats.count}{' '}
+                  {localEvidence.stats.count === 1 ? 'incident salvat' : 'incidente salvate'} și
+                  snapshot-urile lor? Fixture-urile demo rămân.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={removeLocalData}
+                    disabled={clearing}
+                    className="rounded-lg border border-[#D73833]/50 bg-[#D73833]/15 px-3 py-1.5 text-xs font-bold text-[#D73833] transition-colors hover:bg-[#D73833]/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFEB33] disabled:opacity-60"
+                  >
+                    <Trash2 size={12} aria-hidden="true" className="mr-1 inline" />
+                    {clearing ? 'Se șterge…' : 'Da, șterge'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingClear(false)}
+                    disabled={clearing}
+                    className="rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFEB33] disabled:opacity-60"
+                    style={{ borderColor: themeStyles.panelBorder, color: themeStyles.text }}
+                  >
+                    Anulează
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmingClear(true)}
+                className="rounded-lg border border-[#D73833]/50 bg-[#D73833]/15 px-3 py-1.5 text-xs font-bold text-[#D73833] transition-colors hover:bg-[#D73833]/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFEB33]"
+              >
+                <Trash2 size={12} aria-hidden="true" className="mr-1 inline" />
+                Șterge datele locale
+              </button>
+            )}
+            <p className="mt-2 text-[11px] leading-snug" style={muted}>
+              Ștergerea golește IndexedDB și scoate din listă incidentele motorului; nu atinge
+              fixture-urile demo și nici configurarea zonelor.
+            </p>
+          </div>
         </section>
 
         <section aria-labelledby="audit-heading" style={surface} className="overflow-hidden rounded-xl border">

@@ -114,6 +114,9 @@ export const SecurityProvider = ({ children }) => {
     reopenEvent: incidents.reopenEvent,
     regenerateReport: incidents.regenerateReport,
     addEngineEvents: incidents.addEngineEvents,
+    // Additive key: the Settings panel is the only consumer. The frozen keys above are
+    // untouched, so no existing screen changes.
+    localEvidence: incidents.localEvidence,
   };
   const zoneKeys = {
     zones: zoneStore.zones,
