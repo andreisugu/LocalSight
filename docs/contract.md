@@ -1,5 +1,9 @@
 # Contractul dintre module
 
+> **Document istoric — SafeSight (backend + edge).** Descrie contractul dintre procesul Python
+> de edge și API-ul FastAPI, nu motorul din browser; doar forma plicului de eveniment se
+> păstrează în port. Direcția actuală: [browser-engine.md](browser-engine.md).
+
 Versiunea 2.2 · 1 noiembrie 2026. FOD scos din scope. Produs: **SafeSight**. Aliniat la briefingurile Ultra A–D. Responsabil: Max (backend). Orice schimbare se face prin pull request aprobat de cel afectat.
 
 Față de 2.1, aditiv: `POST /edge/heartbeat`, `GET /events?from&to`, câmpurile `coverage` / `total_events` / `false_positives` din raportul de tură și semantica lui `notified_at` (livrare cu retry). Nimic nu s-a șters sau redenumit.

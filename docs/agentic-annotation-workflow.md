@@ -1,5 +1,9 @@
 # Cum au fost făcute adnotările
 
+> **Document istoric — SafeSight (date de antrenare).** Descrie cum s-au produs etichetele YOLO
+> pentru demo-ul cu backend, nu motorul din browser. Etichetele rămân în `data/annotations/`;
+> direcția actuală: [browser-engine.md](browser-engine.md).
+
 Scop: 2 etichete YOLO pentru cadrele PPE din `data/reference_frames/`. Nu este un pipeline de producție; este un prim pas **local, semi-automat, cu verificare vizuală**. Etichetele au fost verificate de Dalina și validate vizual de Andrei pe 31 octombrie 2026. Setul rămâne mic, pentru demo/experiment, nu pentru antrenare de producție.
 
 ## Mediu
