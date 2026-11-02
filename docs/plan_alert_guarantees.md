@@ -1,8 +1,9 @@
 # Plan — Alertă garantată și Raport de tură corect
 
-> **Document istoric — SafeSight (backend).** Planul livrat pentru outbox/retry, watchdog de
-> cameră și raport de tură într-un backend cu Slack; nu se aplică motorului din browser.
-> Direcția actuală: [browser-engine.md](browser-engine.md).
+> **Material istoric — nu se mai rulează.** Document istoric SafeSight (backend): planul
+> livrat pentru outbox/retry, watchdog de cameră și raport de tură într-un backend cu Slack;
+> nu se aplică motorului din browser. Direcția actuală:
+> [browser-engine.md](browser-engine.md).
 
 Status: **aprobat** (2026-11-01). Livrate: PR 1 (outbox, #94), PR 4.1–4.4 (numărare corectă, ore complete, sumar persistat, acoperire) și PR 2 (watchdog de cameră) în PR-ul curent.
 Rămân: scara de escaladare cu mai multe trepte (C) și drill-down-ul din raport în listă.

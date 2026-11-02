@@ -1,15 +1,14 @@
 # demo/ — scenariu și înregistrare de rezervă
 
 **Demo-ul curent:** [`run_sheet_browser.md`](run_sheet_browser.md) — 90 de secunde pe
-build-ul static, tot pipeline-ul în tab.
+build-ul static, tot pipeline-ul în tab. Pornirea și preflight-ul sunt în
+[`RUNNING.md`](../RUNNING.md#pornire-rapidă).
 
-> **Material istoric — scenariul demo-ului SafeSight pe implementarea de referință.**
-> Descrie run-ul de hackathon (trei camere, Slack, ack, raport de tură) pe `ml/` +
-> `backend/`; rămâne aici ca record al ce s-a construit, nu ca demo al produsului.
-> **Comenzile nu mai există:** stack-ul Python (`run.sh`, `scripts/dev.py`, `ml/`,
-> `backend/`) a fost șters din acest fork. Demo-ul curent e showcase-ul static din
-> [`README.md`](../README.md), cu pașii din [`run_sheet_browser.md`](run_sheet_browser.md),
-> iar motorul din browser e descris în [`docs/browser-engine.md`](../docs/browser-engine.md).
+> **Material istoric — nu se mai rulează.** [`run_sheet.md`](run_sheet.md) și
+> [`scenario.md`](scenario.md) descriu demo-ul de hackathon SafeSight (trei camere, Slack,
+> ack, raport de tură) pe `ml/` + `backend/`. Comenzile lor (`./run.sh`, `scripts/dev.py`)
+> au fost șterse din acest fork; fișierele rămân ca record al ce s-a construit, nu ca demo
+> al produsului. Pentru direcția actuală: [`docs/browser-engine.md`](../docs/browser-engine.md).
 
 Responsabile: **Ariana** (scenariul și înregistrarea OBS) și **Dalina** (video-urile de test și recuzita).
 

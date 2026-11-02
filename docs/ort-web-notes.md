@@ -1,5 +1,10 @@
 # YOLO26n + YuNet în browser (onnxruntime-web) — ce să te aștepți
 
+> **Material istoric — nu se mai rulează.** Notă de cercetare scrisă înainte de port; nu
+> descrie starea livrată. Cifrele de browser erau ipoteze, iar concluzia „WASM rămâne
+> single-thread pe Pages” a fost rezolvată prin `coi-serviceworker.js`. Starea actuală:
+> [browser-engine.md](browser-engine.md) și [qa/perf-findings.md](qa/perf-findings.md).
+
 Notă de cercetare. **Nu conține măsurători făcute de noi în browser** — tot ce e cifră „de rulare" aici e fie citat din `docs/performance.md` (măsurat nativ), fie marcat explicit ca **ipoteză**. Fiecare afirmație despre suportul din browsere are link.
 
 Scopul: să nu descoperim pe scenă că WebGPU nu e pornit, că WASM-ul merge pe un fir sau că runtime-ul cântărește de trei ori cât modelele.

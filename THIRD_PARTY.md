@@ -4,8 +4,8 @@ An audit of what this fork actually depends on, written for someone who intends 
 **sell** or **host** LocalSight (formerly SafeSight). It answers one question per line: *may I
 ship this, and what does it cost me?*
 
-Audit date: **2026-11-02** · branch `prep/reference-removal` · not legal advice — read the two
-sections marked **copyleft** with a lawyer before you sign a customer contract.
+Audit date: **2026-11-02** · browser-only fork, as merged into `main` · not legal advice —
+read the two sections marked **copyleft** with a lawyer before you sign a customer contract.
 
 > **Scope change.** This fork ships one artefact: the static build in `frontend/`. The
 > SafeSight reference stack (`backend/`, `ml/`, `automation/`, `docker-compose.yml`) was
@@ -60,8 +60,6 @@ needs a notice, an EULA check or a legal read, but does not force you to open-so
 | YuNet `yunet.onnx` | 2023mar | MIT (© 2020 Shiqi Yu) | OK — include the MIT notice when you redistribute the `.onnx` |
 | YOLO26n weights (`yolo26n.onnx`) | 26n | AGPL-3.0 | **copyleft** — see the AGPL section |
 | **Assets** | | | |
-| `data/videos/*.mp4` (6 demo clips) | — | unknown — **not stated anywhere** | **requires action** — unresolved before any public or commercial release |
-| `data/reference_frames/*.jpeg` (2 frames) | — | unknown | **requires action** — same provenance gap |
 | `docs/assets/*.png` (3 UI screenshots) | — | project-produced | OK — re-check that no unblurred face or third-party footage is visible |
 | `frontend/public/media/*.mp4` (3 web cuts) | — | derived from the clips above | **requires action** — same unresolved question as their sources |
 | `frontend/public/media/stills/apron-stand.jpg` | — | Unsplash License | OK — no attribution required; credit Unsplash in the demo |
@@ -74,6 +72,16 @@ needs a notice, an EULA check or a legal read, but does not force you to open-so
 The three `zone-*.jpg` files are re-encoded frames of the committed web cuts, used by
 the zone editor as reference backgrounds (`frontend/src/data/media.js`). They are not
 separate licensed assets: fixing the clip provenance above fixes them too.
+
+### Source material not in git
+
+These files are referenced by the project but are not tracked, so they are not part of the
+shipped artifact:
+
+| Path | License | Impact |
+|---|---|---|
+| `data/videos/*.mp4` (6 demo clips, in the shared Drive) | unknown — **not stated anywhere** | **requires action** — unresolved before any public or commercial release |
+| `data/reference_frames/*.jpeg` (2 frames, in the shared Drive) | unknown | **requires action** — same provenance gap |
 
 The static build ships `frontend/public/NOTICE` as `dist/NOTICE`, linked from the
 sidebar footer. It carries the Ultralytics AGPL-3.0 notice, the YuNet MIT notice and a
@@ -207,9 +215,8 @@ folder.
 
 ## Ambiguities we did not paper over
 
-- `README.md` badges say React 19, while `frontend/package.json` and the lockfile resolve
-  React 18.3.1. A version-accuracy problem, not a licence problem — but the audit table
-  follows the lockfile.
+- The audit table follows the versions resolved by `frontend/package-lock.json`, not the
+  ranges in `package.json` or prose elsewhere.
 - `caniuse-lite` is CC-BY-4.0 and is a build-time dependency: it does not end up in `dist/`,
   but its attribution travels with the lockfile and any `node_modules` you redistribute.
 - The removed Python appendix (union of `backend/uv.lock` and `ml/uv.lock`) is intentionally
