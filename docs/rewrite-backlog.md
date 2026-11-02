@@ -102,9 +102,9 @@ tracker, vest, blur, report, webgpu, decode), `LiveEngineCard`, `SafeImage`, `Er
 ## Rezultat final (2026-11-02)
 
 ```text
-frontend 22 364 linii de cod
-  tu       21 693 (97,0%)
-  colegi      671 (3,0%)
+frontend 38 191 linii de cod
+  tu       37 656 (98,6%)
+  colegi      535 (1,4%)
   logică moștenită: 0
 ```
 
