@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Video,
   AlertOctagon,
@@ -11,12 +11,35 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
+import { USE_MOCK } from '../../services/api';
 
 function formatAge(minutes) {
   if (minutes === null) return '';
   if (minutes < 1) return 'acum';
   if (minutes < 60) return `${minutes}m`;
   return `${Math.floor(minutes / 60)}h`;
+}
+
+// Sub 640px (Tailwind `sm`) meniul de 240px ar lăsa ~135px de conținut pe un telefon
+// de 375px, deci acolo pornește colapsat și se deschide peste conținut (overlay).
+const PHONE_SIDEBAR_QUERY = '(max-width: 639px)';
+// O preferință scrisă explicit de utilizator are prioritate față de viewport; noi nu o
+// scriem niciodată, ca o redimensionare să nu rămână blocată într-o alegere veche.
+const SIDEBAR_PREFERENCE_KEY = 'localsight.sidebarCollapsed';
+
+function storedSidebarPreference() {
+  try {
+    const value = localStorage.getItem(SIDEBAR_PREFERENCE_KEY);
+    if (value === 'collapsed') return true;
+    if (value === 'expanded') return false;
+  } catch {
+    // Fără storage: decidem după viewport.
+  }
+  return null;
+}
+
+function isPhoneViewport() {
+  return window.matchMedia(PHONE_SIDEBAR_QUERY).matches;
 }
 
 /**
@@ -105,6 +128,29 @@ export default function Sidebar() {
     };
   }, [events]);
 
+  // Starea pe care am impus-o noi din viewport: dacă utilizatorul apasă butonul de
+  // colaps, starea diferă de ea și alegerea lui nu mai e suprascrisă.
+  const autoValueRef = useRef(null);
+
+  useEffect(() => {
+    const stored = storedSidebarPreference();
+    if (stored !== null) {
+      autoValueRef.current = stored;
+      setIsSidebarCollapsed(stored);
+      return undefined;
+    }
+    const query = window.matchMedia(PHONE_SIDEBAR_QUERY);
+    const sync = () => {
+      if (autoValueRef.current !== null && isSidebarCollapsed !== autoValueRef.current) return;
+      const next = query.matches;
+      autoValueRef.current = next;
+      setIsSidebarCollapsed(next);
+    };
+    sync();
+    query.addEventListener('change', sync);
+    return () => query.removeEventListener('change', sync);
+  }, [isSidebarCollapsed, setIsSidebarCollapsed]);
+
   // Ecranele principale ale aplicației LocalSight
   const menuItems = [
     {
@@ -142,21 +188,35 @@ export default function Sidebar() {
     },
     {
       id: 'settings',
-      label: 'Edge & Audit',
-      subtitle: 'Stare sistem & jurnal',
+      // Fără cutie „edge": în build-ul static totul rulează în tab.
+      label: 'Sistem & Audit',
+      subtitle: USE_MOCK ? 'Stare locală & jurnal demo' : 'Stare sistem & jurnal',
       icon: Settings
     }
   ];
 
   return (
-    <aside
-      style={{
-        backgroundColor: isDarkMode ? (themeStyles.navBg || '#181818') : '#FFFFFF',
-        borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#E5E7EB',
-        width: isSidebarCollapsed ? '0px' : '15rem'
-      }}
-      className={`no-print flex flex-col justify-between border-r transition-all duration-300 z-20 select-none shadow-md shrink-0 h-full overflow-hidden ${isSidebarCollapsed ? "border-r-0" : ""}`}
-    >
+    <>
+      {/* Pe telefon meniul se deschide peste conținut: un fundal care închide la click,
+          ca să nu fie nevoie să găsești butonul de colaps. */}
+      {!isSidebarCollapsed && (
+        <div
+          data-testid="sidebar-backdrop"
+          aria-hidden="true"
+          onClick={() => setIsSidebarCollapsed(true)}
+          className="no-print sm:hidden fixed inset-x-0 top-16 bottom-0 z-30 bg-black/60"
+        />
+      )}
+      <aside
+        style={{
+          backgroundColor: isDarkMode ? (themeStyles.navBg || '#181818') : '#FFFFFF',
+          borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#E5E7EB',
+          width: isSidebarCollapsed ? '0px' : '15rem'
+        }}
+        className={`no-print flex flex-col justify-between border-r transition-all duration-300 z-20 select-none shadow-md shrink-0 h-full overflow-hidden max-sm:fixed max-sm:top-16 max-sm:bottom-0 max-sm:left-0 max-sm:h-auto max-sm:z-40 ${
+          isSidebarCollapsed ? 'border-r-0' : ''
+        }`}
+      >
       {/* Zona de Sus: Meniu Principal & Lista Categorisită de Feed-uri */}
       <div className="flex-1 py-3 px-2 space-y-4 overflow-y-auto overflow-x-hidden">
         {/* Rubrici Principale */}
@@ -174,7 +234,11 @@ export default function Sidebar() {
             return (
               <button
                 key={item.id}
-                onClick={() => setCurrentView(item.id)}
+                onClick={() => {
+                  setCurrentView(item.id);
+                  // Pe telefon meniul acoperă ecranul: se închide după alegere.
+                  if (isPhoneViewport()) setIsSidebarCollapsed(true);
+                }}
                 style={{
                   backgroundColor: isActive
                     ? (isDarkMode ? '#D73833' : '#7EDEED')
@@ -232,21 +296,46 @@ export default function Sidebar() {
         className="p-2.5 border-t space-y-2 shrink-0 bg-slate-50/90 dark:bg-black/15"
       >
         {!isSidebarCollapsed && (
-          <div className="p-2.5 rounded-xl bg-white dark:bg-black/35 border-2 border-[#7EDEED] dark:border-white/10 text-[11px] space-y-1.5 shadow-sm">
-            <div className="flex items-center justify-between font-black text-[#1F1F1F] dark:text-[#F5F5F5]">
-              <span className="flex items-center gap-1.5 tracking-tight">
-                <ShieldCheck size={16} className="text-amber-500 dark:text-[#FFEB33]" />
-                <span className="font-black uppercase tracking-tight text-[#1F1F1F] dark:text-[#F5F5F5]">Edge AI</span>
-              </span>
-              <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm ${edgeColor}`}>{edgeLabel}</span>
+          USE_MOCK ? (
+            // Build-ul static nu are backend, edge sau ByteTrack. Spunem exact ce rulează
+            // în tab, ca starea din footer să nu pară o conexiune reală.
+            <div className="p-2.5 rounded-xl bg-white dark:bg-black/35 border-2 border-[#7EDEED] dark:border-white/10 text-[11px] space-y-1.5 shadow-sm">
+              <div className="flex items-center justify-between font-black text-[#1F1F1F] dark:text-[#F5F5F5]">
+                <span className="flex items-center gap-1.5 tracking-tight">
+                  <ShieldCheck size={16} className="text-amber-500 dark:text-[#FFEB33]" />
+                  <span className="font-black uppercase tracking-tight text-[#1F1F1F] dark:text-[#F5F5F5]">Motor local</span>
+                </span>
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-200">
+                  STATIC
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-700 dark:text-slate-400 leading-tight font-medium">
+                YOLO26n + tracker local (IoU + distanță centru)
+              </p>
+              <p className="text-[10px] text-slate-700 dark:text-slate-400 leading-tight font-medium">
+                Blur YuNet în tab · fără backend sau edge
+              </p>
+              <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-tight font-mono">
+                Capturile rămân în memorie, nu se încarcă
+              </p>
             </div>
-            <p className="text-[10px] text-slate-700 dark:text-slate-400 leading-tight font-medium">
-              {health?.db ? 'Backend online' : 'Backend offline'} · {edgeSeen == null ? 'edge fără date' : `edge acum ${Math.round(edgeSeen)}s`}
-            </p>
-            <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-tight font-mono">
-              YOLO26 + ByteTrack • snapshot automat
-            </p>
-          </div>
+          ) : (
+            <div className="p-2.5 rounded-xl bg-white dark:bg-black/35 border-2 border-[#7EDEED] dark:border-white/10 text-[11px] space-y-1.5 shadow-sm">
+              <div className="flex items-center justify-between font-black text-[#1F1F1F] dark:text-[#F5F5F5]">
+                <span className="flex items-center gap-1.5 tracking-tight">
+                  <ShieldCheck size={16} className="text-amber-500 dark:text-[#FFEB33]" />
+                  <span className="font-black uppercase tracking-tight text-[#1F1F1F] dark:text-[#F5F5F5]">Edge AI</span>
+                </span>
+                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm ${edgeColor}`}>{edgeLabel}</span>
+              </div>
+              <p className="text-[10px] text-slate-700 dark:text-slate-400 leading-tight font-medium">
+                {health?.db ? 'Backend online' : 'Backend offline'} · {edgeSeen == null ? 'edge fără date' : `edge acum ${Math.round(edgeSeen)}s`}
+              </p>
+              <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-tight font-mono">
+                YOLO26 + ByteTrack • snapshot automat
+              </p>
+            </div>
+          )
         )}
 
         <button
@@ -265,5 +354,6 @@ export default function Sidebar() {
         </button>
       </div>
     </aside>
+    </>
   );
 }

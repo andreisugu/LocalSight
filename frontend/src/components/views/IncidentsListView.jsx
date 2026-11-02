@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
-import { AlertOctagon, Search, ImageOff, ChevronRight } from 'lucide-react';
+import { AlertOctagon, Search, ChevronRight } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { STATUS_TOKENS } from '../../constants/theme';
 import { TYPE_LABELS } from '../../services/api';
+import SafeImage from '../common/SafeImage';
 
 // Status groups as an operator thinks about them; the values are the contract statuses.
 const STATUS_FILTERS = [
@@ -140,11 +141,11 @@ export default function IncidentsListView() {
                   className="w-full flex items-center gap-3 p-3 text-left hover:bg-white/5 transition-colors"
                 >
                   <div className="w-24 h-14 shrink-0 rounded-md overflow-hidden bg-black/40 flex items-center justify-center">
-                    {e.snapshot_url ? (
-                      <img src={e.snapshot_url} alt="" loading="lazy" className="w-full h-full object-cover" />
-                    ) : (
-                      <ImageOff size={18} className="text-slate-500" />
-                    )}
+                    <SafeImage
+                      src={e.snapshot_url}
+                      className="w-full h-full object-cover text-[8px]"
+                      iconSize={14}
+                    />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">

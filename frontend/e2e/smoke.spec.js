@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
 // a test that only looks at the first paint would miss errors thrown by them.
 const SETTLE_MS = 500;
 
-const MODULES = ['Live', 'Incidente', 'Configurare Zone', 'Rapoarte Tură', 'Edge & Audit'];
+const MODULES = ['Live', 'Incidente', 'Configurare Zone', 'Rapoarte Tură', 'Sistem & Audit'];
 
 /**
  * Collects everything the page reports as a problem. Only real errors count:

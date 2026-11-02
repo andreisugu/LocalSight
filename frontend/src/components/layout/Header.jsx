@@ -8,6 +8,14 @@ import { USE_MOCK } from '../../services/api';
 // repo subpath (GitHub Pages); same pattern as src/engine/detectors.js.
 const LOGO_SRC = `${import.meta.env.BASE_URL}logo.svg`;
 
+// Un nume venit din localStorage poate avea orice lungime (F7: 10 000 de caractere
+// spărgeau antetul). Îl limităm la afișare; sursa rămâne neatinsă.
+const MAX_OPERATOR_NAME_CHARS = 80;
+
+function displayOperatorName(name) {
+  return String(name || '').replace(/\s+/g, ' ').trim().slice(0, MAX_OPERATOR_NAME_CHARS);
+}
+
 export default function Header() {
   const { isDarkMode, toggleTheme, themeStyles } = useTheme();
   const {
@@ -29,6 +37,7 @@ export default function Header() {
   const [showDemoMenu, setShowDemoMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [operatorDraft, setOperatorDraft] = useState(operatorName);
+  const shownOperatorName = displayOperatorName(operatorName);
 
   useEffect(() => {
     setOperatorDraft(operatorName);
@@ -45,10 +54,10 @@ export default function Header() {
         borderColor: themeStyles.navBorder || (isDarkMode ? 'rgba(255, 255, 255, 0.10)' : '#E5E7EB'),
         color: isDarkMode ? '#F5F5F5' : '#1F1F1F'
       }}
-      className="no-print h-16 px-4 md:px-6 flex items-center justify-between border-b shadow-md z-30 sticky top-0 shrink-0 select-none transition-colors"
+      className="no-print h-16 px-2 sm:px-4 md:px-6 flex items-center justify-between gap-2 border-b shadow-md z-30 sticky top-0 shrink-0 select-none transition-colors"
     >
       {/* 1. Brand & Titlu LocalSight */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
         <button
           onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center shrink-0"
@@ -60,13 +69,13 @@ export default function Header() {
         <img
           src={LOGO_SRC}
           alt="LocalSight"
-          className="w-10 h-10 rounded-full object-cover shadow-md border border-white/20 shrink-0"
+          className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover shadow-md border border-white/20 shrink-0"
         />
-        <div>
-          <h1 className="font-black text-xl tracking-tight leading-none uppercase drop-shadow-sm">
+        <div className="min-w-0">
+          <h1 className="font-black text-base sm:text-xl tracking-tight leading-none uppercase drop-shadow-sm truncate">
             LocalSight
           </h1>
-          <p className="text-xs font-medium text-slate-400 tracking-wide mt-0.5">
+          <p className="hidden sm:block text-xs font-medium text-slate-400 tracking-wide mt-0.5 truncate">
             Management condiții siguranță
           </p>
         </div>
@@ -113,7 +122,7 @@ export default function Header() {
       </div>
 
       {/* 4. Controale Dreapta: Demo Triggers, Dark/Light Mode, Selector User */}
-      <div className="flex items-center gap-2 md:gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 shrink-0">
         {/* Trigger-ele demo sunt doar pentru mock; în real se folosește backend/scripts/demo_event.py */}
         {USE_MOCK && (
         <div className="relative">
@@ -122,7 +131,7 @@ export default function Header() {
               setShowDemoMenu(!showDemoMenu);
               setShowUserMenu(false);
             }}
-            className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+            className="px-2 sm:px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
             title="Generează evenimente de test (doar în modul mock)"
           >
             <Zap size={14} className="text-[#FFEB33] fill-[#FFEB33]" />
@@ -137,7 +146,7 @@ export default function Header() {
                 borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : '#E5E7EB',
                 color: isDarkMode ? '#F5F5F5' : '#1F1F1F'
               }}
-              className="absolute right-0 mt-2 w-64 rounded-xl border p-2 shadow-2xl space-y-1 text-xs z-50 font-sans"
+              className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-1rem)] rounded-xl border p-2 shadow-2xl space-y-1 text-xs z-50 font-sans"
             >
               <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b pb-1 mb-1">
                 Evenimente de test (mod mock)
@@ -206,24 +215,24 @@ export default function Header() {
         </button>
 
         {/* Selector Operator / Profil Activ */}
-        <div className="relative">
+        <div className="relative min-w-0">
           <button
             onClick={() => {
               setShowUserMenu(!showUserMenu);
               setShowDemoMenu(false);
             }}
-            className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 transition-all shadow-sm"
+            className="flex items-center gap-2 pl-1.5 sm:pl-2 pr-2 sm:pr-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 transition-all shadow-sm max-w-[calc(100vw-1rem)]"
             title="Schimbă operatorul activ"
           >
-            <div style={{ backgroundColor: isDarkMode ? '#D73833' : '#7EDEED', color: isDarkMode ? '#FFFFFF' : '#1F1F1F' }} className="w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center shadow-inner">
+            <div style={{ backgroundColor: isDarkMode ? '#D73833' : '#7EDEED', color: isDarkMode ? '#FFFFFF' : '#1F1F1F' }} className="w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center shadow-inner shrink-0">
               {operatorName?.[0]?.toUpperCase() || 'O'}
             </div>
-            <div className="hidden lg:block text-left text-xs leading-tight">
-              <p className="font-bold flex items-center gap-1">
-                <span>{operatorName || 'Operator'}</span>
-                <ChevronDown size={11} className="opacity-70" />
+            <div className="hidden lg:block text-left text-xs leading-tight min-w-0">
+              <p className="font-bold flex items-center gap-1 min-w-0">
+                <span className="truncate max-w-[10rem]" title={shownOperatorName}>{shownOperatorName || 'Operator'}</span>
+                <ChevronDown size={11} className="opacity-70 shrink-0" />
               </p>
-              <p className="text-[10px] text-slate-400 font-medium">
+              <p className="text-[10px] text-slate-400 font-medium truncate">
                 {activeOperator ? activeOperator.badge : 'OPERATOR'}
               </p>
             </div>
@@ -236,7 +245,7 @@ export default function Header() {
                 borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : '#E5E7EB',
                 color: isDarkMode ? '#F5F5F5' : '#1F1F1F'
               }}
-              className="absolute right-0 mt-2 w-64 rounded-xl border p-2 shadow-2xl space-y-1 text-xs z-50 font-sans"
+              className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-1rem)] rounded-xl border p-2 shadow-2xl space-y-1 text-xs z-50 font-sans"
             >
               <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b pb-1 mb-1">
                 Rol

@@ -126,6 +126,17 @@ export default function ZoneEditorView() {
     setReferenceAspect(null);
   }, []);
 
+  // „Zonă nouă" curată: panoul nu păstrează ID-ul și numele unei zone care nu mai
+  // există (F12 — după ștergerea ultimei zone a camerei).
+  const resetDraft = useCallback(() => {
+    setZoneId('');
+    setPoints([]);
+    setClosed(false);
+    setHistory({ past: [], future: [] });
+    setSelectedIndex(null);
+    setDraft({ ...EMPTY_DRAFT });
+  }, []);
+
   // Se reîncarcă doar când se schimbă selecția, nu la fiecare actualizare a store-ului:
   // altfel o salvare (sau un eveniment) ar arunca editarea în curs.
   useEffect(() => {
@@ -138,13 +149,9 @@ export default function ZoneEditorView() {
     if (cameraZones.length > 0) {
       const preferred = cameraZones.find((item) => item.zone_id === 'engine-left') || cameraZones[0];
       setZoneId(preferred.zone_id);
-    } else if (cameraZones.length === 0) {
-      setZoneId('');
-      setPoints([]);
-      setDraft(EMPTY_DRAFT);
-      setClosed(false);
-      setHistory({ past: [], future: [] });
+      return;
     }
+    resetDraft();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCameraId, zoneId, isNew, cameraZones.length]);
 
@@ -409,11 +416,16 @@ export default function ZoneEditorView() {
   const handleDeleteZone = async () => {
     if (!zoneId) return;
     if (!window.confirm(`Ștergi zona „${zoneId}"? Acțiunea nu poate fi anulată.`)) return;
-    await deleteZone(zoneId);
+    // După ștergere nu mai există ce edita: fie trecem pe următoarea zonă, fie golim
+    // complet formularul — nu păstrăm ID-ul și numele zonei șterse (F12).
     const remaining = cameraZones.filter((item) => item.zone_id !== zoneId);
-    setZoneId(remaining[0]?.zone_id || '');
-    setPoints([]);
-    setClosed(false);
+    await deleteZone(zoneId);
+    setIsNew(false);
+    if (remaining.length > 0) {
+      setZoneId(remaining[0].zone_id);
+      return;
+    }
+    resetDraft();
   };
 
   const handleSave = async () => {
@@ -542,8 +554,8 @@ export default function ZoneEditorView() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        <div className="lg:col-span-3 space-y-3">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <div className="xl:col-span-2 space-y-3">
           <div className="flex items-center gap-2 text-xs flex-wrap">
             <label htmlFor="zone-camera" className="font-bold opacity-75">
               Camera:
@@ -886,9 +898,11 @@ export default function ZoneEditorView() {
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            {/* Două coloane doar când panoul are loc; altfel „Severitate" nu încape în
+                coloana ei și select-ul arată „CRIT" (F4). */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div>
-                <label className="font-bold block mb-1">Severitate</label>
+                <label className="font-bold block mb-1 whitespace-nowrap">Severitate</label>
                 <select
                   value={draft.severity}
                   onChange={(event) => setDraft({ ...draft, severity: event.target.value })}
@@ -899,7 +913,7 @@ export default function ZoneEditorView() {
                 </select>
               </div>
               <div>
-                <label className="font-bold block mb-1">Debounce (s)</label>
+                <label className="font-bold block mb-1 whitespace-nowrap">Debounce (s)</label>
                 <input
                   type="number"
                   step="0.1"
