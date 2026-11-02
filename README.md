@@ -46,9 +46,10 @@ COOP/COEP (GitHub Pages nu poate trimite antete custom), fără să cacheze nimi
 Runtime. Chrome/Edge folosesc WebGPU când există adapter; cifra depinde de GPU. Sub 2 fps,
 panoul din Live avertizează după 10 s de rulare.
 
-Teste: 406 Node (`node --test`, motor + utilitare + raport), 5 E2E Playwright la baza
+Teste: 422 Node (`node --test`, motor, utilitare, date, servicii, componente și raport), 5 E2E Playwright la baza
 `/` și 5 E2E pe forma de deploy (`/LocalSight/`, COI + motor pornit); CI rulează unit,
-build-ul de frontend, ambele suite e2e și o gardă pentru subpath-ul de Pages.
+build-ul de frontend, ambele suite e2e și o gardă pentru subpath-ul de Pages. Comenzile
+canonice sunt în [`RUNNING.md`](RUNNING.md#teste).
 
 ## Pagini
 
@@ -77,23 +78,9 @@ Toate rutele sunt client-side, definite în `VIEW_PATHS` din
 
 ## Pornire rapidă
 
-Showcase-ul static, local (Node 20+):
-
-```bash
-cd frontend
-npm ci
-VITE_USE_MOCK=true npm run build
-npm run preview
-```
-
-Se deschide la <http://localhost:4173>, iar modelele sunt servite din `dist/models/`.
-`VITE_USE_MOCK=true` nu are nevoie de niciun server: datele vin din fixtures, iar motorul
-din browser rulează pe clipurile demo sau pe camera locală. Pentru dezvoltare, în același
-folder:
-
-```bash
-npm run dev        # Vite pe :5173
-```
+Pornirea canonică — dezvoltare, build static, teste și deploy — stă în
+[`RUNNING.md`](RUNNING.md#pornire-rapidă); nu duplic comenzile aici. Ai nevoie de Node 20+;
+build-ul mock nu are nevoie de niciun server, iar modelele sunt servite din `dist/models/`.
 
 Regulile de lucru pentru autori sunt în [`AGENTS.md`](AGENTS.md); ghidul de contribuție, în
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
@@ -126,14 +113,15 @@ cum se obțin firele WASM pe un host fără antete custom, sunt în
 | Folder | Rol |
 |---|---|
 | [`frontend/`](frontend/) | produsul: UI React + Vite, motorul din browser, modelele statice, build-ul de Pages |
-| [`docs/`](docs/) | contract, nota motorului de browser, media, documente istorice marcate |
+| [`docs/`](docs/) | contract, nota motorului de browser, media, rapoarte QA/arhitectură/ops și documente istorice marcate |
 | [`scripts/`](scripts/) | pregătirea clipurilor și raportul de proveniență |
 | [`data/`](data/) | README-urile de proveniență ale clipurilor și adnotărilor; fișierele mari nu sunt în git |
 | [`demo/`](demo/) | scenariul demo-ului curent și run sheet-urile istorice |
 
-Modelele se regenerează cu `python3 frontend/scripts/prepare-models.py --yolo <export.onnx>
---yunet <yunet.onnx>` (sursele au fost în stack-ul Python șters; vezi istoricul git);
-clipurile web cu [`scripts/prepare-demo-media.sh`](scripts/prepare-demo-media.sh), descris în
+Modelele se regenerează cu [`frontend/scripts/prepare-models.py`](frontend/scripts/prepare-models.py)
+(sursele au fost în stack-ul Python șters; vezi istoricul git), iar clipurile web cu
+[`scripts/prepare-demo-media.sh`](scripts/prepare-demo-media.sh). Comenzile exacte și
+avertismentele sunt în [`RUNNING.md`](RUNNING.md#modele-și-media) și
 [`docs/media.md`](docs/media.md).
 
 ## Ce e real, ce e demo

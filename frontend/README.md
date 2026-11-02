@@ -8,24 +8,13 @@ Brief intern: `safesight-docs/03_C_frontend.typ` (repo privat). Contractul canon
 Produsul e **aplicația statică din acest folder**: UI React + motorul de inferență în tab.
 Nu există backend de pornit; stack-ul Python de referință a fost șters din fork.
 
-## Pornire
+## Pornire, teste și build
 
-```bash
-cd frontend
-npm ci
-npm run dev        # http://localhost:5173
-```
-
-Pentru orice demo, build-ul static folosește datele mock:
-
-```bash
-VITE_USE_MOCK=true npm run build
-npm run preview    # http://localhost:4173
-```
-
-`.env` este opțional. `VITE_USE_MOCK=true` înlocuiește apelurile de API cu fixturile;
-`VITE_API_URL` are sens doar dacă rulezi un API propriu în paralel (nu există unul în acest
-repo). Șablonul e `frontend/.env.example`.
+Comenzile canonice sunt în [`../RUNNING.md`](../RUNNING.md#pornire-rapidă), iar testele în
+[`../RUNNING.md`](../RUNNING.md#teste). Nu le copia aici. `.env` este opțional:
+`VITE_USE_MOCK=true` înlocuiește apelurile de API cu fixturile, iar `VITE_API_URL` are sens
+doar dacă rulezi un API propriu în paralel (nu există unul în acest repo). Șablonul e
+`frontend/.env.example`.
 
 ## Ce e conectat
 
@@ -45,11 +34,3 @@ fixture-uri, nu trafic real.
 
 Entry point-ul este `src/main.jsx`. Comentariile care citează `ml/` sau `backend/` arată din
 ce fișier s-a portat logica; acele fișiere sunt doar în istoricul git.
-
-## Verificare
-
-```bash
-node --test src/engine/*.test.mjs src/utils/*.test.mjs src/constants/*.test.mjs
-npm run test:e2e
-npm run build
-```

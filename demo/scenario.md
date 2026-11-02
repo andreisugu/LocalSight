@@ -1,9 +1,10 @@
 # Scenariu demo — SafeSight (3 minute)
 
-> **Material istoric — scenariul demo-ului SafeSight.** Planul de prezentare pentru
-> implementarea de referință (backend Python, Slack, ack, raport), păstrat ca record. Nu e
-> scenariul produsului: demo-ul curent e showcase-ul static din [`README.md`](../README.md),
-> iar direcția e [`docs/browser-engine.md`](../docs/browser-engine.md).
+> **Material istoric — nu se mai rulează.** Scenariul demo-ului SafeSight: planul de
+> prezentare pentru implementarea de referință (backend Python, Slack, ack, raport), păstrat
+> ca record. Nu e scenariul produsului: demo-ul curent e showcase-ul static din
+> [`README.md`](../README.md), iar direcția e
+> [`docs/browser-engine.md`](../docs/browser-engine.md).
 
 Responsabile: Ariana (prezentare + înregistrare OBS), Dalina (clipuri de test + recuzită).
 

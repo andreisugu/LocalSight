@@ -5,9 +5,12 @@ rulează în tab. Nu există backend, coadă, bază de date sau proces Python de
 Design-ul motorului e în [`docs/browser-engine.md`](docs/browser-engine.md); scenariul de
 prezentare, în [`demo/run_sheet_browser.md`](demo/run_sheet_browser.md).
 
-> **Notă istorică:** până la fork, `RUNNING.md` descria stack-ul Python de referință
-> (`./run.sh`, `scripts/dev.py`, `ml/`, `backend/`). Acele fișiere au fost șterse din acest
-> repo; instrucțiunile vechi rămân în istoricul git.
+**Acesta este documentul canonic pentru pornire, testare și deploy.** `README.md`,
+`CONTRIBUTING.md` și `frontend/README.md` trimit aici; comenzile nu se copiază în alt fișier.
+
+> **Notă istorică:** până la fork, `RUNNING.md` descria stack-ul Python de referință. Acele
+> fișiere au fost șterse din acest repo; instrucțiunile vechi rămân în istoricul git și în
+> documentele marcate `Material istoric — nu se mai rulează`.
 
 ## Cerințe
 
@@ -21,18 +24,17 @@ Python nu e necesar pentru produs. Singurele scripturi Python rămase sunt unelt
 întreținere: `scripts/provenance.py` (raportul de proveniență) și
 `frontend/scripts/prepare-models.py` (regenerarea modelelor ONNX).
 
-## Dezvoltare
+## Pornire rapidă
+
+Dezvoltare, cu reîncărcare la cald:
 
 ```bash
 cd frontend
-npm ci
+npm ci             # o dată, din package-lock.json
 npm run dev        # Vite pe http://localhost:5173
 ```
 
-Fără `VITE_USE_MOCK=true`, UI-ul folosește `src/services/api.js` și așteaptă un API la
-`VITE_API_URL`; în acest fork nu există unul, deci pentru orice demo pornește build-ul mock.
-
-## Build-ul static (ce se livrează)
+Build-ul static, exact ce se livrează:
 
 ```bash
 cd frontend
@@ -40,8 +42,36 @@ VITE_USE_MOCK=true npm run build
 npm run preview    # http://localhost:4173
 ```
 
-Build-ul pentru GitHub Pages, servit din subcale (exact ce face
-[`.github/workflows/pages.yml`](.github/workflows/pages.yml)):
+Fără `VITE_USE_MOCK=true`, UI-ul folosește `src/services/api.js` și așteaptă un API la
+`VITE_API_URL`; în acest fork nu există unul, deci pentru orice demo pornește build-ul mock.
+`VITE_USE_MOCK=true` înlocuiește apelurile de API cu fixturile, ca pagina să meargă fără
+niciun server.
+
+## Teste
+
+```bash
+cd frontend
+npm run test:unit       # node --test, 422 teste
+npm run test:e2e        # Playwright, 5 teste, baza `/`
+npx playwright test --config=playwright.pages.config.js   # 5 teste pe /LocalSight/, COI + motor
+```
+
+O dată, pentru Playwright: `npx playwright install chromium`.
+
+A doua suită construiește exact ca Pages (`VITE_USE_MOCK=true VITE_BASE=/LocalSight/`),
+servește `dist/` sub `/LocalSight/` cu fallback `404.html` și fără COOP/COEP, apoi verifică
+`crossOriginIsolated` după reload și pornește motorul pe clip (canvas, status `rulează`,
+fps > 0). CI rulează cinci joburi independente: unit, build, smoke e2e, Pages e2e și garda
+de subpath (`check-base.mjs`).
+
+## Deploy
+
+Deploy-ul e legat de CI, nu de `push`: [`.github/workflows/pages.yml`](.github/workflows/pages.yml)
+pornește pe `workflow_run` după `CI` pe `main` și construiește **doar** când
+`github.event.workflow_run.conclusion == 'success'`. Un CI roșu nu publică; un
+`workflow_dispatch` manual rămâne disponibil și folosește `github.sha`.
+
+Build-ul pentru GitHub Pages, servit din subcale (exact ce face workflow-ul):
 
 ```bash
 cd frontend
@@ -51,38 +81,15 @@ npm run preview    # http://localhost:4173/LocalSight/
 node scripts/check-base.mjs
 ```
 
-`VITE_USE_MOCK=true` înlocuiește apelurile de API cu fixturile, ca pagina să meargă fără
-niciun server. `VITE_BASE` scrie prefixul în `index.html` și în `BASE_URL`; fără el, căile
-absolute de assets dau 404 sub `/LocalSight/`. Copia `404.html` face ca `/zones` sau
-`/incidents/<id>` să încarce aplicația, nu un 404, pentru că Pages servește acel fișier pe
-orice rută necunoscută.
+`VITE_BASE` scrie prefixul în `index.html` și în `BASE_URL`; fără el, căile absolute de
+assets dau 404 sub `/LocalSight/`. Copia `404.html` face ca `/zones` sau `/incidents/<id>`
+să încarce aplicația, nu un 404, pentru că Pages servește acel fișier pe orice rută
+necunoscută. `VITE_BUILD_SHA` se compilează în bundle și apare în footer-ul sidebar-ului ca
+`build <sha>`; fără variabilă, un build local scrie `build dev`. Workflow-ul îl injectează
+din commitul pe care l-a testat CI, iar footer-ul linkează și `NOTICE` (notificările
+AGPL/MIT livrate în `dist/NOTICE`).
 
-`VITE_BUILD_SHA` se compilează în bundle și apare în footer-ul sidebar-ului ca
-`build <sha>`; fără variabilă, un build local scrie `build dev`. Workflow-ul îl
-injectează din commitul pe care l-a testat CI, iar footer-ul linkează și `NOTICE`
-(notificările AGPL/MIT livrate în `dist/NOTICE`).
-
-## Motorul din browser
-
-- În **Live**, comutatorul „Procesează în browser” pornește inferența pe clipul camerei
-  selectate sau pe camera locală (`getUserMedia`).
-- `/lab` rulează motorul pe un clip ales ori pe webcam și arată fps, persoane, fețe și
-  incidente.
-- `/bench` măsoară fps/p50/p95 pe provider și mărime de intrare, cu istoric în
-  `localStorage`.
-
-Pe Chrome/Edge se folosește WebGPU când există adapter; pe Firefox (intenționat) și pe
-browsere fără WebGPU se folosește WASM. Thread-urile vin din
-`frontend/public/coi-serviceworker.js`, care re-servește navigările cu COOP/COEP pentru că
-GitHub Pages nu poate trimite antete custom. Fără service worker (dev, browser care îl
-blochează) motorul cade pe un singur fir.
-
-## Verificarea build-ului publicat
-
-Deploy-ul e legat de CI, nu de `push`: [`.github/workflows/pages.yml`](.github/workflows/pages.yml)
-pornește pe `workflow_run` după `CI` pe `main` și construiește **doar** când
-`github.event.workflow_run.conclusion == 'success'`. Un CI roșu nu mai publică; un
-`workflow_dispatch` manual rămâne disponibil și folosește `github.sha`.
+### Verificarea build-ului publicat
 
 Înainte să arăți linkul:
 
@@ -93,6 +100,15 @@ pornește pe `workflow_run` după `CI` pe `main` și construiește **doar** cân
    „workflow success" înseamnă că commitul e live.
 3. `dist/NOTICE` există în artefact și linkul „Licențe" din footer îl deschide.
 4. `/`, `/404.html`, `/coi-serviceworker.js` și ambele `/models/*.onnx` răspund `200`.
+
+### Rollback
+
+Nu există un buton de „undeploy"; două căi, ambele de ~4 minute:
+
+- `gh run rerun <id>` pe ultimul run Pages verde — rescrie exact artefactul commitului bun;
+- `git revert <sha>` pe `main` și push — CI și Pages rulează din nou pe revert.
+
+Nu forța push și nu rescrie istoricul.
 
 **Risc rezidual, necontrolabil de aici:** GitHub Pages servește `index.html` cu
 `cache-control: max-age=600`, iar fiecare deploy șterge bundle-urile vechi. Un vizitator
@@ -106,19 +122,20 @@ Preflight pentru demo:
 - pornește motorul o dată, ca să preîncălzești WASM-ul de 28,7 MB și modelele;
 - confirmă `crossOriginIsolated === true` în console după primul reload automat.
 
-## Teste
+## Motorul din browser
 
-```bash
-cd frontend
-npm run test:unit       # node --test, 406 teste
-npm run test:e2e        # Playwright, 5 teste, baza `/`
-npx playwright test --config=playwright.pages.config.js   # 5 teste pe /LocalSight/, COI + motor
-```
+- În **Live**, comutatorul „Procesează în browser" pornește inferența pe clipul camerei
+  selectate sau pe camera locală (`getUserMedia`).
+- `/lab` rulează motorul pe un clip ales ori pe webcam și arată fps, persoane, fețe și
+  incidente.
+- `/bench` măsoară fps/p50/p95 pe provider și mărime de intrare, cu istoric în
+  `localStorage`.
 
-A doua suită construiește exact ca Pages (`VITE_USE_MOCK=true VITE_BASE=/LocalSight/`),
-servește `dist/` sub `/LocalSight/` cu fallback `404.html` și fără COOP/COEP, apoi verifică
-`crossOriginIsolated` după reload și pornește motorul pe clip (canvas, status `rulează`,
-fps > 0). O dată: `npx playwright install chromium`.
+Pe Chrome/Edge se folosește WebGPU când există adapter; pe Firefox (intenționat) și pe
+browsere fără WebGPU se folosește WASM. Thread-urile vin din
+`frontend/public/coi-serviceworker.js`, care re-servește navigările cu COOP/COEP pentru că
+GitHub Pages nu poate trimite antete custom. Fără service worker (dev, browser care îl
+blochează) motorul cade pe un singur fir.
 
 ## Modele și media
 

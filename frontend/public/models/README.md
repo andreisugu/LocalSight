@@ -10,7 +10,7 @@ argumente pentru cele două surse și pentru directorul de ieșire.
 
 | Fișier | Mărime | Rol | Input |
 | --- | --- | --- | --- |
-| `yolo26n.onnx` | 9 930 308 B (9,5 MB) | detectorul de persoane din zona Live | `[1, 3, 640, 640]` |
+| `yolo26n.onnx` | 9 930 308 B (9,93 MB / 9,47 MiB) | detectorul de persoane din zona Live | `[1, 3, 640, 640]` |
 | `yunet.onnx` | 232 598 B (0,2 MB) | garda de privacy: blur pe fețe înainte de orice afișare | `[1, 3, "height", "width"]` |
 
 SHA-256:
