@@ -1,5 +1,10 @@
 # Run sheet — SafeSight, 90 de secunde
 
+> **Material istoric — demo-ul SafeSight pe implementarea de referință.** Descrie run-ul de
+> hackathon (trei camere, Slack, ack, raport de tură) pe `ml/` + `backend/`; rămâne aici ca
+> record al ce s-a construit, nu ca demo al produsului. Demo-ul curent e showcase-ul static
+> din [`README.md`](../README.md), iar direcția e [`docs/browser-engine.md`](../docs/browser-engine.md).
+
 Scop: mentorii înțeleg problema, văd incidente reale pe mai multe camere în UI și pleacă cu limitele clare.
 
 ## T-10 minute: preflight

@@ -1,9 +1,16 @@
 # Scenariu demo — SafeSight (3 minute)
 
+> **Material istoric — scenariul demo-ului SafeSight.** Planul de prezentare pentru
+> implementarea de referință (backend Python, Slack, ack, raport), păstrat ca record. Nu e
+> scenariul produsului: demo-ul curent e showcase-ul static din [`README.md`](../README.md),
+> iar direcția e [`docs/browser-engine.md`](../docs/browser-engine.md).
+
 Responsabile: Ariana (prezentare + înregistrare OBS), Dalina (clipuri de test + recuzită).
 
 ## Caz principal: persoană în zona motorului
 Clip folosit: `2026-10-30_restricted-zone_cam02_lucratori-pushback-motor.mp4` (Drive → data/videos).
+Demo-ul livrat a rulat însă pe CAM-01, `2026-10-30_restricted-zone_cam01_persoana-langa-motor.mp4`
+(clipul implicit din `scripts/dev.py`); vezi `run_sheet.md`.
 
 ## Cazuri opționale (doar dacă avem clipuri verificate până la demo)
 - PPE lipsă.
