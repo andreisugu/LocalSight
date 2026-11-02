@@ -6,6 +6,7 @@ import {
   firstLocalIncident,
   localStat,
   openView,
+  setDemoData,
   startEngine,
   waitForIsolation,
   watchPageErrors,
@@ -146,12 +147,15 @@ test('an engine incident, its snapshot and its ack survive a reload', async ({ p
   await page.goto(BASE);
   await waitForIsolation(page);
 
-  // The fixture-only shift report is the baseline; restored incidents must add to it.
+  // With no engine started and the demo fixtures off, the shift report is empty: that is
+  // the baseline the restored incidents must add to.
   await openView(page, 'reports');
   const baselineTotal = Number(await page.getByTestId('report-total').innerText());
-  expect(Number.isFinite(baselineTotal)).toBe(true);
+  expect(baselineTotal).toBe(0);
 
   await openView(page, 'live');
+  // The default list has no fixture cards at all; the demo toggle is never touched here.
+  await expect(page.getByTestId('incident-card')).toHaveCount(0);
   await startEngine(page);
 
   // A card tagged `local` is a real engine incident; fixture cards never carry the badge.
@@ -209,6 +213,8 @@ test('retention prunes by count and age, and clearing leaves the fixtures', asyn
 
   // A demo fixture is never stored as an incident, but its confirmation is still an
   // operator decision: seed the override before the retention check, then prove it returns.
+  // The fixtures are off by default, so the toggle is what puts a fixture row on screen.
+  await setDemoData(page, true);
   await openView(page, 'incidents');
   const fixtureRow = page.getByTestId('incident-row').first();
   await expect(fixtureRow).toBeVisible();
@@ -284,7 +290,13 @@ test('a blocked or private IndexedDB does not break boot', async ({ page }) => {
   await expect(page.getByTestId('local-storage-note')).toContainText(/Mod privat, stocare blocată/);
   await expect(localStat(page, 'incidents')).toHaveText('0 / 200');
 
-  // The demo fixtures still drive the product with no durable store at all.
+  // The demo fixtures still drive the product with no durable store at all — but only
+  // when they are asked for; the default list stays real-detection-only.
+  await openView(page, 'incidents');
+  await expect(page.getByTestId('incidents-empty')).toBeVisible();
+  await expect(page.getByTestId('incident-row')).toHaveCount(0);
+
+  await setDemoData(page, true);
   await openView(page, 'incidents');
   await expect(page.getByTestId('incident-row').first()).toBeVisible();
 

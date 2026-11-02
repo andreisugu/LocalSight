@@ -101,6 +101,8 @@ export default function SettingsView() {
     setCurrentView,
     localEvidence,
     showToast,
+    showDemoData,
+    setShowDemoData,
   } = useSecurity();
 
   // The stored-count panel is a read of IndexedDB, so it is refreshed when the screen
@@ -186,12 +188,20 @@ export default function SettingsView() {
           <div className="flex flex-wrap items-center gap-2">
             <Settings size={20} aria-hidden="true" className="text-[#0284C7] dark:text-[#FFEB33]" />
             <h2 className="text-lg font-black uppercase tracking-tight">Sistem &amp; Audit</h2>
-            <Chip tone={isMock ? 'demo' : 'neutral'}>{isMock ? 'BUILD STATIC · DATE DEMO' : 'BACKEND + EDGE'}</Chip>
+            <Chip tone={isMock && showDemoData ? 'demo' : 'neutral'}>
+              {isMock
+                ? showDemoData
+                  ? 'BUILD STATIC · DATE DEMO'
+                  : 'BUILD STATIC · FĂRĂ FIXTURES'
+                : 'BACKEND + EDGE'}
+            </Chip>
           </div>
           <p className="max-w-3xl text-xs" style={muted}>
-            {isMock
+            {isMock && showDemoData
               ? 'Build static: fără backend, fără edge. Starea de mai jos vine din fixture-urile demo și din motorul local, când rulează; jurnalul e tot demo.'
-              : 'Starea backend-ului și a edge-ului, plus jurnalul acțiunilor din datele primite.'}
+              : isMock
+                ? 'Build static: fără backend, fără edge. Fixture-urile demo sunt ascunse; starea de mai jos vine din motorul local, când rulează.'
+                : 'Starea backend-ului și a edge-ului, plus jurnalul acțiunilor din datele primite.'}
           </p>
         </header>
 
@@ -202,6 +212,40 @@ export default function SettingsView() {
             ))}
           </dl>
         </section>
+
+        {/* The toggle governs the fixture build's demo incidents. A real backend has no
+            fixtures, so the control would be inert there and is not rendered. */}
+        {isMock && (
+          <section
+            aria-labelledby="demo-data-heading"
+            style={surface}
+            className="space-y-2 rounded-xl border p-4"
+            data-testid="demo-data"
+          >
+            <h3 id="demo-data-heading" className="flex flex-wrap items-center gap-2 text-sm font-bold uppercase">
+              <Database size={16} aria-hidden="true" className="text-[#0284C7] dark:text-[#FFEB33]" />
+              Date demo
+              <Chip tone={showDemoData ? 'demo' : 'neutral'}>
+                {showDemoData ? 'FIXTURES VIZIBILE' : 'ASCUNSE'}
+              </Chip>
+            </h3>
+            <label className="flex items-start gap-2 text-xs font-bold">
+              <input
+                type="checkbox"
+                data-testid="demo-toggle"
+                checked={showDemoData}
+                onChange={(event) => setShowDemoData(event.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#0284C7] focus:outline-none focus:ring-2 focus:ring-[#FFEB33]"
+              />
+              <span>Arată incidentele demo (fixtures)</span>
+            </label>
+            <p className="text-[11px] leading-snug" style={muted}>
+              Implicit vezi doar detecțiile motorului din browser; fixtures sunt date de demo, nu camere
+              reale. Alegerea se păstrează în acest browser. Cu ele pornite, cardurile și cifrele demo
+              poartă eticheta <strong className="font-bold">date demo</strong>.
+            </p>
+          </section>
+        )}
 
         <section aria-labelledby="cameras-heading" style={surface} className="overflow-hidden rounded-xl border">
           <div className="space-y-1 px-4 pb-3 pt-4">
@@ -549,13 +593,13 @@ export default function SettingsView() {
           <div className="space-y-1 px-4 pb-3 pt-4">
             <h3 id="audit-heading" className="flex flex-wrap items-center gap-2 text-sm font-bold uppercase">
               <Terminal size={16} aria-hidden="true" className="text-[#0284C7] dark:text-[#FFEB33]" />
-              {isMock ? 'Jurnal demo' : 'Jurnal de audit'}
-              {isMock && <Chip tone="demo">DEMO</Chip>}
+              {isMock && showDemoData ? 'Jurnal demo' : 'Jurnal de audit'}
+              {isMock && showDemoData && <Chip tone="demo">DEMO</Chip>}
             </h3>
             <p className="text-xs" style={muted}>
-              {isMock
+              {isMock && showDemoData
                 ? 'Pașii din fixture-urile demo (detecție, notificare, escaladare, confirmare), cei mai recenți primii. Orele și trimiterile sunt istoric demo, nu un jurnal real.'
-                : 'Pașii prin care a trecut fiecare incident (detecție, notificare, escaladare, confirmare), cei mai recenți primii.'}
+                : 'Pașii prin care au trecut incidentele vizibile acum (detecție, notificare, escaladare, confirmare), cei mai recenți primii.'}
             </p>
           </div>
 
@@ -589,7 +633,11 @@ export default function SettingsView() {
             style={{ ...muted, borderColor: themeStyles.panelBorder }}
           >
             <ShieldCheck size={12} aria-hidden="true" />
-            <span>{isMock ? `Din cele ${events.length} incidente demo; doar citire.` : `Din ultimele ${events.length} incidente; doar citire.`}</span>
+            <span>
+              {isMock && showDemoData
+                ? `Din cele ${events.length} incidente demo; doar citire.`
+                : `Din ultimele ${events.length} incidente vizibile; doar citire.`}
+            </span>
             <span className="text-slate-500 dark:text-slate-400">Deschide un rând pentru incident.</span>
           </p>
         </section>

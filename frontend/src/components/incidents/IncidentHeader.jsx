@@ -45,13 +45,25 @@ export default function IncidentHeader({ event, mock, onBack, onCopyLink, onView
                 local
               </ProvenanceChip>
             )}
+            {chips.simulated && (
+              <span data-testid="incident-simulated-chip">
+                <ProvenanceChip
+                  tone="demo"
+                  title="Creat din meniul Simulare, la cerere; nu vine de la o cameră reală."
+                >
+                  simulat
+                </ProvenanceChip>
+              </span>
+            )}
             {chips.demo && (
-              <ProvenanceChip
-                tone="demo"
-                title="Incident din fixture-urile demo, nu detecție a motorului din browser."
-              >
-                date demo
-              </ProvenanceChip>
+              <span data-testid="incident-demo-chip">
+                <ProvenanceChip
+                  tone="demo"
+                  title="Incident din fixture-urile demo, nu detecție a motorului din browser."
+                >
+                  date demo
+                </ProvenanceChip>
+              </span>
             )}
           </div>
           <p
@@ -63,11 +75,13 @@ export default function IncidentHeader({ event, mock, onBack, onCopyLink, onView
             {detectionSummary(event)}
           </p>
           {/* Provenance used to live only in a title tooltip, unreachable on a phone. */}
-          {(chips.local || chips.demo) && (
+          {(chips.local || chips.simulated || chips.demo) && (
             <p style={{ color: themeStyles.textMuted }} className="text-[11px] leading-snug">
               {chips.local
                 ? 'Detecție a motorului din browser, în această sesiune.'
-                : 'Fixture demo, scris în avans; nu e o detecție live.'}
+                : chips.simulated
+                  ? 'Eveniment creat din meniul Simulare; date de demo, nu o cameră reală.'
+                  : 'Fixture demo, scris în avans; nu e o detecție live.'}
             </p>
           )}
         </div>

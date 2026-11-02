@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { ShieldAlert } from 'lucide-react';
+import { useSecurity } from '../../context/SecurityContext';
 import { USE_MOCK } from '../../services/api';
 import DemoDataChip from './DemoDataChip';
 import IncidentFeedCard from './IncidentFeedCard';
@@ -29,6 +30,12 @@ export default function IncidentFeed({
   // reuses the same screen point, and the first click removes its card, so without this
   // the second click acknowledges whatever card slid under the cursor.
   const pressRef = useRef(null);
+
+  // The prop is already filtered by the feed tabs and the search box, so "nothing at all"
+  // is a different fact that only the store knows: read the visible list for it. The demo
+  // preference comes from the same place; an empty feed must not claim the fixtures.
+  const { showDemoData, events: visibleEvents } = useSecurity();
+  const isEmptyList = visibleEvents.length === 0;
 
   const beginPress = useCallback((eventId) => {
     pressRef.current = { eventId, at: Date.now() };
@@ -65,7 +72,7 @@ export default function IncidentFeed({
         <h2 className="font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
           <ShieldAlert size={15} className="text-[#D73833] shrink-0" />
           <span>Incidente Detectate</span>
-          {USE_MOCK && (
+          {USE_MOCK && showDemoData && (
             <>
               <span aria-hidden="true" className="text-slate-400">
                 ·
@@ -123,15 +130,37 @@ export default function IncidentFeed({
             className={`p-5 rounded-xl text-center space-y-1 mt-4 text-xs ${
               displayMode === 'split' ? 'col-span-full' : ''
             }`}
+            data-testid="feed-empty"
           >
-            <p className="font-bold text-slate-700 dark:text-slate-300">
-              {query ? `Niciun incident pentru „${query}”.` : 'Niciun incident în această categorie.'}
-            </p>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400">
-              {query
-                ? 'Șterge căutarea din bara de sus pentru a vedea toate incidentele.'
-                : 'Zona este conformă cu normele de siguranță.'}
-            </p>
+            {query ? (
+              <>
+                <p className="font-bold text-slate-700 dark:text-slate-300">
+                  Niciun incident pentru „{query}”.
+                </p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                  Șterge căutarea din bara de sus pentru a vedea toate incidentele.
+                </p>
+              </>
+            ) : isEmptyList && USE_MOCK && !showDemoData ? (
+              <>
+                <p className="font-bold text-slate-700 dark:text-slate-300">
+                  Nicio detecție reală încă. Pornește motorul din browser sau activează datele demo.
+                </p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                  Feed-ul arată doar incidentele motorului; fixture-urile demo sunt ascunse
+                  (Setări → Date demo).
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-bold text-slate-700 dark:text-slate-300">
+                  Niciun incident în această categorie.
+                </p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                  Zona este conformă cu normele de siguranță.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           events.map((event) => (

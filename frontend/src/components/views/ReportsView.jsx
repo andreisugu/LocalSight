@@ -127,7 +127,7 @@ function ReportHeader({ report, hasEvents, onCsv, onPdf }) {
   );
 }
 
-function ShiftScope({ shiftValue, shiftOptions, report, onShiftChange }) {
+function ShiftScope({ shiftValue, shiftOptions, report, onShiftChange, showDemoData }) {
   const { themeStyles } = useTheme();
   const control = 'rounded-lg border px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#7EDEED]';
   const controlStyle = {
@@ -174,15 +174,23 @@ function ShiftScope({ shiftValue, shiftOptions, report, onShiftChange }) {
 
       {USE_MOCK && (
         <div className="ml-auto flex flex-wrap items-center gap-x-2 gap-y-1">
-          <ProvenanceChip
-            tone="demo"
-            title="Build-ul demo are un singur raport de tură; selectorii sunt dezactivați ca să nu promită altă dată sau altă tură."
-          >
-            date demo
-          </ProvenanceChip>
-          <span className="text-[11px]" style={{ color: themeStyles.textMuted }}>
-            un singur raport de tură; selectorii sunt dezactivați.
-          </span>
+          {showDemoData ? (
+            <>
+              <ProvenanceChip
+                tone="demo"
+                title="Build-ul demo are un singur raport de tură; selectorii sunt dezactivați ca să nu promită altă dată sau altă tură."
+              >
+                date demo
+              </ProvenanceChip>
+              <span className="text-[11px]" style={{ color: themeStyles.textMuted }}>
+                un singur raport de tură; selectorii sunt dezactivați.
+              </span>
+            </>
+          ) : (
+            <span className="text-[11px]" style={{ color: themeStyles.textMuted }}>
+              doar detecțiile reale din listă; fixture-urile demo sunt ascunse.
+            </span>
+          )}
         </div>
       )}
     </Panel>
@@ -215,7 +223,7 @@ function MockableDateField() {
   );
 }
 
-function EmptyReport({ mock }) {
+function EmptyReport({ mock, showDemoData }) {
   const { themeStyles } = useTheme();
   return (
     <Panel as="section" size="card" data-testid="report-empty" className="space-y-1.5">
@@ -226,6 +234,12 @@ function EmptyReport({ mock }) {
         browser), cardurile și graficele se actualizează fără reîncărcare.
         {!mock && ' Dacă pagina tocmai s-a încărcat, lista se poate completa după răspunsul API-ului.'}
       </p>
+      {!showDemoData && (
+        <p className="text-xs leading-relaxed" style={{ color: themeStyles.textMuted }}>
+          Fixture-urile demo sunt ascunse, deci raportul nu le numără. Le poți porni din
+          Setări → Date demo, pentru raportul de demonstrație.
+        </p>
+      )}
     </Panel>
   );
 }
@@ -446,7 +460,7 @@ function ZoneTable({ rows }) {
 }
 
 export default function ReportsView() {
-  const { events, selectedShift, setSelectedShift, selectedDate } = useSecurity();
+  const { events, selectedShift, setSelectedShift, selectedDate, showDemoData } = useSecurity();
 
   // The report is composed from the incidents the operator sees in the list, so an
   // acknowledgement or a browser-engine event changes the numbers immediately.
@@ -490,8 +504,9 @@ export default function ReportsView() {
           shiftOptions={USE_MOCK ? SHIFTS.filter((shift) => shift.id === OPERATIONAL_SHIFT_ID) : SHIFTS}
           report={report}
           onShiftChange={setSelectedShift}
+          showDemoData={showDemoData}
         />
-        {!hasEvents && <EmptyReport mock={USE_MOCK} />}
+        {!hasEvents && <EmptyReport mock={USE_MOCK} showDemoData={showDemoData} />}
         <ReportKpis kpi={report.kpi} />
         <StatusStrip report={report} />
         <ReportSummary report={report} />

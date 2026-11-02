@@ -5,8 +5,13 @@
 // answer; a failed call rolls the row back, except for a 409, where the API's version wins
 // because the incident changed elsewhere (another operator, Slack, the escalation timer).
 //
+// One distinction sits above the list: `events` (what every screen shows) holds the rows
+// the operator is entitled to see right now, while the store keeps the full list in state.
+// Demo fixtures are hidden unless `showDemoData` is on, but a deep link to a fixture must
+// still open, so the detail lookup reads the full list.
+//
 // All behaviour that can be expressed without React lives in `utils/incidentState.js`,
-// `utils/eventFeed.js` and `utils/engineEventFeed.js`.
+// `utils/eventFeed.js`, `utils/engineEventFeed.js` and `utils/eventVisibility.js`.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { INITIAL_EVENTS } from '../constants/mockData.js';
@@ -15,6 +20,7 @@ import { canDo } from '../constants/eventActions.js';
 import { templateReport } from '../engine/report.js';
 import { localSightApi, USE_MOCK } from '../services/api.js';
 import { filterFeedEvents } from '../utils/eventFeed.js';
+import { visibleEvents } from '../utils/eventVisibility.js';
 import { mergeEngineEvents } from '../utils/engineEventFeed.js';
 import { useEvidencePersistence } from './useEvidencePersistence.js';
 import {
@@ -38,6 +44,7 @@ export function useIncidentStore({
   zones,
   selectedEventId,
   linkedIncidentId,
+  showDemoData = false,
 }) {
   const [events, setEvents] = useState(USE_MOCK ? INITIAL_EVENTS : []);
   const [filterMode, setFilterMode] = useState('open');
@@ -60,16 +67,23 @@ export function useIncidentStore({
     isBlocked,
   } = useEvidencePersistence({ setEvents });
 
+  // The rows the screens may show. Fixtures leave every surface together — feed, list,
+  // reports, KPI counts and the audit log all read this list — while the engine and the
+  // simulator stay. The full list stays in state for actions, persistence and deep links.
+  const visible = useMemo(() => visibleEvents(events, { showDemoData }), [events, showDemoData]);
+
   const filteredEvents = useMemo(
-    () => filterFeedEvents(events, { filterMode, searchQuery }),
-    [events, filterMode, searchQuery]
+    () => filterFeedEvents(visible, { filterMode, searchQuery }),
+    [visible, filterMode, searchQuery]
   );
 
   const selectedEvent = useMemo(() => {
     // A requested id that is not loaded yet shows nothing rather than another incident.
+    // The lookup deliberately reads the full list: a deep link to a hidden fixture must
+    // still render, with its `date demo` chip, even though no screen lists it.
     if (selectedEventId) return findEvent(events, selectedEventId) || null;
-    return events[0] || (USE_MOCK ? INITIAL_EVENTS[0] : null);
-  }, [events, selectedEventId]);
+    return visible[0] || null;
+  }, [events, visible, selectedEventId]);
 
   // A Slack link can point at an incident older than the loaded list: fetch it by id.
   // The dependency is "the list is non-empty", as before: it must not refetch on every
@@ -242,7 +256,8 @@ export function useIncidentStore({
   }, [clearStore, setEvents]);
 
   return {
-    events,
+    // What the screens show: fixtures only while the demo preference is on.
+    events: visible,
     setEvents,
     filteredEvents,
     selectedEvent,

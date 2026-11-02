@@ -121,3 +121,36 @@ export async function startEngine(page) {
 export function localStat(page, name) {
   return page.getByTestId(`local-${name}`);
 }
+
+/** The "Date demo" checkbox in Sistem & Audit. */
+export function demoToggle(page) {
+  return page.getByTestId('demo-toggle');
+}
+
+/**
+ * Turn the demo fixtures on or off through the real control in Sistem & Audit.
+ *
+ * The checkbox writes localStorage, so opening the screen is part of the helper: a caller
+ * that then navigates elsewhere keeps the choice, exactly like a reload would.
+ */
+export async function setDemoData(page, show) {
+  await openView(page, 'settings');
+  const toggle = demoToggle(page);
+  if (show) {
+    await toggle.check();
+    await expect(toggle).toBeChecked();
+  } else {
+    await toggle.uncheck();
+    await expect(toggle).not.toBeChecked();
+  }
+}
+
+/** Every incident row in the Incidents table. */
+export function incidentRows(page) {
+  return page.getByTestId('incident-row');
+}
+
+/** Only the fixture rows (`data-source`), never a real detection. */
+export function fixtureRows(page) {
+  return page.locator('[data-testid="incident-row"][data-source="demo"]');
+}

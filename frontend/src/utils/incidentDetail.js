@@ -161,16 +161,18 @@ export function snapshotDownload(event) {
 }
 
 /**
- * Which provenance chips the header shows: a local engine detection, a demo fixture, or
- * neither. They are exclusive: a fixture is not local, and a local incident is not demo.
+ * Which provenance chips the header shows: a local engine detection, a simulated event, a
+ * demo fixture, or none. They are exclusive: a fixture is not local and not simulated, and
+ * an event the Simulare menu created is demo data, not a camera.
  *
  * @param {object|null|undefined} event
  * @param {{mock?: boolean}} [options]
- * @returns {{local: boolean, demo: boolean}}
+ * @returns {{local: boolean, simulated: boolean, demo: boolean}}
  */
 export function sourceChips(event, { mock = false } = {}) {
   const local = Boolean(event?.local);
-  return { local, demo: Boolean(mock) && !local };
+  const simulated = event?.simulated === true;
+  return { local, simulated, demo: Boolean(mock) && !local && !simulated };
 }
 
 // Status and severity share one token table (`theme/status.js`) and one fallback: a value

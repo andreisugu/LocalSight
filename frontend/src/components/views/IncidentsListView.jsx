@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { AlertOctagon, ChevronRight, Search } from 'lucide-react';
+import { AlertOctagon, ChevronRight, Search, Settings } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { USE_MOCK } from '../../services/api';
 import { TYPE_LABELS } from '../../data/labels';
+import { EVENT_SOURCE, eventSource, sourceLabel } from '../../utils/eventVisibility';
 import SafeImage from '../common/SafeImage';
 import { Panel } from '../ui';
 import { ProvenanceChip, StatusChip } from '../incidents/Chips';
@@ -46,8 +47,16 @@ function FilterGroup({ counts, active, onChange, isDarkMode, themeStyles }) {
   );
 }
 
+// The provenance title per source; the visible text comes from `sourceLabel`.
+const SOURCE_TITLE = {
+  simulated: 'Creat din meniul Simulare, la cerere; nu vine de la o cameră reală.',
+  demo: 'Fixture demo din SafeSight; nu e o detecție a vreunei camere.',
+};
+
 function IncidentRow({ event, cameraName, onOpen, themeStyles }) {
   const critical = event.severity === 'CRITICAL';
+  const source = eventSource(event);
+  const sourceTag = sourceLabel(source);
   return (
     <li>
       <button
@@ -56,6 +65,7 @@ function IncidentRow({ event, cameraName, onOpen, themeStyles }) {
         data-event-id={event.event_id}
         data-severity={event.severity}
         data-status={event.status}
+        data-source={source}
         aria-label={`Deschide incidentul ${event.event_id}`}
         className={`w-full text-left grid grid-cols-[4.5rem_minmax(0,1fr)_1.25rem] md:grid-cols-[4.5rem_minmax(0,1fr)_12rem_8.5rem_1.25rem] items-center gap-3 px-3 py-2.5 border-l-[3px] transition-colors hover:bg-white/5 ${
           critical ? 'border-l-[#D73833]' : 'border-l-[#FFEB33]'
@@ -81,6 +91,13 @@ function IncidentRow({ event, cameraName, onOpen, themeStyles }) {
               >
                 local
               </ProvenanceChip>
+            )}
+            {source !== EVENT_SOURCE.local && source !== EVENT_SOURCE.backend && (
+              <span data-testid={`incident-row-${source}-chip`}>
+                <ProvenanceChip tone="demo" title={SOURCE_TITLE[source]}>
+                  {sourceTag}
+                </ProvenanceChip>
+              </span>
             )}
           </span>
           {/* Wraps instead of clipping: at 320 px and with enlarged text spacing the
@@ -109,7 +126,15 @@ function IncidentRow({ event, cameraName, onOpen, themeStyles }) {
 
 export default function IncidentsListView() {
   const { isDarkMode, themeStyles } = useTheme();
-  const { events, cameras, searchQuery, setSearchQuery, setSelectedEventId, setCurrentView } = useSecurity();
+  const {
+    events,
+    cameras,
+    searchQuery,
+    setSearchQuery,
+    setSelectedEventId,
+    setCurrentView,
+    showDemoData,
+  } = useSecurity();
   const [statusFilter, setStatusFilter] = useState('all');
 
   const cameraName = useMemo(() => {
@@ -144,13 +169,18 @@ export default function IncidentsListView() {
             </p>
             {/* One provenance vocabulary, explained in place instead of only in a tooltip. */}
             <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]" style={muted}>
-              {USE_MOCK ? (
+              {showDemoData && USE_MOCK ? (
                 <>
                   <ProvenanceChip tone="demo" title="Fixture-uri demo plus detecțiile motorului din browser; nimic nu vine din backend.">
                     date demo
                   </ProvenanceChip>
                   <span>Fixture-uri demo plus detecțiile motorului din browser; nimic nu vine din backend.</span>
                 </>
+              ) : USE_MOCK ? (
+                <span>
+                  Doar detecțiile motorului din browser. Fixture-urile demo sunt ascunse; le pornești
+                  din Setări → Date demo.
+                </span>
               ) : (
                 <span>Incidentele sunt încărcate din backend.</span>
               )}
@@ -193,10 +223,30 @@ export default function IncidentsListView() {
           </div>
 
           {rows.length === 0 ? (
-            <div className="p-10 text-center text-sm" style={muted}>
-              {events.length === 0
-                ? 'Niciun incident încă. Pornește motorul din Live sau folosește meniul Simulare.'
-                : 'Niciun incident pentru filtrul ales.'}
+            <div className="p-10 text-center text-sm space-y-2" style={muted} data-testid="incidents-empty">
+              {events.length > 0 ? (
+                <p>Niciun incident pentru filtrul ales.</p>
+              ) : showDemoData || !USE_MOCK ? (
+                <p>Niciun incident încă. Pornește motorul din Live sau folosește meniul Simulare.</p>
+              ) : (
+                <>
+                  <p className="font-bold">
+                    Nicio detecție reală încă. Pornește motorul din browser sau activează datele demo.
+                  </p>
+                  <p className="text-xs">
+                    Lista arată doar incidentele produse de motorul din browser; fixture-urile demo
+                    nu sunt camere reale și rămân ascunse.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentView('settings')}
+                    className="mt-1 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFEB33]"
+                    style={{ borderColor: themeStyles.panelBorder }}
+                  >
+                    <Settings size={13} aria-hidden="true" /> Deschide Setări → Date demo
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <ul className="divide-y divide-white/5">
@@ -214,9 +264,11 @@ export default function IncidentsListView() {
         </Panel>
 
         <p className="text-[11px]" style={muted}>
-          {USE_MOCK
+          {showDemoData && USE_MOCK
             ? `Ultimele ${events.length} incidente: date demo plus detecțiile motorului din browser.`
-            : `Ultimele ${events.length} incidente încărcate din backend.`}
+            : USE_MOCK
+              ? `Ultimele ${events.length} detecții reale; fixture-urile demo sunt ascunse.`
+              : `Ultimele ${events.length} incidente încărcate din backend.`}
         </p>
       </div>
     </div>

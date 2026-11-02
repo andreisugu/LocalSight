@@ -10,7 +10,7 @@
 // The public shape is frozen: the views destructure these keys, so a new module must not
 // rename or remove one without changing every consumer.
 
-import { createContext, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useState } from 'react';
 import { useBackendBootstrap } from './useBackendBootstrap.js';
 import { useCameraStore } from './useCameraStore.js';
 import { useConnectionHealth } from './useConnectionHealth.js';
@@ -22,6 +22,7 @@ import { useShiftReport } from './useShiftReport.js';
 import { useSimulation } from './useSimulation.js';
 import { useToast } from './useToast.js';
 import { useZoneStore } from './useZoneStore.js';
+import { initialShowDemoData, storeShowDemoData } from '../utils/demoPreference.js';
 
 // The default is null on purpose: `useSecurity` turns a missing provider into an error
 // instead of handing components an empty object that fails later and further away.
@@ -36,6 +37,16 @@ export const SecurityProvider = ({ children }) => {
   const routing = useRouting();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  // Real detections by default; the eight demo fixtures are one explicit choice away and
+  // that choice survives a reload. The setter is the only writer, so the stored value and
+  // the rendered one cannot drift.
+  const [showDemoData, setShowDemoDataState] = useState(() => initialShowDemoData());
+  const setShowDemoData = useCallback((next) => {
+    const value = Boolean(next);
+    storeShowDemoData(value);
+    setShowDemoDataState(value);
+  }, []);
+
   // The incident list reads the camera and zone names when it decorates an engine event,
   // so it is created after both stores.
   const incidents = useIncidentStore({
@@ -45,9 +56,10 @@ export const SecurityProvider = ({ children }) => {
     zones: zoneStore.zones,
     selectedEventId: routing.selectedEventId,
     linkedIncidentId: routing.linkedIncidentId,
+    showDemoData,
   });
 
-  const { kpis, setKpis } = useKpis(incidents.events);
+  const { kpis, setKpis } = useKpis(incidents.events, { showDemoData });
 
   const connection = useConnectionHealth({
     showToast,
@@ -145,6 +157,12 @@ export const SecurityProvider = ({ children }) => {
     showToast,
     simulateIncomingWsEvent,
   };
+  // Additive on purpose: no existing screen changes, and every surface that lists events
+  // (feed, list, report, KPI strip) already reads the same visible list.
+  const demoKeys = {
+    showDemoData,
+    setShowDemoData,
+  };
 
   const value = {
     ...navigation,
@@ -155,6 +173,7 @@ export const SecurityProvider = ({ children }) => {
     ...zoneKeys,
     ...metricKeys,
     ...connectionKeys,
+    ...demoKeys,
   };
 
   return <Store.Provider value={value}>{children}</Store.Provider>;
