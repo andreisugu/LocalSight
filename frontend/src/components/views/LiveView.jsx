@@ -1118,7 +1118,7 @@ export default function LiveView() {
               {USE_MOCK && (
                 <>
                   <span aria-hidden="true" className="text-slate-400">·</span>
-                  <DemoDataChip title="Cardurile sunt date demo din fixtures, nu detecție din clip. Detecția reală apare doar în motorul din browser, când îl pornești." />
+                  <DemoDataChip title="Cardurile fără eticheta „local” sunt date demo din fixtures. Cele cu „local” sunt produse de motorul din browser, când îl pornești." />
                 </>
               )}
             </h2>
@@ -1231,6 +1231,14 @@ export default function LiveView() {
                         >
                           {STATUS_TOKENS[ev.status]?.label || ev.status}
                         </span>
+                        {ev.local && (
+                          <span
+                            className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-[#33E1FF]/40 bg-[#33E1FF]/10 text-cyan-700 dark:text-[#33E1FF]"
+                            title="Produs de motorul din browser în această sesiune; nu e un fixture demo."
+                          >
+                            local
+                          </span>
+                        )}
                       </div>
 
                       <span className="font-mono text-[10px] text-slate-400">
