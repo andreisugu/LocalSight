@@ -101,6 +101,35 @@ export default function MediaStage({
                 isWebcam={isWebcam}
                 onStartEngine={onStartEngine}
               />
+              {/* Zone alignment, only while there is a reference frame: `null` means the
+                  camera has no fixed frame (webcam) and the configured polygons are used
+                  as-is, which is not a state the operator has to read. When the view is
+                  lost the worker fires no zone rule, and this says so instead of leaving
+                  an outline that looks armed. */}
+              {browserEngineOn && typeof engine?.aligned === 'boolean' && (
+                <div
+                  data-testid="engine-alignment"
+                  data-aligned={engine.aligned ? 'true' : 'false'}
+                  title={
+                    engine.aligned
+                      ? 'Poligoanele sunt proiectate pe cadrul curent, urmărind mișcarea camerei.'
+                      : 'Cadrul curent nu a putut fi aliniat la referință: zonele sunt necunoscute și nicio regulă de zonă nu rulează.'
+                  }
+                  className={`absolute bottom-12 left-1/2 -translate-x-1/2 z-10 px-2 py-1 rounded bg-black/80 text-[10px] font-mono border whitespace-nowrap ${
+                    engine.aligned
+                      ? 'text-emerald-300 border-emerald-400/40'
+                      : 'text-[#FF8A80] border-[#D73833]/50'
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${
+                      engine.aligned ? 'bg-emerald-400' : 'bg-[#D73833]'
+                    }`}
+                  />
+                  {engine.aligned ? 'aliniere: activă' : 'aliniere pierdută'}
+                </div>
+              )}
               <SourceBadge isWebcam={isWebcam} />
               {isWebcam && webcam.state === 'requesting' && <WebcamRequestCard />}
             </>

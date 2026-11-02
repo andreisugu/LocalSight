@@ -25,6 +25,7 @@ import {
   pickActiveZone,
   toEngineZones,
 } from '../live/liveMedia';
+import { DEMO_REFERENCE_FRAMES } from '../../constants/mockData';
 
 // The Live screen is a composition: the rules live in liveMedia.js, the effects in
 // useLiveMedia.js, and every block below is its own component. What remains here is the
@@ -90,6 +91,22 @@ export default function LiveView() {
     [zones, activeCamera?.id]
   );
 
+  // The frame the polygons were drawn on. The zone editor paints its canvas on exactly this
+  // image (an uploaded `reference_frame_url` wins, otherwise the demo still), so the engine
+  // maps zones from the geometry the operator actually drew on. The webcam has no such
+  // frame — the room moves and the frame no longer exists — so alignment stays off and the
+  // configured polygons are used unchanged.
+  const referenceFrameUrl = useMemo(() => {
+    if (isWebcam || !activeCamera?.id) return null;
+    const cameraZones = (zones || []).filter((zone) => zone.camera_id === activeCamera.id);
+    // Two references cannot describe the same camera: the active zone first, then the first
+    // zone of this camera that has one.
+    const uploaded =
+      activeZone?.reference_frame_url ||
+      cameraZones.find((zone) => zone.reference_frame_url)?.reference_frame_url;
+    return uploaded || DEMO_REFERENCE_FRAMES[activeCamera.id] || null;
+  }, [activeZone, activeCamera?.id, isWebcam, zones]);
+
   // The engine runs on the local clip fallback or on the live webcam stream, and only while
   // the viewer asked for it. Fullscreen renders the raw clip in a separate tree, so the
   // worker is stopped there instead of being left pointing at a <video> that no longer
@@ -103,6 +120,8 @@ export default function LiveView() {
     zones: engineZones,
     engineOn: Boolean(activeCamera?.engine_on),
     cameraId: activeCamera?.id,
+    // The reference frame the zones were drawn on; the worker fetches it once per camera.
+    referenceUrl: referenceFrameUrl,
     // Cap the processed frame at 1280 on the long side. The YOLO graph is fixed 640 and
     // faces/blur do not need 1920; the bench measures ~5 fps at 1280 versus ~3.7 at 1080p
     // on the same 4 threads. `/bench` still lets a visitor compare sizes explicitly.

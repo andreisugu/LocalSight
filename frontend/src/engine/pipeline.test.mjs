@@ -62,7 +62,7 @@ function harness({ zones, engineOn = true, incidentCooldownS = 60 } = {}) {
     clock: () => BASE_MS + state.ms,
   });
 
-  const feed = (detections, { frames = 1, vestStates, snapshotUrl = SNAPSHOT } = {}) => {
+  const feed = (detections, { frames = 1, vestStates, snapshotUrl = SNAPSHOT, zones } = {}) => {
     const produced = [];
     for (let frame = 0; frame < frames; frame += 1) {
       state.ms += STEP_MS;
@@ -71,6 +71,9 @@ function harness({ zones, engineOn = true, incidentCooldownS = 60 } = {}) {
         ...FRAME,
         vestStates,
         snapshotUrl,
+        // `undefined` keeps the configured list, exactly like the worker when no aligner
+        // runs; an array is the per-frame override the aligner sends.
+        ...(zones === undefined ? {} : { zones }),
       });
       state.tracked = result.tracked;
       state.events.push(...result.events);
@@ -262,5 +265,62 @@ describe('createPipeline', () => {
     const frameMs = BASE_MS + 9 * STEP_MS;
     assert.equal(state.events[0].event_id, `evt_stand12_${frameMs}_1`);
     assert.equal(state.events[0].detected_at, new Date(frameMs).toISOString());
+  });
+
+  // The aligner says "unknown" for a frame by passing `zones: []`. That must skip the zone
+  // rules only: the tracker keeps its ids, and the configured list is not touched, so the
+  // next aligned frame resumes exactly where the previous one stopped.
+  test('a per-frame zones override of [] silences the rules without resetting state', () => {
+    const { state, feed } = harness({ zones: [makeZone()] });
+
+    feed([person()], { frames: 5, zones: [] });
+    assert.equal(state.events.length, 0, 'a lost alignment fires no zone rule');
+    assert.equal(state.tracked.length, 1, 'tracking still runs while the view is lost');
+    assert.equal(state.tracked[0].trackId, 1);
+
+    // The configured zone was never replaced, so the next frame uses it again and the rule
+    // starts its 1 s window from here (10 frames, the 9th confirming).
+    feed([person()], { frames: 15 });
+    assert.equal(state.events.length, 1);
+    assert.equal(state.events[0].track_id, 1, 'the track id survived the lost frames');
+    assert.deepEqual(state.events[0].confidence.temporal, { seen: 9, window: 9 });
+    assert.equal(state.events[0].duration_s, 1);
+  });
+
+  test('the per-frame override is the polygon the rules test, not a second config', () => {
+    const { state, feed } = harness({ zones: [makeZone()] });
+
+    // A zone that covers the same people, mapped elsewhere (as a wrong alignment would).
+    const moved = makeZone({
+      id: 'engine-left',
+      polygon: [
+        [0.0, 0.0],
+        [0.1, 0.0],
+        [0.1, 0.1],
+        [0.0, 0.1],
+      ],
+    });
+
+    feed([person()], { frames: 15, zones: [moved] });
+    assert.equal(state.events.length, 0, 'the person is outside the per-frame polygon');
+
+    feed([person()], { frames: 15 });
+    assert.equal(state.events.length, 1, 'the configured polygon is back on the next frame');
+    assert.equal(state.events[0].zone_id, 'engine-left');
+  });
+
+  test('a per-frame override from another camera stays silent and is validated', () => {
+    const { pipeline, state, feed } = harness({ zones: [makeZone()] });
+
+    feed([person()], { frames: 15, zones: [makeZone({ camera_id: 'taxiway-b' })] });
+    assert.equal(state.events.length, 0);
+
+    // The override is filtered and validated by the same code as `setZones`.
+    assert.throws(() => {
+      pipeline.step([person()], state.nowS + 0.125, { ...FRAME, zones: 'engine-left' });
+    }, TypeError);
+
+    feed([person()], { frames: 15 });
+    assert.equal(state.events.length, 1);
   });
 });
