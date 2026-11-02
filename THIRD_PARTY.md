@@ -90,6 +90,9 @@ needs a notice, an EULA check or a legal read, but does not force you to open-so
 | `data/videos/*.mp4` (6 demo clips) | — | unknown — **not stated anywhere** | **requires action** — unresolved before any public or commercial release |
 | `data/reference_frames/*.jpeg` (2 frames) | — | unknown | **requires action** — same provenance gap |
 | `docs/assets/*.png` (3 UI screenshots) | — | project-produced | OK — re-check that no unblurred face or third-party footage is visible |
+| `frontend/public/media/stills/apron-stand.jpg` | — | Unsplash License | OK — no attribution required; credit Unsplash in the demo |
+| `frontend/public/media/stills/taxiway-heathrow.jpg` | — | CC BY-SA 2.0, © Derek Harper (Geograph) | **attribution required**; the file stays CC BY-SA, the code is unaffected |
+| `frontend/public/media/stills/baggage-hall.jpg` | — | CC0 (djedj, Pixabay) | OK |
 
 ## Ultralytics YOLO — AGPL-3.0
 

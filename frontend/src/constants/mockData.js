@@ -92,13 +92,15 @@ function operationalDate(parts) {
 // Ziua operațională a datelor demo: aceeași valoare pe care o afișează raportul de tură.
 export const OPERATIONAL_DATE = operationalDate(currentParts);
 
+// Snapshot-urile demo sunt servite din aplicație, nu de pe Unsplash/Wikimedia: un produs
+// care promite că nu iese nimic din tab nu are ce să caute în trei domenii terțe, iar
+// miniaturile trebuie să funcționeze și offline. Licențele sunt în THIRD_PARTY.md.
+const SNAPSHOT_BASE = `${import.meta.env.BASE_URL}media/stills/`;
+
 const SNAPSHOTS = {
-  stand12:
-    'https://images.unsplash.com/photo-1542296332-2e4473faf563?w=800&auto=format&fit=crop&q=60',
-  'taxiway-b':
-    'https://thumb.wikimedia.org/wikipedia/commons/thumb/d/dd/Aircraft_on_taxiway%2C_Heathrow_airport_-_geograph.org.uk_-_5646419.jpg/960px-Aircraft_on_taxiway%2C_Heathrow_airport_-_geograph.org.uk_-_5646419.jpg',
-  'baggage-area':
-    'https://thumb.wikimedia.org/wikipedia/commons/thumb/1/12/Airport_Conveyor.jpg/960px-Airport_Conveyor.jpg',
+  stand12: `${SNAPSHOT_BASE}apron-stand.jpg`,
+  'taxiway-b': `${SNAPSHOT_BASE}taxiway-heathrow.jpg`,
+  'baggage-area': `${SNAPSHOT_BASE}baggage-hall.jpg`,
 };
 
 // Conformitatea PPE se măsoară pe toate detecțiile de persoane din tură, nu doar pe
