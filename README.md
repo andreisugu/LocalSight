@@ -29,6 +29,17 @@ Demo static: <https://andreisugu.github.io/LocalSight/>
 
 „În lucru” înseamnă aici proiectat, nu scris: nu există încă `frontend/src/engine/`.
 
+## Capturi
+
+![Live: feed-ul camerei CAM-01 cu zona motorului și incidentele detectate](docs/assets/localsight-live.png)
+*Live: feed-ul camerei CAM-01 cu zona motorului și incidentele detectate.*
+
+![Incidente: lista completă, cu severitate, status și dovada foto](docs/assets/localsight-incidents.png)
+*Incidente: lista completă, cu severitate, status și dovada foto.*
+
+![Configurare zone: poligonul pe canvas și parametrii regulii](docs/assets/localsight-zones.png)
+*Configurare zone: poligonul pe canvas și parametrii regulii.*
+
 ## Pornire rapidă
 
 Showcase-ul static, local (Node 20+):
