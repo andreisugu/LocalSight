@@ -58,7 +58,7 @@ export default function IncidentFeed({
     <div
       style={{ backgroundColor: themeStyles.panelBg, borderColor: themeStyles.panelBorder }}
       className={`rounded-xl border p-3 flex flex-col shadow-sm shrink-0 ${
-        displayMode === 'split' ? 'w-full' : 'w-full xl:w-96 min-h-[460px]'
+        displayMode === 'split' ? 'w-full' : 'w-full lg:w-[19rem] xl:w-96 min-h-[460px]'
       }`}
     >
       <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-500/15 shrink-0">
@@ -127,7 +127,7 @@ export default function IncidentFeed({
             <p className="font-bold text-slate-700 dark:text-slate-300">
               {query ? `Niciun incident pentru „${query}”.` : 'Niciun incident în această categorie.'}
             </p>
-            <p className="text-[10px] text-slate-400">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">
               {query
                 ? 'Șterge căutarea din bara de sus pentru a vedea toate incidentele.'
                 : 'Zona este conformă cu normele de siguranță.'}

@@ -38,15 +38,15 @@ const TILE_ICONS = {
 
 const TONE_TEXT = {
   ok: 'text-emerald-600 dark:text-emerald-400',
-  warn: 'text-amber-600 dark:text-amber-400',
+  warn: 'text-amber-700 dark:text-amber-400',
   bad: 'text-red-600 dark:text-red-400',
   neutral: 'text-slate-700 dark:text-slate-300',
-  demo: 'text-amber-600 dark:text-amber-400',
+  demo: 'text-amber-700 dark:text-amber-400',
 };
 
 function Chip({ tone = 'neutral', children }) {
   const tones = {
-    demo: 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    demo: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400',
     neutral: 'border-slate-400/40 bg-slate-500/10 text-slate-600 dark:text-slate-300',
   };
   return (
@@ -326,7 +326,7 @@ export default function SettingsView() {
                   <ShieldCheck size={12} aria-hidden="true" className="mt-0.5 shrink-0 text-[#0284C7] dark:text-[#FFEB33]" />
                   <span>
                     Cu motorul pornit, fețele sunt{' '}
-                    <strong className="font-bold text-amber-600 dark:text-amber-400">blurate cu YuNet în browser</strong> înainte
+                    <strong className="font-bold text-amber-700 dark:text-amber-400">blurate cu YuNet în browser</strong> înainte
                     de desenare; fluxul brut e ascuns cât timp motorul rulează.
                   </span>
                 </li>
@@ -355,7 +355,7 @@ export default function SettingsView() {
                   <ShieldCheck size={12} aria-hidden="true" className="mt-0.5 shrink-0 text-[#0284C7] dark:text-[#FFEB33]" />
                   <span>
                     Snapshot-urile și imaginea live au{' '}
-                    <strong className="font-bold text-amber-600 dark:text-amber-400">fețele blurate pe edge</strong> înainte de
+                    <strong className="font-bold text-amber-700 dark:text-amber-400">fețele blurate pe edge</strong> înainte de
                     salvare sau trimitere.
                   </span>
                 </li>
@@ -403,7 +403,7 @@ export default function SettingsView() {
                     <time dateTime={row.at} className="shrink-0 font-mono text-[10px] tabular-nums" style={muted}>
                       [{formatAuditTime(row.at)}]
                     </time>
-                    <span className="w-20 shrink-0 font-bold text-[#0284C7] dark:text-[#FFEB33]">{row.actor}</span>
+                    <span className="w-20 shrink-0 font-bold text-[#0369A1] dark:text-[#FFEB33]">{row.actor}</span>
                     <span className="min-w-0 flex-1 basis-full truncate font-mono sm:basis-0">{row.action}</span>
                   </button>
                 </li>
@@ -417,7 +417,7 @@ export default function SettingsView() {
           >
             <ShieldCheck size={12} aria-hidden="true" />
             <span>{isMock ? `Din cele ${events.length} incidente demo; doar citire.` : `Din ultimele ${events.length} incidente; doar citire.`}</span>
-            <span className="opacity-75">Deschide un rând pentru incident.</span>
+            <span className="text-slate-500 dark:text-slate-400">Deschide un rând pentru incident.</span>
           </p>
         </section>
       </div>

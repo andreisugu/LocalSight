@@ -43,23 +43,28 @@ const STATUS_LABELS = {
 const LOW_FPS_AFTER_MS = 10_000;
 const LOW_FPS_THRESHOLD = 2;
 
+// One definition-list group: `<div>` inside `<dl>` may only hold `dt`/`dd`, so the icon
+// rides inside the term and is positioned against the group. The previous version nested
+// a second `<div>` between the list and the term (`dl > div > div > dt`), which breaks the
+// term/definition pairing in the accessibility tree (axe: definition-list + dlitem ×8).
 function MetricCell({ icon: Icon, iconClass, label, valueClass = '', title, children }) {
   return (
-    <div className="flex items-center gap-2 min-w-0">
-      <div className={`w-7 h-7 shrink-0 rounded-lg flex items-center justify-center ${iconClass}`}>
-        <Icon size={14} />
-      </div>
-      <div className="min-w-0">
-        <dt className="text-[9px] text-slate-400 block font-semibold uppercase tracking-wide leading-tight truncate">
-          {label}
-        </dt>
-        <dd
-          title={title}
-          className={`font-mono font-bold text-[11px] leading-tight truncate ${valueClass}`}
+    <div className="relative flex min-w-0 flex-col justify-center pl-9">
+      <dt className="block truncate text-[9px] font-semibold uppercase leading-tight tracking-wide text-slate-500 dark:text-slate-400">
+        <span
+          aria-hidden="true"
+          className={`absolute left-0 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg ${iconClass}`}
         >
-          {children}
-        </dd>
-      </div>
+          <Icon size={14} />
+        </span>
+        {label}
+      </dt>
+      <dd
+        title={title}
+        className={`truncate font-mono text-[11px] font-bold leading-tight ${valueClass}`}
+      >
+        {children}
+      </dd>
     </div>
   );
 }
@@ -119,23 +124,23 @@ export default function LiveEngineCard({
     >
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 min-w-0">
         <h2 className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
-          <Cpu size={13} className="text-[#33E1FF]" />
+          <Cpu size={13} className="text-cyan-700 dark:text-[#33E1FF]" />
           Motor &amp; senzori
         </h2>
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
           {/* `fps` already lives here: one chip, never a second copy inside the card. */}
           {running && (
-            <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded border text-[#33E1FF] border-[#33E1FF]/40 bg-[#33E1FF]/10 whitespace-nowrap">
+            <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded border text-cyan-700 dark:text-[#33E1FF] border-[#33E1FF]/40 bg-[#33E1FF]/10 whitespace-nowrap">
               procesat local · {fpsValue} fps
             </span>
           )}
           <span
             className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded border whitespace-nowrap ${
               running
-                ? 'text-emerald-600 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10'
+                ? 'text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10'
                 : broken
-                  ? 'text-[#D73833] border-[#D73833]/40 bg-[#D73833]/10'
-                  : 'text-amber-600 dark:text-[#FFEB33] border-[#FFEB33]/40 bg-[#FFEB33]/10'
+                  ? 'text-[#B91C1C] dark:text-[#FF8A80] border-[#D73833]/40 bg-[#D73833]/10'
+                  : 'text-amber-700 dark:text-[#FFEB33] border-[#FFEB33]/40 bg-[#FFEB33]/10'
             }`}
           >
             {statusLabel}
@@ -146,7 +151,7 @@ export default function LiveEngineCard({
       <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2 text-slate-800 dark:text-slate-100">
         <MetricCell
           icon={Radio}
-          iconClass="bg-[#FFEB33]/25 dark:bg-[#FFEB33]/15 text-amber-600 dark:text-[#FFEB33]"
+          iconClass="bg-[#FFEB33]/25 dark:bg-[#FFEB33]/15 text-amber-700 dark:text-[#FFEB33]"
           label="Zonă activă"
           title={zoneLabel}
         >
@@ -154,14 +159,14 @@ export default function LiveEngineCard({
         </MetricCell>
         <MetricCell
           icon={Activity}
-          iconClass="bg-emerald-500/10 text-emerald-500"
+          iconClass="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
           label="Stare pipeline"
-          valueClass="text-emerald-500 flex items-center gap-1"
+          valueClass="text-emerald-700 dark:text-emerald-400 flex items-center gap-1"
           title={pipelineLabel}
         >
           <span
             aria-hidden="true"
-            className={`w-1.5 h-1.5 rounded-full animate-pulse shrink-0 ${
+            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
               pipelineActive ? 'bg-emerald-500' : 'bg-slate-500'
             }`}
           />
@@ -169,7 +174,7 @@ export default function LiveEngineCard({
         </MetricCell>
         <MetricCell
           icon={Cpu}
-          iconClass="bg-amber-500/10 text-amber-500"
+          iconClass="bg-amber-500/10 text-amber-700 dark:text-[#FFEB33]"
           label="Model detecție"
           title={modelLabel}
         >
@@ -177,9 +182,9 @@ export default function LiveEngineCard({
         </MetricCell>
         <MetricCell
           icon={Clock}
-          iconClass="bg-[#FFEB33]/25 dark:bg-[#FFEB33]/15 text-amber-600 dark:text-[#FFEB33]"
+          iconClass="bg-[#FFEB33]/25 dark:bg-[#FFEB33]/15 text-amber-700 dark:text-[#FFEB33]"
           label="Detecție → Alertă"
-          valueClass="text-amber-600 dark:text-[#FFEB33]"
+          valueClass="text-amber-700 dark:text-[#FFEB33]"
           title={latencyLabel}
         >
           {latencyLabel}
@@ -233,19 +238,19 @@ export default function LiveEngineCard({
           title="PPE are nevoie de 5–10 cadre pe aceeași urmărie; până atunci starea rămâne necunoscută."
         >
           <span className="font-semibold uppercase tracking-wide">PPE</span>{' '}
-          <span className="font-bold text-emerald-600 dark:text-emerald-400">
+          <span className="font-bold text-emerald-700 dark:text-emerald-400">
             {vest.vest} cu vestă
           </span>
           {' · '}
-          <span className="font-bold text-[#D73833]">{vest.noVest} fără vestă</span>
+          <span className="font-bold text-[#B91C1C] dark:text-[#FF8A80]">{vest.noVest} fără vestă</span>
           {' · '}
-          <span className="text-slate-400">{vest.unknown} necunoscut</span>
+          <span className="text-slate-500 dark:text-slate-400">{vest.unknown} necunoscut</span>
         </p>
       )}
 
       {running ? (
         <div className="pt-2 border-t border-slate-500/15 space-y-1.5">
-          <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">
+          <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Ultimele incidente
           </p>
           {recent.length === 0 ? (
@@ -262,13 +267,13 @@ export default function LiveEngineCard({
                   <span
                     className={`font-bold ${
                       event.severity === 'CRITICAL'
-                        ? 'text-[#D73833]'
-                        : 'text-amber-600 dark:text-[#FFEB33]'
+                        ? 'text-[#B91C1C] dark:text-[#FF8A80]'
+                        : 'text-amber-700 dark:text-[#FFEB33]'
                     }`}
                   >
                     {TYPE_LABELS[event.type] || event.type}
                   </span>
-                  <span className="text-slate-400">
+                  <span className="text-slate-500 dark:text-slate-400">
                     {SEVERITY_LABELS[event.severity] || event.severity}
                   </span>
                   <span>track {event.track_id}</span>
@@ -280,7 +285,7 @@ export default function LiveEngineCard({
           {lowFps && (
             <p
               role="status"
-              className="text-[10px] font-semibold text-amber-600 dark:text-[#FFEB33] flex items-start gap-1"
+              className="text-[10px] font-semibold text-amber-700 dark:text-[#FFEB33] flex items-start gap-1"
             >
               <AlertTriangle size={12} className="shrink-0 mt-px" />
               rulează pe WASM cu un singur fir (service worker-ul COOP/COEP nu e activ);
@@ -296,7 +301,7 @@ export default function LiveEngineCard({
           role="status"
           className={`text-[10px] leading-snug ${
             broken
-              ? 'text-[#D73833]'
+              ? 'text-[#B91C1C] dark:text-[#FF8A80]'
               : 'text-slate-500 dark:text-slate-400'
           }`}
         >

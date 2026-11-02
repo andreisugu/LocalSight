@@ -7,3 +7,81 @@
     user-select: none;
   }
 }
+
+/* Focus indicator (WCAG 2.4.7 / 1.4.11). The brand yellow alone is 1.22:1 on white, and
+   the cyan used by the feed cards is 1.57:1, so a single-colour ring cannot be seen in
+   the light theme. Every focusable control therefore gets a two-tone ring: a solid core
+   at >= 12:1 against the surface plus the brand colour as a halo. Unlayered on purpose —
+   it has to beat the `focus:outline-none` / `focus:ring-*` utilities baked into the
+   components (see the note in index.css), which is exactly what an author-level,
+   non-layered rule does regardless of specificity. */
+:where(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [tabindex]:not([tabindex='-1']),
+    [role='button'],
+    [role='menuitem'],
+    [role='menuitemradio']
+  ):focus-visible {
+  outline: 2px solid #0f172a;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px #ffeb33;
+}
+
+.dark
+  :where(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [tabindex]:not([tabindex='-1']),
+    [role='button'],
+    [role='menuitem'],
+    [role='menuitemradio']
+  ):focus-visible {
+  outline-color: #ffeb33;
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.9);
+}
+
+/* Bypass block (WCAG 2.4.1). The first focusable element on every route; it stays out of
+   the layout until a keyboard user reaches it, so pointer users never see it. */
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 60;
+  transform: translateY(-200%);
+  border-radius: 0.5rem;
+  background-color: #1f1f1f;
+  color: #ffffff;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+}
+
+.skip-link:focus-visible,
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+/* Motion policy (WCAG 2.2.2 / 2.3.3). Nine elements used to animate forever on the Live
+   screen, including a whole-card opacity pulse that dropped the incident text below AA
+   for half of every cycle. The escalation cue now lives on a static ring; this block is
+   the safety net for every other pulse/bounce/ping/spin in the product. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

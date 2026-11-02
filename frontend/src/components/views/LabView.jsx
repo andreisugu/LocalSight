@@ -63,7 +63,7 @@ function cameraErrorFor(error) {
 // clip or on the laptop webcam. No backend: the zone is the full-frame lab fixture, and
 // the incidents live in memory for as long as the tab is open.
 export default function LabView() {
-  const { themeStyles } = useTheme();
+  const { isDarkMode, themeStyles } = useTheme();
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -275,11 +275,14 @@ export default function LabView() {
     unsupported: 'browser neacceptat',
   }[engine.status] || engine.status;
 
-  const badgeColour = engine.status === 'running'
-    ? '#33E1FF'
-    : engine.status === 'error' || engine.status === 'unsupported'
-      ? '#FF5C5C'
-      : '#FFEB33';
+  // Status colour as classes: #FFEB33 on white is 1.22:1 and #33E1FF is 1.57:1, so the
+  // light theme needs the darker shades while the dark theme keeps the signal colours.
+  const badgeClass =
+    engine.status === 'running'
+      ? 'text-cyan-700 dark:text-[#33E1FF]'
+      : engine.status === 'error' || engine.status === 'unsupported'
+        ? 'text-[#B91C1C] dark:text-[#FF5C5C]'
+        : 'text-amber-700 dark:text-[#FFEB33]';
 
   const switchButton = (value, label, Icon) => {
     const active = source === value;
@@ -292,7 +295,7 @@ export default function LabView() {
         style={{
           backgroundColor: active ? '#FFEB33' : themeStyles.inputBg,
           color: active ? '#1F1F1F' : themeStyles.textColor,
-          border: `1px solid ${active ? '#FFEB33' : themeStyles.panelBorder}`,
+          border: `1px solid ${active ? '#FFEB33' : isDarkMode ? themeStyles.panelBorder : '#64748B'}`,
           fontWeight: active ? 600 : 400,
         }}
       >
@@ -315,7 +318,7 @@ export default function LabView() {
             <Activity size={18} />
             Lab - motor în browser
           </h1>
-          <p className="text-sm opacity-60" style={{ color: themeStyles.textColor }}>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
             Detecție de persoane YOLO, blur de față YuNet și incidente din zona cadrului
             întreg, ONNX Runtime Web, fără backend.
           </p>
@@ -329,7 +332,7 @@ export default function LabView() {
 
           {source === SOURCE_CLIP && (
             <label
-              className="px-3 py-2 rounded text-sm cursor-pointer flex items-center gap-2"
+              className="px-3 py-2 rounded border border-[#64748B] text-sm cursor-pointer flex items-center gap-2 dark:border-white/20"
               style={{ backgroundColor: themeStyles.cardBg, color: themeStyles.textColor }}
             >
               <Upload size={14} />
@@ -348,7 +351,7 @@ export default function LabView() {
                 style={{
                   backgroundColor: themeStyles.cardBg,
                   color: themeStyles.textColor,
-                  border: `1px solid ${themeStyles.panelBorder}`,
+                  border: `1px solid ${isDarkMode ? themeStyles.panelBorder : '#64748B'}`,
                 }}
               >
                 <option value="">Cameră implicită</option>
@@ -362,7 +365,7 @@ export default function LabView() {
                 type="button"
                 onClick={() => startCamera(deviceId || '')}
                 disabled={cameraState === 'requesting'}
-                className="px-3 py-2 rounded text-sm flex items-center gap-2 disabled:opacity-50"
+                className="px-3 py-2 rounded border border-[#64748B] text-sm flex items-center gap-2 disabled:opacity-50 dark:border-white/20"
                 style={{ backgroundColor: themeStyles.cardBg, color: themeStyles.textColor }}
               >
                 <RotateCcw size={14} />
@@ -374,7 +377,7 @@ export default function LabView() {
       </div>
 
       {source === SOURCE_CAMERA && labelsHidden && (
-        <p className="text-xs opacity-60" style={{ color: themeStyles.textColor }}>
+        <p className="text-xs text-slate-600 dark:text-slate-400">
           Numele camerelor apar abia după ce acorzi permisiunea; până atunci sunt numerotate.
         </p>
       )}
@@ -383,13 +386,13 @@ export default function LabView() {
         <div className="flex flex-wrap items-center gap-4 text-sm" style={{ color: themeStyles.textColor }}>
           <span className="flex items-center gap-1">
             <Cpu size={14} />
-            stare: <strong style={{ color: badgeColour }}>{statusLabel}</strong>
+            stare: <strong className={badgeClass}>{statusLabel}</strong>
           </span>
           <span>fps: <strong>{engine.fps || '—'}</strong></span>
           <span>persoane: <strong>{engine.persons}</strong></span>
           <span>fețe: <strong>{engine.faces}</strong></span>
           <span>cadru: <strong>{engine.ms ? `${engine.ms} ms` : '—'}</strong></span>
-          <span className="opacity-60">
+          <span className="text-slate-600 dark:text-slate-400">
             provider: {engine.providers.length ? engine.providers.join(' → ') : '—'}
           </span>
         </div>
@@ -412,7 +415,7 @@ export default function LabView() {
           </div>
 
           {engine.events.length === 0 ? (
-            <p className="mt-1 text-xs opacity-60">
+            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
               Niciun incident încă. Zona „cadru întreg” are nevoie de
               {' '}{DEFAULT_LAB_ZONE.debounce_s} s de prezență neîntreruptă.
             </p>
@@ -424,11 +427,15 @@ export default function LabView() {
                   className="flex flex-wrap items-center gap-x-3 gap-y-1"
                 >
                   <span
-                    style={{ color: event.severity === 'CRITICAL' ? '#FF5C5C' : '#FFEB33' }}
+                    className={
+                      event.severity === 'CRITICAL'
+                        ? 'text-[#B91C1C] dark:text-[#FF5C5C]'
+                        : 'text-amber-700 dark:text-[#FFEB33]'
+                    }
                   >
                     {event.type}
                   </span>
-                  <span className="opacity-80">severitate: {event.severity}</span>
+                  <span className="text-slate-600 dark:text-slate-300">severitate: {event.severity}</span>
                   <span>track: {event.track_id}</span>
                   <span>durată: {Number(event.duration_s).toFixed(2)} s</span>
                 </li>
@@ -447,8 +454,8 @@ export default function LabView() {
             <CameraOff size={14} />
             {cameraError.title}
           </div>
-          <div className="opacity-70">{cameraError.detail}</div>
-          <div className="opacity-50 mt-1 font-mono text-xs">
+          <div className="text-slate-600 dark:text-slate-300">{cameraError.detail}</div>
+          <div className="mt-1 font-mono text-xs text-slate-600 dark:text-slate-400">
             {[cameraError.name, cameraError.message].filter(Boolean).join(': ')}
           </div>
         </div>
@@ -460,8 +467,8 @@ export default function LabView() {
           style={{ borderColor: '#FF5C5C', color: themeStyles.textColor, backgroundColor: themeStyles.cardBg }}
         >
           <div className="font-semibold">Motorul nu rulează</div>
-          <div className="opacity-70">{engine.message || 'Eroare necunoscută.'}</div>
-          <div className="opacity-50 mt-1 font-mono text-xs">
+          <div className="text-slate-600 dark:text-slate-300">{engine.message || 'Eroare necunoscută.'}</div>
+          <div className="mt-1 font-mono text-xs text-slate-600 dark:text-slate-400">
             Modelele sunt așteptate la {MODEL_HINT}. Sursa video continuă să ruleze mai jos;
             fără grafice canvasul nu are ce să deseneze.
           </div>
@@ -469,7 +476,7 @@ export default function LabView() {
       )}
 
       {engine.status === 'loading' && (
-        <div className="text-sm opacity-60" style={{ color: themeStyles.textColor }}>
+        <div className="text-sm text-slate-600 dark:text-slate-400">
           {engine.message || 'Se încarcă modelele...'}
           {!engine.providers.length && ' (prima încărcare are câteva zeci de MB)'}
         </div>
@@ -483,12 +490,11 @@ export default function LabView() {
 
         {source === SOURCE_CLIP && !clipUrl && (
           <div
-            className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm"
-            style={{ color: themeStyles.textColor }}
+            className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-slate-200"
           >
             <Video size={28} />
             <span>Alege un clip local pentru a porni motorul.</span>
-            <span className="opacity-50 font-mono text-xs">
+            <span className="font-mono text-xs text-slate-400">
               VITE_DEMO_VIDEO nu este setat, deci nu există un clip implicit.
             </span>
           </div>
@@ -496,23 +502,21 @@ export default function LabView() {
 
         {source === SOURCE_CAMERA && cameraState === 'requesting' && (
           <div
-            className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm"
-            style={{ color: themeStyles.textColor }}
+            className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-slate-200"
           >
             <Camera size={28} />
             <span>Se cere accesul la cameră...</span>
-            <span className="opacity-60 text-xs">Confirmă permisiunea în browser.</span>
+            <span className="text-xs text-slate-400">Confirmă permisiunea în browser.</span>
           </div>
         )}
 
         {source === SOURCE_CAMERA && cameraState === 'error' && (
           <div
-            className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm"
-            style={{ color: themeStyles.textColor }}
+            className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-slate-200"
           >
             <CameraOff size={28} />
             <span>Camera nu este pornită.</span>
-            <span className="opacity-60 text-xs">Motivul este afișat mai sus.</span>
+            <span className="text-xs text-slate-400">Motivul este afișat mai sus.</span>
           </div>
         )}
 
@@ -522,8 +526,7 @@ export default function LabView() {
           && engine.status !== 'error'
           && engine.status !== 'unsupported' && (
             <div
-              className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm"
-              style={{ color: themeStyles.textColor }}
+              className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-slate-200"
             >
               <Camera size={28} />
               <span>Camera este pornită, se așteaptă primul cadru procesat...</span>
@@ -545,7 +548,7 @@ export default function LabView() {
         preload="auto"
       />
 
-      <p className="text-xs opacity-50" style={{ color: themeStyles.textColor }}>
+      <p className="text-xs text-slate-600 dark:text-slate-400">
         Spike: cutii pe persoane, blur de față, fps și incidentele produse de zona „cadru
         întreg”. Snapshot-ul, raportul și escaladarea nu sunt conectate aici.
       </p>

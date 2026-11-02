@@ -31,7 +31,7 @@ export function SignalLost({ cameraId, fullscreen = false }) {
   if (fullscreen) {
     return (
       <div className="text-center p-8 text-[#D73833] font-mono">
-        <WifiOff size={60} className="mx-auto mb-3 animate-bounce" />
+        <WifiOff size={60} className="mx-auto mb-3" />
         <h3 className="text-3xl font-black tracking-widest">SEMNAL PIERDUT</h3>
         <p className="text-sm text-slate-400 mt-1">
           CAMERA {cameraId} ESTE MOMENTAN OFFLINE
@@ -41,7 +41,7 @@ export function SignalLost({ cameraId, fullscreen = false }) {
   }
   return (
     <div className="text-center p-6 text-[#D73833] font-mono">
-      <WifiOff size={44} className="mx-auto mb-2 animate-bounce" />
+      <WifiOff size={44} className="mx-auto mb-2" />
       <h3 className="text-xl font-black tracking-widest">SEMNAL PIERDUT</h3>
       <p className="text-xs text-slate-400 mt-1">
         CAMERA {cameraId?.toUpperCase()} ESTE MOMENTAN OFFLINE

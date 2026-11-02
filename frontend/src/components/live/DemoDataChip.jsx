@@ -7,7 +7,7 @@ export default function DemoDataChip({ title }) {
   return (
     <span
       title={title}
-      className="shrink-0 text-[10px] font-mono font-bold normal-case px-1.5 py-0.5 rounded border bg-amber-50 text-amber-800 border-amber-200 dark:bg-[#FFEB33]/15 dark:text-[#FFEB33] dark:border-[#FFEB33]/40"
+      className="shrink-0 text-[10px] font-mono font-bold normal-case px-1.5 py-0.5 rounded border bg-amber-50 text-amber-900 border-amber-300 dark:bg-[#FFEB33]/15 dark:text-[#FFEB33] dark:border-[#FFEB33]/40"
     >
       date demo
     </span>

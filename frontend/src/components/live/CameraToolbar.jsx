@@ -71,10 +71,10 @@ export default function CameraToolbar({
           onChange={(event) => onSelectCamera(event.target.value)}
           style={{
             backgroundColor: themeStyles.panelBg,
-            borderColor: themeStyles.panelBorder,
+            borderColor: isDarkMode ? themeStyles.panelBorder : '#64748B',
             color: isDarkMode ? '#F5F5F5' : '#1F1F1F',
           }}
-          className="min-w-0 max-w-[16rem] px-2 py-1.5 rounded-lg text-xs font-semibold border focus:outline-none focus:ring-2 focus:ring-[#FFEB33]"
+          className="min-w-0 max-w-[16rem] px-2 py-1.5 rounded-lg text-xs font-semibold border"
           aria-labelledby="live-camera-label"
         >
           {(cameras || []).map((camera) => (
@@ -109,7 +109,7 @@ export default function CameraToolbar({
           onClick={() => onToggleEngine(activeCamera?.id)}
           className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 shadow transition-all ${
             activeCamera?.engine_on
-              ? 'bg-[#FFEB33] text-[#1F1F1F] font-bold animate-pulse font-black'
+              ? 'bg-[#FFEB33] text-[#1F1F1F] font-black'
               : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
           }`}
           title="Comută starea motorului aeronavei pentru acest stand"
@@ -143,7 +143,7 @@ export default function CameraToolbar({
               onClick={onOpenFullscreen}
               disabled={browserEngineOn}
               aria-label="Ecran complet"
-              className="p-1.5 rounded-lg bg-slate-500/10 hover:bg-slate-500/20 text-slate-300 border border-slate-500/20 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-500/10"
+              className="p-1.5 rounded-lg border border-slate-500/20 bg-slate-500/10 text-slate-600 hover:bg-slate-500/20 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-slate-500/10 dark:text-slate-300"
               title={browserEngineOn ? FULLSCREEN_BLOCKED : FULLSCREEN_OPEN}
             >
               <Maximize2 size={14} />

@@ -44,7 +44,7 @@ export default function ReportPanel({ event, mock, onRetry }) {
     >
       <div className="flex flex-wrap items-start justify-between gap-2 pb-2 border-b border-white/10">
         <h3 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2 min-w-0">
-          <Info size={16} className="text-[#D73833] shrink-0" />
+          <Info size={16} className="text-[#B91C1C] dark:text-[#FF8A80] shrink-0" />
           <span>
             Raport incident (
             <span title={SOURCE_TITLES[source]}>{source}</span>)
@@ -55,7 +55,7 @@ export default function ReportPanel({ event, mock, onRetry }) {
             type="button"
             onClick={retry}
             title="Raportul a fost scris din șablon (AI indisponibil); încearcă din nou cu AI"
-            className="no-print text-xs text-[#D73833] hover:underline flex items-center gap-1 font-semibold shrink-0"
+            className="no-print text-xs text-[#B91C1C] hover:underline dark:text-[#FF8A80] flex items-center gap-1 font-semibold shrink-0"
           >
             <RefreshCw size={12} className={retrying ? 'animate-spin' : ''} />
             Reîncearcă cu AI
@@ -78,9 +78,17 @@ export default function ReportPanel({ event, mock, onRetry }) {
             >
               <dt
                 className={`font-bold block text-[11px] ${
-                  field.key === 'severity_reason' ? 'text-red-500' : ''
+                  field.key === 'severity_reason'
+                    ? 'text-[#B91C1C] dark:text-[#FF8A80]'
+                    : field.key === 'recommended_action'
+                      ? 'text-amber-900 dark:text-amber-200'
+                      : ''
                 }`}
-                style={field.key === 'severity_reason' ? undefined : { color: themeStyles.textMuted }}
+                style={
+                  field.key === 'severity_reason' || field.key === 'recommended_action'
+                    ? undefined
+                    : { color: themeStyles.textMuted }
+                }
               >
                 {field.label}
               </dt>

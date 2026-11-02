@@ -163,7 +163,11 @@ export default function LiveView() {
     <div className="min-h-full w-full p-3 md:p-4 space-y-3 select-none">
       <KpiStrip kpis={kpis} themeStyles={themeStyles} />
 
-      <div className={`flex ${displayMode === 'split' ? 'flex-col' : 'flex-col xl:flex-row'} gap-3`}>
+      {/* Two columns from `lg` (1024px), not `xl` (1280px): at the required 1024×768
+          viewport the incident feed — the alert surface with every "Confirmă" — used to
+          start at y=824 in a 704px scroller, i.e. completely below the fold. The stage
+          keeps `flex-1 min-w-0`, so it simply narrows. */}
+      <div className={`flex ${displayMode === 'split' ? 'flex-col' : 'flex-col lg:flex-row'} gap-3`}>
         <div className="flex-1 flex flex-col space-y-2 min-w-0">
           <CameraToolbar
             cameras={cameras}

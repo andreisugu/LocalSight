@@ -30,9 +30,9 @@ export default function EventTimeline({ event }) {
       style={{ backgroundColor: themeStyles.cardBg }}
       className="rounded-lg border border-white/10 p-3 space-y-2"
     >
-      <h4 className="text-xs font-bold uppercase tracking-wider text-[#D73833] flex items-center gap-1">
+      <h3 className="text-xs font-bold uppercase tracking-wider text-[#B91C1C] dark:text-[#FF8A80] flex items-center gap-1">
         <Clock size={13} /> Cronologie eveniment (5 pași)
-      </h4>
+      </h3>
       <ol className="flex flex-col gap-1 sm:grid sm:grid-cols-5 sm:gap-1.5 sm:text-center font-mono text-[10px]">
         {steps.map((step) => (
           <li
@@ -42,7 +42,7 @@ export default function EventTimeline({ event }) {
               TONE_CLASS[step.tone][isDarkMode ? 'dark' : 'light']
             }`}
           >
-            <span className="block opacity-70 leading-tight">
+            <span className="block leading-tight">
               {step.position}. {step.label}
             </span>
             <span className="block font-bold leading-tight whitespace-nowrap">{step.time}</span>

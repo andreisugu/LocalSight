@@ -123,3 +123,9 @@ iar `tailwind.config.js` păstrează valorile de configurare.
 | 2026-11-02 | `IncidentDetailView.jsx` (layout) | 342 de linii rămase; doar acțiunile noi sunt ale noastre. Rescrierea completă e următorul pass. |
 | 2026-11-02 | `Toast.jsx`, `eventActions.js`, `print.js` | mici și funcționale; le înlocuim când le atinge un feature |
 | 2026-11-02 | `theme.js`, `ThemeContext.jsx`, `index.css`, `tailwind.config.js` | tokenuri de design partajate; o rescriere fără un redesign real ar fi cosmetică |
+| 2026-11-02 | `ReportsView.jsx`, `IncidentDetailView.jsx`, `IncidentsListView.jsx`, `ZoneEditorView.jsx`, `components/zones/*` | valul 1 de fix-uri a11y/design nu atinge ecranele care sunt consolidate de alt branch; rămân pe valul 2 (vezi raportul `prep/ui-fix`) |
+| 2026-11-02 | `ReportsView.jsx` | contrast pe temă luminoasă: KPI `text-amber-600` (3,19:1), `#D73833` la `opacity-80` (3,53:1), `<th>` „Critice"/„Warning" (3,77/2,51:1); h3 „Rezumat Executiv Tură" pe temă întunecată (3,16:1) |
+| 2026-11-02 | `ZoneEditorView.jsx` | hint-uri `opacity-60` (4,38:1) și butonul „Șterge" `text-red-500` (3,76:1) în tema luminoasă; numerotarea punctelor stă peste cadru (contrast nedeterminabil automat) |
+| 2026-11-02 | `IncidentDetailView.jsx` | titlul `<h2>` e încă id-ul sintetic (design H4); eticheta raportului „AI · demo" vs „șablon" (H5) aparține ecranului de raport |
+| 2026-11-02 | `IncidentFeedCard` / `IncidentsListView` | cardul de feed nu mai e `role=button` cu buton înăuntru (A5 rezolvat); lista rămâne cu `role=button` imbricat până la consolidare |
+| 2026-11-02 | controlele din tema întunecată | granițele au 1,37–1,92:1 (sub 3:1, A9); tema luminoasă are acum `#64748B` = 4,76:1. Închiderea pe dark cere un pas de token, nu o clasă locală |

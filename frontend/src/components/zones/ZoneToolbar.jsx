@@ -68,7 +68,7 @@ export default function ZoneToolbar({
       <div className="flex items-center gap-1.5 flex-wrap">
         <span className="text-xs font-bold opacity-75 mr-1">Zone salvate:</span>
         {zones.length === 0 && (
-          <span className="text-[11px] font-mono text-amber-500 dark:text-amber-300">
+          <span className="text-[11px] font-mono text-amber-700 dark:text-amber-300">
             niciuna pe camera asta — creează una
           </span>
         )}
@@ -81,7 +81,7 @@ export default function ZoneToolbar({
             title={`${item.rule_type} · ${(item.polygon || []).length} puncte`}
           >
             {item.zone_id}
-            <span className="opacity-70 font-semibold">{ruleShort(item.rule_type)}</span>
+            <span className="font-semibold">{ruleShort(item.rule_type)}</span>
           </button>
         ))}
         <button
@@ -90,7 +90,7 @@ export default function ZoneToolbar({
           className={`px-2.5 py-1 rounded border text-[11px] font-bold flex items-center gap-1 transition-colors ${
             isDarkMode
               ? 'border-[#FFEB33]/40 bg-[#FFEB33]/10 text-[#FFEB33] hover:bg-[#FFEB33]/20'
-              : 'border-[#D73833]/40 bg-[#D73833]/10 text-[#D73833] hover:bg-[#D73833]/20'
+              : 'border-[#D73833]/40 bg-[#D73833]/10 text-[#B91C1C] hover:bg-[#D73833]/20'
           }`}
         >
           <Plus size={12} /> Zonă nouă
@@ -155,7 +155,9 @@ export default function ZoneToolbar({
           className="p-3 rounded-xl border space-y-2 text-xs"
         >
           <div className="flex items-center justify-between font-bold font-mono text-[11px]">
-            <span>Coordonate normalizate (JSON)</span>
+            {/* A real <label>: the textarea is the only keyboard path to the geometry,
+                and it used to have no accessible name at all (axe: `label`, critical). */}
+            <label htmlFor="zone-json">Coordonate normalizate (JSON)</label>
             <button
               onClick={onApplyJson}
               className="px-2 py-0.5 bg-[#D73833] hover:bg-[#b82e2a] text-white rounded text-[10px] font-bold"
@@ -163,12 +165,19 @@ export default function ZoneToolbar({
               Aplică pe cadru
             </button>
           </div>
+          <p id="zone-json-hint" className="text-[10px] text-slate-600 dark:text-slate-400">
+            Listă de minimum 3 puncte <code>{'{x, y}'}</code> cu valori normalizate 0–1, în
+            ordine. „Aplică pe cadru” înlocuiește poligonul desenat și poate fi anulat cu
+            Ctrl+Z.
+          </p>
           <textarea
+            id="zone-json"
+            aria-describedby="zone-json-hint"
             value={jsonText}
             onChange={(event) => onJsonTextChange(event.target.value)}
             rows={4}
             spellCheck={false}
-            className="w-full p-2 rounded bg-white dark:bg-black/40 border border-slate-300 dark:border-white/10 font-mono text-[10px] text-[#1F1F1F] dark:text-emerald-400 focus:outline-none focus:ring-1 focus:ring-[#FFEB33]"
+            className="w-full p-2 rounded bg-white dark:bg-black/40 border border-[#64748B] dark:border-white/10 font-mono text-[10px] text-[#1F1F1F] dark:text-emerald-400"
           />
         </div>
       )}
