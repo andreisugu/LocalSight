@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ShieldAlert,
   HardHat,
@@ -23,6 +23,21 @@ import { STATUS_TOKENS } from '../../constants/theme';
 import ConfidenceBadge from '../common/ConfidenceBadge';
 import BoundingBox from '../video/BoundingBox';
 import { canDo } from '../../constants/eventActions';
+import { useEngine } from '../../engine/useEngine';
+import EnginePanel from '../live/EnginePanel';
+
+// The browser engine is opt-in per viewer, not per camera: a presenter enables it once and
+// the static site keeps the cheap clip-only path for everyone else.
+const LIVE_ENGINE_STORAGE_KEY = 'localsight.liveEngine';
+
+function readLiveEnginePreference() {
+  try {
+    return window.localStorage.getItem(LIVE_ENGINE_STORAGE_KEY) === '1';
+  } catch {
+    // Private mode or blocked storage: the toggle still works for this visit.
+    return false;
+  }
+}
 
 export default function LiveView() {
   const { isDarkMode, themeStyles } = useTheme();
@@ -45,6 +60,10 @@ export default function LiveView() {
   const [displayMode, setDisplayMode] = useState('standard');
   const [streamFailed, setStreamFailed] = useState(false);
   const [videoFailed, setVideoFailed] = useState(false);
+  // Default OFF: the public site must not download models or start a worker until asked.
+  const [browserEngineOn, setBrowserEngineOn] = useState(readLiveEnginePreference);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
 
   useEffect(() => {
     setStreamFailed(false);
@@ -80,6 +99,24 @@ export default function LiveView() {
   const liveFps = activeCamera?.id ? health?.live_fps?.[activeCamera.id] : null;
   const edgeSeen = health?.edge_last_seen_s;
   const edgeActive = Boolean(health?.db && edgeSeen != null && edgeSeen < 60);
+
+  // The engine only runs on the local clip fallback, and only while the viewer asked for
+  // it. Fullscreen renders the raw clip in a separate tree, so the worker is stopped there
+  // instead of being left pointing at a <video> that no longer exists.
+  const engineEnabled = browserEngineOn && showDemoVideo && displayMode !== 'fullscreen';
+  const engine = useEngine({ videoRef, canvasRef, enabled: engineEnabled });
+
+  const toggleBrowserEngine = () => {
+    setBrowserEngineOn((previous) => {
+      const next = !previous;
+      try {
+        window.localStorage.setItem(LIVE_ENGINE_STORAGE_KEY, next ? '1' : '0');
+      } catch {
+        // Storage can be unavailable; the choice still applies to this tab.
+      }
+      return next;
+    });
+  };
 
   if (!activeCamera) {
     return (
@@ -366,6 +403,24 @@ export default function LiveView() {
                 <span>MOTOR: {activeCamera?.engine_on ? 'ON' : 'OFF'}</span>
               </button>
 
+              {/* Motorul din browser: doar pe clipul demo, opțional, ținut minte local */}
+              {showDemoVideo && (
+                <button
+                  type="button"
+                  onClick={toggleBrowserEngine}
+                  aria-pressed={browserEngineOn}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 shadow transition-all ${
+                    browserEngineOn
+                      ? 'bg-[#33E1FF] text-[#1F1F1F]'
+                      : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+                  }`}
+                  title="Rulează detecția YOLO și blurul de față în acest browser, pe clipul demo"
+                >
+                  <Cpu size={13} />
+                  <span>Procesează în browser: {browserEngineOn ? 'ON' : 'OFF'}</span>
+                </button>
+              )}
+
               {/* Buton Full-Screen direct pe feed */}
               <button
                 onClick={() => setDisplayMode('fullscreen')}
@@ -411,7 +466,10 @@ export default function LiveView() {
                 ) : showDemoVideo ? (
                   <>
                     <video
-                      key={demoVideoSrc}
+                      // While the engine is on the element must survive a camera change:
+                      // useEngine keeps its listeners and frame loop on this exact node.
+                      key={browserEngineOn ? 'live-engine' : demoVideoSrc}
+                      ref={videoRef}
                       src={demoVideoSrc}
                       className="w-full h-full object-cover"
                       autoPlay
@@ -421,6 +479,17 @@ export default function LiveView() {
                       aria-label={`Clip demo ${activeCamera?.id}`}
                       onError={() => setVideoFailed(true)}
                     />
+                    {/* The worker's frames are drawn into a 2d context created with
+                        alpha:false, so every processed frame is fully opaque: the raw,
+                        unblurred clip can never show through a blurred face. The canvas
+                        shares object-cover with the video, so the crop is identical. */}
+                    {browserEngineOn && (
+                      <canvas
+                        ref={canvasRef}
+                        aria-hidden="true"
+                        className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                      />
+                    )}
                     <div className="absolute top-11 left-2.5 px-2 py-1 rounded bg-black/75 text-white text-[10px] font-mono border border-white/10">
                       ÎNREGISTRARE • DEMO STATIC
                     </div>
@@ -476,6 +545,9 @@ export default function LiveView() {
               </div>
             )}
           </div>
+
+          {/* Citirea compactă a motorului, doar când rulează pe clipul demo. */}
+          {engineEnabled && <EnginePanel engine={engine} />}
 
           {/* Bară Telemetrie Senzori Sol & Hardware Cameră */}
           <div
