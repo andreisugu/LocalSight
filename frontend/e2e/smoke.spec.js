@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   expectNoPageErrors,
+  feedMode,
   fixtureRows,
   incidentIdFromUrl,
   incidentRows,
@@ -55,11 +56,30 @@ test('the incident surfaces show no fixtures until demo data is turned on', asyn
   await expect(page.getByTestId('kpi-latency')).toHaveAttribute('data-source', 'no-demo');
   await expect(page.getByTestId('kpi-open')).toContainText('0');
 
-  // The explicit Simulare action still works with the fixtures off, and says so.
+  // The explicit Simulare action still works with the fixtures off, and says so. A new
+  // open incident also makes the queue the default mode: one ranked row with its reason.
   await page.getByRole('button', { name: /Simulare/ }).click();
   await page.getByRole('menuitem', { name: /Persoană în Zonă Motor/ }).click();
+  await expect(page.getByTestId('feed-mode-queue')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('triage-row')).toHaveCount(1);
+  const simulatedRow = page.getByTestId('triage-row').first();
+  await expect(simulatedRow).toHaveAttribute('data-severity', 'CRITICAL');
+  await expect(simulatedRow).toHaveAttribute('data-status', 'open');
+  await expect(simulatedRow.getByTestId('triage-reason')).toContainText('critic');
+  await expect(simulatedRow.getByTestId('triage-deadline')).toBeVisible();
+
+  // Flux is the list as it always was, one click away: the card and its source chip stay.
+  await feedMode(page, 'flux');
   await expect(page.getByTestId('incident-card')).toHaveCount(1);
   await expect(page.getByTestId('incident-simulated-chip')).toBeVisible();
+
+  // A keyboard acknowledge goes through the same store path as the button: the row leaves
+  // the queue, the empty state says where the history went, the record keeps the incident.
+  await feedMode(page, 'queue');
+  await page.getByTestId('triage-open').first().focus();
+  await page.keyboard.press('a');
+  await expect(page.getByTestId('triage-row')).toHaveCount(0);
+  await expect(page.getByTestId('triage-empty')).toBeVisible();
   await openView(page, 'incidents');
   await expect(page.locator('[data-testid="incident-row"][data-source="simulated"]')).toHaveCount(1);
 
@@ -76,6 +96,25 @@ test('the incident surfaces show no fixtures until demo data is turned on', asyn
   await expect(page.getByTestId('kpi-demo-note')).toBeVisible();
   await expect(page.getByTestId('kpi-ppe')).toContainText('93.8%');
   await expect(page.getByTestId('kpi-latency')).toContainText('1.3s');
+
+  // The queue ranks the four open fixtures. A CRITICAL refuses the hold in the rule's own
+  // words; a WARNING holds for at most 15 minutes, with a reason, and stays in place.
+  await expect(page.getByTestId('triage-row')).toHaveCount(4);
+  const criticalRow = page.locator('[data-testid="triage-row"][data-severity="CRITICAL"]').first();
+  const warningRow = page.locator('[data-testid="triage-row"][data-severity="WARNING"]').first();
+  await criticalRow.getByTestId('triage-open').focus();
+  await page.keyboard.press('h');
+  await expect(page.getByTestId('triage-hint')).toContainText('Criticele nu pot fi amânate');
+  await expect(page.getByTestId('triage-hold-prompt')).toHaveCount(0);
+
+  await warningRow.getByTestId('triage-open').focus();
+  await page.keyboard.press('h');
+  await expect(warningRow.getByTestId('triage-hold-prompt')).toBeVisible();
+  await warningRow.getByTestId('triage-hold-confirm').click();
+  await expect(warningRow.getByTestId('triage-held-chip')).toContainText('ținut până la');
+  await expect(warningRow.getByTestId('triage-release')).toBeVisible();
+  await expect(page.getByTestId('triage-row')).toHaveCount(4);
+
   // The report counts the visible list too: eight fixtures plus the simulated event.
   await openView(page, 'reports');
   await expect(page.getByTestId('report-total')).toHaveText('9');

@@ -93,6 +93,13 @@ export function incidentCards(page) {
   return page.getByTestId('incident-card');
 }
 
+/** The Live feed switch. `queue` is the ranked triage queue, `flux` the old card list. */
+export async function feedMode(page, mode) {
+  const button = page.getByTestId(`feed-mode-${mode}`);
+  await button.click();
+  await expect(button).toHaveAttribute('aria-pressed', 'true');
+}
+
 /**
  * The first incident the browser engine produced in this session. The card carries
  * `data-local`; fixture cards never do, so this selects on a fact, not on the word "local".

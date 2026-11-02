@@ -1,11 +1,15 @@
-# Triage queue — core and integration plan
+# Triage queue — core, surface and integration notes
 
-Status: **pure logic, tests and this plan only.** No view, provider or component imports the
-module yet, so the Live screen is unchanged. Source of the requirement:
+Status: **wired into the Live feed.** `utils/triage.js` is the rule, `components/live/TriageQueue`
+and `TriageRow` are the surface, and `IncidentFeed` mounts them behind a `Coadă` / `Flux` switch.
+The Flux list (filters, search, cards, ack guard) is untouched. Source of the requirement:
 `docs/product/innovation-operator.md` §2.1 (queue), §2.2 (episodes), §4 (acceptance criteria).
 
 - `frontend/src/utils/triage.js` — the whole read model. Pure, injected clock, no React.
 - `frontend/src/utils/triage.test.mjs` — 33 Node tests, part of `npm run test:unit`.
+- `frontend/src/components/live/triageRows.js` — the row-only helpers (countdown copy, bar,
+  hold time, typing guard, episode collapse) with `triageRows.test.mjs`.
+- `frontend/src/components/live/TriageQueue.jsx` / `TriageRow.jsx` — the surface.
 - `frontend/src/triage/README.md` — this file.
 
 ## The rule, stated once
@@ -106,37 +110,35 @@ every key a no-op. The caller ignores modified keys (`ctrl/meta/alt`) and calls
 | `H` | `hold` a WARNING | CRITICAL (`Criticele nu pot fi amânate.`), already held, not a WARNING, closed |
 | `Esc` | `release-hold` | nothing held |
 
-## Integration plan for Live
+## Integration, as built
 
 File-level, no new route, no new global state.
 
-1. **`src/context/useIncidentStore.jsx`** (or a sibling provider): derive
-   `queueState = createTriageState(events, { operator })` and expose `queueRows(queueState, now)`
-   next to `filteredEvents`. Do not put the queue in `localStorage`; it is session-only.
-2. **`src/components/live/IncidentFeed.jsx`**: add a two-tab header — `Coadă` / `Flux` — inside
-   the existing panel. `Coadă` is default when at least one open or escalated incident exists;
-   `Flux` keeps today's filters, search and cards untouched. Both tabs read the same list, so
-   nothing disappears.
-3. **`src/components/live/TriageQueue.jsx`** (new): one row per ranked event (episode header
-   optional, see below), severity token, reason line, countdown bar from `remainingS`, hold chip
-   `ținut până la HH:MM (motiv)`, and the existing detail/ack actions. One `setInterval(1000)`
-   only while the tab is visible feeds `now`; it changes the bar, not the order.
-4. **`IncidentFeed.jsx` keyboard scope**: `onKeyDown` on the queue container, not on `window`.
-   Resolve `nextAction`, then:
-   - `ack` → the same handler the card uses, so the store, toast and KPI update stay identical;
-   - `false-positive` → the existing dialog and reason list;
-   - `hold` → `holdWarning`, replace the state, show `result.message` on refusal;
-   - `release-hold` → `releaseHold`;
-   - `open` → `onOpenIncident`.
-   After an ack/FP, move focus to the first remaining row (ref + `focus()`), and let the set
-   change re-rank. `freezeWhileReading(state, focusedId, now)` on focus; release on blur.
-5. **Episode rows**: render an episode as the row of its highest-ranked event, with
-   `count`, `maxSeverity` and the range in the title attribute, expandable to the raw rows. Every
-   raw row keeps its own ack through the existing per-event path; "confirmă toate" would be a
-   later, explicit secondary action that acks each id one by one. Never collapse a CRITICAL inside
-   a WARNING-looking row: `maxSeverity` and the worst countdown are mandatory.
-6. **`src/components/views/IncidentDetailView.jsx`** (later, separate diff): a `poziția 1 din 4`
-   chip and the same `reason` line, read from `queueRows`, so context does not disappear.
+1. **`src/components/live/IncidentFeed.jsx`**: a `Coadă` / `Flux` switch (`data-testid="feed-mode"`)
+   above the existing filters. The mode is **automatic until the operator picks one**: `Coadă`
+   while the filtered list has at least one open or escalated incident, `Flux` otherwise. An
+   explicit choice sticks for the life of the panel, so acknowledging the last row never flips
+   the tab under the operator. Both modes render the same `filteredEvents`, so the queue never
+   hides a row the feed would show; the queue itself renders only `open` + `escalated`.
+2. **`src/components/live/TriageQueue.jsx`**: owns the 1 s tick (`now`, countdowns only — the
+   ranking is time-invariant), the session triage state, the prompts and the keyboard handler.
+   Rows come from `queueRows`, so the reading freeze and the holds are the tested core's.
+3. **`src/components/live/TriageRow.jsx`**: one row per episode, headed by the episode's
+   highest-ranked event. Same card shape as `IncidentFeedCard` — a plain card with sibling
+   controls (open, acknowledge, false positive, hold/release, expand) and no control inside a
+   control. A fixed reason list for both the hold (`HOLD_REASONS`) and the false positive
+   (`FALSE_POSITIVE_REASONS`, the §4.1 list); the note goes through `markFalsePositive`.
+4. **Keyboard**: `onKeyDown` on the queue container only. `A` ack (same store path and double
+   press guard as the card), `F` false positive prompt, `H` hold a WARNING (a CRITICAL answers
+   with the core's `Criticele nu pot fi amânate.` in the live hint), `Enter` opens the detail,
+   `Esc` closes a prompt or releases a hold. Modified keys and text targets are ignored; a
+   focused action button keeps its own `Enter`.
+5. **Freeze and focus**: focus inside a row calls `freezeWhileReading`; leaving the queue, or
+   any action, calls `releaseFreeze`. After an ack or a false positive the first remaining row
+   takes focus, so the next decision needs no mouse.
+6. **Episodes**: `episodeRows` (tested) collapses `groupEpisodes` output to one row per episode,
+   keeps every raw event behind `Vezi detecțiile`, and keeps the per-event acknowledge. A
+   single-event episode prints no episode line.
 
 ### Data it needs
 
@@ -154,9 +156,10 @@ queue must print `termen necunoscut` when it is null instead of inventing a time
 
 ## What must not change
 
-- **Ack double-click guard.** `shouldAcceptAck` and the `pressRef` in `IncidentFeed` remain the
-  only gate for pointer acks. Keyboard ack goes through the same store handler, never straight to
-  `acknowledgeLocally`, and must not bypass the guard for a click that follows a key press.
+- **Ack double-click guard.** `shouldAcceptAck` and the `pressRef` in `IncidentFeed` / `TriageQueue`
+  remain the only gate for pointer acks. Keyboard ack goes through the same store handler, never
+  straight to `acknowledgeLocally`, and must not bypass the guard for a click that follows a key
+  press. The store's `canDo` + `pendingAcks` guard is what makes a second `A` a no-op.
 - **Local / demo chips.** `DemoDataChip` in the panel header and the per-event `local` chip stay.
   A queue row is still an event row; it must not lose the label that says where it came from.
 - **Flux stays one click away.** The queue filters nothing silently; every event the feed had is
@@ -177,7 +180,15 @@ builds. This module is the read model they will reuse; it is not a screen.
 cd frontend
 npm run test:unit
 VITE_USE_MOCK=true VITE_BASE=/LocalSight/ npm run build
+PW_BASE_URL=http://127.0.0.1:<port>/ npx playwright test            # 5 smoke
+PW_BASE_URL=http://127.0.0.1:<port>/LocalSight/ npx playwright test --config=playwright.pages.config.js
+PW_BASE_URL=http://127.0.0.1:<port>/LocalSight/ npx playwright test --config=playwright.persistence.config.js
 ```
+
+The smoke suite covers the surface end to end: the queue is the default once a simulated
+incident is open, `Flux` still shows the card and its source chip, `A` acknowledges through the
+store path and the row leaves, a CRITICAL refuses `H`, and a WARNING holds with a reason and
+stays in place. The Pages and persistence runs pin `Flux` where they need the card.
 
 The queue is honest about its limit, in the product's words: *ordonează atenția, nu decide* —
 the order is an explicit rule, not a risk model, and the full list stays one click away.
