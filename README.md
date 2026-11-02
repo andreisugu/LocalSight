@@ -161,6 +161,16 @@ Scenariul de prezentare, pas cu pas: [`demo/run_sheet_browser.md`](demo/run_shee
 - **Capturile demo** din `frontend/public/media/stills/`: Unsplash (apron), CC BY-SA 2.0
   © Derek Harper (taxiway), CC0 (bagaj). Detalii în [`THIRD_PARTY.md`](THIRD_PARTY.md).
 
+## Proveniență
+
+Istoricul git al fork-ului păstrează toată istoria SafeSight; nimic nu a fost squash-uit.
+Ce cod a rămas de la fiecare autor se măsoară pe linii cu
+`python3 scripts/provenance.py` (`git blame -w`), iar `--audit <fișier>` listează exact
+liniile rămase. Standardul de „înlocuit" — implementare nouă, logică testată, nu doar clase
+schimbate — și lista a ce s-a amânat sunt în
+[`docs/rewrite-backlog.md`](docs/rewrite-backlog.md); raportul generat este
+[`docs/provenance.md`](docs/provenance.md).
+
 ## Credite
 
 Proiectul a fost construit la un hackathon ca **SafeSight**, de Andrei, Max, Dalina și
