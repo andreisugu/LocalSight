@@ -1,4 +1,4 @@
-// SafeSight - Design System & Tokeni Oficiali
+// LocalSight - Design System & Tokeni Oficiali
 // Schema oficială Coolors:
 // 1. Carbon Black: #1F1F1F (Fundal Dark Mode & Text Light Mode)
 // 2. Scarlet Rush: #D73833 (Alerte Critice, Stop, Risc Major)

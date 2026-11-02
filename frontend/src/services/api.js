@@ -254,7 +254,7 @@ function mapShiftReport(report) {
   };
 }
 
-export const safeSightApi = {
+export const localSightApi = {
   async getHealth() {
     if (USE_MOCK) return { status: 'ok', db: true, edge_last_seen_s: 0, mock: true };
     return http('/health');

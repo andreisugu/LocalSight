@@ -105,7 +105,7 @@ export default function Sidebar() {
     };
   }, [events]);
 
-  // Ecranele principale ale aplicației SafeSight
+  // Ecranele principale ale aplicației LocalSight
   const menuItems = [
     {
       id: 'live',
