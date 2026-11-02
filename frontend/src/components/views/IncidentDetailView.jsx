@@ -7,7 +7,6 @@ import {
   RefreshCw,
   FileDown,
   Clock,
-  ShieldAlert,
   Info,
   MapPin,
   Calendar,
@@ -18,6 +17,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { STATUS_TOKENS } from '../../constants/theme';
 import ConfidenceBadge from '../common/ConfidenceBadge';
+import SafeImage from '../common/SafeImage';
 import { printAsPdf } from '../../utils/print';
 import { canDo } from '../../constants/eventActions';
 
@@ -83,19 +83,20 @@ export default function IncidentDetailView() {
 
   return (
     <div className="flex-1 p-4 md:p-6 overflow-y-auto space-y-4 h-full select-none max-w-6xl mx-auto">
-      {/* Bară Superioară Navigare */}
-      <div className="flex items-center justify-between border-b border-white/10 pb-3">
-        <div className="flex items-center gap-3">
+      {/* Bară Superioară Navigare: pe ecrane mici acțiunile trec pe rândul următor,
+          ca să rămână toate vizibile (F5). */}
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 border-b border-white/10 pb-3">
+        <div className="flex items-start gap-2 sm:gap-3 min-w-0 flex-1">
           <button
             onClick={() => setCurrentView('incidents')}
             style={{ backgroundColor: themeStyles.cardBg }}
-            className="no-print p-2 rounded-lg border hover:bg-white/10 flex items-center gap-1.5 text-xs font-bold"
+            className="no-print p-2 rounded-lg border hover:bg-white/10 flex items-center gap-1.5 text-xs font-bold shrink-0"
           >
             <ArrowLeft size={16} /> Incidente
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="font-black text-base md:text-lg uppercase tracking-tight">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="font-black text-base md:text-lg uppercase tracking-tight break-words min-w-0">
                 Incident: {selectedEvent.event_id}
               </h2>
               {/* Badge Severitate */}
@@ -105,7 +106,7 @@ export default function IncidentDetailView() {
                   color: STATUS_TOKENS[selectedEvent.severity].text,
                   borderColor: STATUS_TOKENS[selectedEvent.severity].border
                 }}
-                className="text-[10px] font-black uppercase px-2 py-0.5 rounded border"
+                className="text-[10px] font-black uppercase px-2 py-0.5 rounded border whitespace-nowrap shrink-0"
               >
                 {selectedEvent.severity}
               </span>
@@ -116,30 +117,32 @@ export default function IncidentDetailView() {
                   color: STATUS_TOKENS[selectedEvent.status]?.text || '#222222',
                   borderColor: STATUS_TOKENS[selectedEvent.status]?.border || '#DDDDDD'
                 }}
-                className="text-[10px] font-bold px-2 py-0.5 rounded border"
+                className="text-[10px] font-bold px-2 py-0.5 rounded border whitespace-nowrap shrink-0"
               >
                 {STATUS_TOKENS[selectedEvent.status]?.label || selectedEvent.status}
               </span>
             </div>
-            <p style={{ color: themeStyles.textMuted }} className="text-xs font-mono">
+            <p style={{ color: themeStyles.textMuted }} className="text-xs font-mono truncate">
               Model detecție: {selectedEvent.model} • Track ID: #{selectedEvent.track_id}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto lg:ml-auto shrink-0">
           {/* The snapshot is the moment of the incident; this shows the same camera now. */}
           <button
             onClick={() => {
               setSelectedCameraId(selectedEvent.camera_id);
               setCurrentView('live');
             }}
-            className="no-print px-3 py-2 rounded-lg bg-[#D73833] hover:bg-[#b82e2a] text-white text-xs font-bold flex items-center gap-1.5"
+            className="no-print px-3 py-2 rounded-lg bg-[#D73833] hover:bg-[#b82e2a] text-white text-xs font-bold flex items-center gap-1.5 shrink-0"
           >
             <Video size={15} /> Vezi camera acum
           </button>
           {/* Confidence Badge formatat 0.91 · 14/15 cadre */}
-          <ConfidenceBadge confidence={selectedEvent.confidence} />
+          <div className="shrink-0">
+            <ConfidenceBadge confidence={selectedEvent.confidence} />
+          </div>
         </div>
       </div>
 
@@ -158,18 +161,12 @@ export default function IncidentDetailView() {
           </div>
 
           <div className="flex-1 relative rounded-lg overflow-hidden bg-black border border-slate-700 min-h-[260px] flex items-center justify-center">
-            {selectedEvent.snapshot_url ? (
-              <img
-                src={selectedEvent.snapshot_url}
-                alt="Cadru incident blurat"
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="text-center text-slate-400 font-mono text-xs p-6">
-                <ShieldAlert size={36} className="mx-auto text-amber-400 mb-2" />
-                <span>Nicio imagine disponibilă (Flux Offline)</span>
-              </div>
-            )}
+            <SafeImage
+              src={selectedEvent.snapshot_url}
+              alt="Cadru incident blurat"
+              className="w-full h-full object-cover text-xs p-6"
+              iconSize={36}
+            />
             <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/80 text-white font-mono text-[10px] rounded border border-white/20">
               Momentul incidentului • fețe blurate pe edge
             </div>
