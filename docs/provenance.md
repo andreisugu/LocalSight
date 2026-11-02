@@ -1,6 +1,6 @@
 # Proveniență — cine a scris codul rămas
 
-Generat cu `python3 scripts/provenance.py --write` la commit `5afbb89`.
+Generat cu `python3 scripts/provenance.py --write` la commit `86d0773`.
 Măsoară **ultima atingere a fiecărei linii** (`git blame -w`), nu commit-urile.
 Un rând rescris de tine apare ca al tău chiar dacă ideea era a altcuiva; un rând
 copiat dintr-un fișier al colegilor rămâne al lor până îl atingi. `-w` ignoră
@@ -8,7 +8,7 @@ schimbările doar de whitespace. Fișierele binare, lockfile-urile și asset-uri
 excluse. Codul scris de agenți în această sesiune e comis sub identitatea ta, deci
 intră la „tu”.
 
-**Total: 30788 linii** — tu 22397, colegi 8389, necunoscut 2.
+**Total: 30797 linii** — tu 22408, colegi 8389, necunoscut 0.
 
 | Fișier | Linii | Tu | Colegi | ? | Colegi % |
 |---|---:|---:|---:|---:|---:|
@@ -79,7 +79,7 @@ intră la „tu”.
 | `backend/tests/test_seed_zone_sync.py` | 128 | 75 | 53 | 0 | 41.4% |
 | `automation/report.py` | 273 | 161 | 112 | 0 | 41.0% |
 | `ml/tests/test_zones.py` | 172 | 102 | 70 | 0 | 40.7% |
-| `frontend/src/components/views/LiveView.jsx` | 1294 | 808 | 486 | 0 | 37.6% |
+| `frontend/src/components/views/LiveView.jsx` | 1298 | 812 | 486 | 0 | 37.4% |
 | `backend/app/services/kpi.py` | 293 | 190 | 103 | 0 | 35.2% |
 | `frontend/src/components/common/ConfidenceBadge.jsx` | 32 | 21 | 11 | 0 | 34.4% |
 | `ml/safesight_ml/run.py` | 535 | 358 | 177 | 0 | 33.1% |
@@ -102,8 +102,8 @@ intră la „tu”.
 | `ml/safesight_ml/detector.py` | 128 | 117 | 11 | 0 | 8.6% |
 | `ml/tests/test_pipeline.py` | 455 | 417 | 38 | 0 | 8.4% |
 | `backend/tests/test_automation_contract.py` | 76 | 75 | 1 | 0 | 1.3% |
-| `frontend/src/engine/worker.js` | 832 | 832 | 0 | 0 | 0.0% |
-| `frontend/src/components/views/BenchView.jsx` | 763 | 763 | 0 | 0 | 0.0% |
+| `frontend/src/engine/worker.js` | 836 | 836 | 0 | 0 | 0.0% |
+| `frontend/src/components/views/BenchView.jsx` | 764 | 764 | 0 | 0 | 0.0% |
 | `frontend/src/utils/zoneDraft.test.mjs` | 570 | 570 | 0 | 0 | 0.0% |
 | `frontend/src/components/views/LabView.jsx` | 554 | 554 | 0 | 0 | 0.0% |
 | `frontend/src/utils/zoneDraft.js` | 460 | 460 | 0 | 0 | 0.0% |
@@ -117,7 +117,7 @@ intră la „tu”.
 | `frontend/src/components/zones/ZoneCanvas.jsx` | 304 | 304 | 0 | 0 | 0.0% |
 | `frontend/src/engine/tracker.js` | 296 | 296 | 0 | 0 | 0.0% |
 | `backend/app/services/outbox.py` | 273 | 273 | 0 | 0 | 0.0% |
-| `scripts/provenance.py` | 267 | 265 | 0 | 2 | 0.0% |
+| `scripts/provenance.py` | 267 | 267 | 0 | 0 | 0.0% |
 | `scripts/prepare-demo-media.sh` | 266 | 266 | 0 | 0 | 0.0% |
 | `frontend/src/engine/pipeline.js` | 265 | 265 | 0 | 0 | 0.0% |
 | `frontend/src/engine/detectors.js` | 254 | 254 | 0 | 0 | 0.0% |
