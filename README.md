@@ -155,7 +155,11 @@ Scenariul de prezentare, pas cu pas: [`demo/run_sheet_browser.md`](demo/run_shee
   proprietar sau găzduit are nevoie de licență enterprise Ultralytics ori de conformare
   AGPL pe tot ansamblul. BSL-ul acestui repo nu schimbă asta.
 - **YuNet este MIT** (OpenCV Zoo); se redistribuie cu nota de copyright.
-- Clipurile demo nu sunt în git (`.mp4` este ignorat) și nu fac parte din opera licențiată.
+- **Clipurile demo**: sursele 4K din `data/videos/` nu sunt în git; versiunile web din
+  `frontend/public/media/` sunt comise (excepție țintită în `.gitignore`) și nu fac parte
+  din opera licențiată.
+- **Capturile demo** din `frontend/public/media/stills/`: Unsplash (apron), CC BY-SA 2.0
+  © Derek Harper (taxiway), CC0 (bagaj). Detalii în [`THIRD_PARTY.md`](THIRD_PARTY.md).
 
 ## Credite
 
