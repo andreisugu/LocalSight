@@ -1,16 +1,17 @@
 # LocalSight
 
 Pipeline-ul de siguranță de pe platformă, mutat în browser: detecția persoanelor, zonele,
-regulile, blur-ul pe fețe și incidentele ar trebui să ruleze într-un singur tab, fără
-server și fără ca vreun cadru să plece pe rețea. LocalSight este forkul proiectului
-SafeSight, construit la un hackathon, și duce pipeline-ul într-o altă direcție: în loc de
-un edge box care trimite evenimente unui backend, tot traseul devine cod de frontend.
+regulile, blur-ul pe fețe și incidentele rulează într-un singur tab, fără server, iar
+cadrele nu pleacă pe rețea. LocalSight este forkul proiectului SafeSight, construit la un
+hackathon: în loc de un edge box care trimite evenimente unui backend, tot traseul devine
+cod de frontend.
 
-Ce există azi, concret: linkul public este un **showcase static** — UI-ul React
-rulează pe date mock (`VITE_USE_MOCK=true`), fără inferență. Motorul din browser este în
-curs de proiectare: există nota [`docs/browser-engine.md`](docs/browser-engine.md), dar
-nu și cod. Până atunci, pipeline-ul Python din `ml/` + `backend/` rămâne implementarea de
-referință pe care portul o urmează.
+Linkul public este un **showcase static** — UI-ul React rulează pe date mock
+(`VITE_USE_MOCK=true`), iar clipurile demo se redau în buclă, fără inferență. Motorul
+propriu-zis e scris în [`frontend/src/engine/`](frontend/src/engine/) și se poate rula din
+[`/lab`](#pagini) și [`/bench`](#pagini); în Live e opțional și lent (vezi mai jos).
+Pipeline-ul Python din `ml/` + `backend/` rămâne implementarea de referință pe care portul
+o urmează.
 
 Demo static: <https://andreisugu.github.io/LocalSight/>
 
@@ -18,16 +19,37 @@ Demo static: <https://andreisugu.github.io/LocalSight/>
 
 | Ce | Stare | Unde se vede |
 |---|---|---|
-| UI React + Vite pe date mock | funcționează | [`frontend/`](frontend/), linkul de mai sus |
-| Build și deploy static (GitHub Pages) | funcționează | [`.github/workflows/pages.yml`](.github/workflows/pages.yml) |
-| Modele ONNX servite din repo | funcționează | [`frontend/public/models/`](frontend/public/models/) (9,5 MB + 0,2 MB) |
+| UI React + Vite pe date mock | funcționează | [`frontend/`](frontend/), linkul de sus |
+| Showcase static cu clipurile demo | funcționează, fără backend | linkul de sus |
+| Build și deploy static (GitHub Pages) | funcționează, la fiecare push pe `main` | [`.github/workflows/pages.yml`](.github/workflows/pages.yml) |
+| Modele ONNX servite din repo | funcționează | [`frontend/public/models/`](frontend/public/models/) (9,9 MB + 232 KB) |
 | Implementare de referință CPU | funcționează | [`ml/`](ml/) + [`backend/`](backend/) |
-| Motor browser: detecție (ORT Web) | în lucru, doar proiect | [`docs/browser-engine.md`](docs/browser-engine.md) |
-| Motor browser: zone și reguli | în lucru, doar proiect | idem |
-| Motor browser: blur pe fețe | în lucru, doar proiect | idem |
+| Motor browser: YOLO + YuNet + tracker + zone + evenimente | funcționează în `/lab` și `/bench` | [`frontend/src/engine/`](frontend/src/engine/) |
+| Blur pe fețe înainte de desenare | funcționează pe cadrul din canvas | `worker.js`; snapshot-ul de incident nu e conectat |
+| Motor browser în Live | opt-in, ~1,8–3 fps pe WASM | comutatorul „Procesează în browser” |
 | Backend, Slack, MJPEG, SQLite | în afara scopului | rămân în repo ca referință |
 
-„În lucru” înseamnă aici proiectat, nu scris: nu există încă `frontend/src/engine/`.
+Cifrele de browser sunt măsurate pe hardware-ul de dezvoltare, WASM single-thread (fără
+fire, din cauza anteturilor lipsă de pe Pages): ~1,8 fps la intrare de 640 px și ~3 fps la
+960 px. WebGPU nu a fost testat pe această mașină, deci nu are cifră. Sub 2 fps, panoul din
+Live avertizează după 10 s de rulare.
+
+Teste: 57 Node în `frontend/src/engine/*.test.mjs` (`node --test`) și 5 E2E Playwright; CI
+rulează backend, ml, build-ul de frontend și e2e.
+
+## Pagini
+
+Toate rutele sunt client-side, definite în `VIEW_PATHS` din
+[`frontend/src/context/SecurityContext.jsx`](frontend/src/context/SecurityContext.jsx).
+
+| Rută | Ce face |
+|---|---|
+| `/` | Live: feed-ul camerei demo, panoul de incidente și comutatorul „Procesează în browser” |
+| `/incidents` | lista de incidente, cu severitate, status și dovadă |
+| `/zones` | editorul de zone, poligon desenat pe cadrul de referință |
+| `/reports` | raportul de tură: KPI și rezumat |
+| `/lab` | motorul pe un clip ales sau pe webcam: fps, persoane, fețe, incidente |
+| `/bench` | fps/p50/p95 pe provider și mărime de intrare, istoric în `localStorage` |
 
 ## Capturi
 
@@ -70,13 +92,13 @@ Referința Python separă edge-ul de backend: camera → [`ml/`](ml/) (YOLO26n, 
 reguli de zonă, blur YuNet) → [`backend/`](backend/) (FastAPI, SQLite, WebSocket, MJPEG) →
 UI React. Cifrele măsurate pe CPU sunt în [`docs/performance.md`](docs/performance.md).
 
-Ținta este un singur traseu, într-un tab:
+Traseul, așa cum e scris azi:
 
 ```text
 <video> (clip în buclă sau getUserMedia)
    └─ ImageBitmap ─► Web Worker: ONNX Runtime Web (WebGPU, fallback WASM)
                         detector → tracker → zone/reguli → blur → eveniment
-                     ├─ canvas adnotat (OffscreenCanvas, transferat)
+                     ├─ cadru adnotat (ImageBitmap) ─► canvas 2D
                      └─ evenimente în memorie ─► UI React
 ```
 
