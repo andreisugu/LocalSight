@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   ShieldAlert,
   HardHat,
@@ -15,7 +15,10 @@ import {
   LayoutDashboard,
   Activity,
   Radio,
-  Cpu
+  Cpu,
+  Camera,
+  CameraOff,
+  RotateCcw
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
@@ -29,6 +32,62 @@ import EnginePanel from '../live/EnginePanel';
 // The browser engine is opt-in per viewer, not per camera: a presenter enables it once and
 // the static site keeps the cheap clip-only path for everyone else.
 const LIVE_ENGINE_STORAGE_KEY = 'localsight.liveEngine';
+
+// The one camera in the mock list whose frames come from this machine instead of the
+// network. It ships only with the static (mock) build, so the id is the whole contract:
+// no stream_url, no demo clip, and a getUserMedia request when it becomes active.
+const WEBCAM_CAMERA_ID = 'webcam-live';
+
+// Same table as /lab, copied instead of imported so this change never touches the spike
+// page. One block per failure the browser can report; the raw error name is appended under
+// the Romanian copy so the message stays specific instead of generic.
+const CAMERA_ERRORS = {
+  insecure: {
+    title: 'Camera nu poate fi deschisă în acest context',
+    detail: 'Browserul blochează accesul la cameră fără HTTPS sau localhost. Deschide pagina pe https:// sau pe http://localhost:5173 și încearcă din nou.',
+  },
+  denied: {
+    title: 'Permisiune refuzată',
+    detail: 'Ai refuzat accesul la cameră. Permite camera din iconița de lângă bara de adrese, apoi apasă „Încearcă din nou”.',
+  },
+  notfound: {
+    title: 'Nicio cameră disponibilă',
+    detail: 'Sistemul nu raportează nicio cameră video utilizabilă sau cea aleasă a fost deconectată. Conectează o cameră sau alege una dintre camerele demo.',
+  },
+  busy: {
+    title: 'Camera este folosită de altă aplicație',
+    detail: 'Închide aplicația sau tab-ul care ține camera deschisă, apoi apasă „Încearcă din nou”.',
+  },
+  unknown: {
+    title: 'Camera nu a pornit',
+    detail: 'Browserul a respins cererea de acces la cameră din alt motiv decât permisiunea sau lipsa dispozitivului.',
+  },
+};
+
+function cameraErrorFor(error) {
+  const name = error?.name || '';
+  const code = {
+    NotAllowedError: 'denied',
+    PermissionDeniedError: 'denied',
+    SecurityError: 'denied',
+    NotFoundError: 'notfound',
+    DevicesNotFoundError: 'notfound',
+    OverconstrainedError: 'notfound',
+    ConstraintNotSatisfiedError: 'notfound',
+    NotReadableError: 'busy',
+    TrackStartError: 'busy',
+    AbortError: 'busy',
+    // Headless browsers and containers without a capture backend report this instead of
+    // NotFoundError; for the operator it means the same thing: there is no camera.
+    NotSupportedError: 'notfound',
+  }[name] || 'unknown';
+  return {
+    code,
+    name,
+    message: error?.message || '',
+    ...CAMERA_ERRORS[code],
+  };
+}
 
 // `null` means "no choice stored yet": the view probes WebGPU and decides ON only when an
 // adapter exists. A stored '0' or '1' always wins, so a reload keeps the operator's choice.
@@ -125,15 +184,128 @@ export default function LiveView() {
   const [videoFailed, setVideoFailed] = useState(false);
   // null = no stored choice; the default follows the WebGPU probe below.
   const [enginePreference, setEnginePreference] = useState(readLiveEnginePreference);
+  // Derived early because the webcam attach effect depends on it: when the engine is on,
+  // the <video> element stays mounted across a source swap so the worker keeps its node.
+  const browserEngineOn = enginePreference === true;
   // null while probing; true/false once requestAdapter() answered.
   const [gpuAvailable, setGpuAvailable] = useState(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
+  // The browser webcam is the only source whose lifecycle Live owns: getUserMedia, the
+  // attach to <video> and the track teardown. The stream lives in a ref as well, so the
+  // unmount hook and the request-race guard stop tracks without waiting for a render.
+  const isWebcamCamera = activeCamera?.id === WEBCAM_CAMERA_ID;
+  const [webcamState, setWebcamState] = useState('idle'); // idle | requesting | live | error
+  const [webcamError, setWebcamError] = useState(null);
+  const [webcamStream, setWebcamStream] = useState(null);
+  const webcamStreamRef = useRef(null);
+  const webcamRequestRef = useRef(0);
+  const webcamMountedRef = useRef(true);
+
+  const stopWebcam = useCallback(() => {
+    const current = webcamStreamRef.current;
+    webcamStreamRef.current = null;
+    if (current) current.getTracks().forEach((track) => track.stop());
+    setWebcamStream(null);
+  }, []);
+
+  const startWebcam = useCallback(async () => {
+    // getUserMedia exists only in a secure context (https or localhost). Saying so beats a
+    // black rectangle on a LAN IP over plain http.
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setWebcamState('error');
+      setWebcamError({ code: 'insecure', name: 'getUserMedia undefined', message: '', ...CAMERA_ERRORS.insecure });
+      return;
+    }
+
+    // A second request (double click, camera switch) invalidates the one still in flight.
+    const request = webcamRequestRef.current + 1;
+    webcamRequestRef.current = request;
+    setWebcamState('requesting');
+    setWebcamError(null);
+
+    // Close what is open before asking again: some drivers refuse a second open of the
+    // same device with NotReadableError.
+    const previous = webcamStreamRef.current;
+    webcamStreamRef.current = null;
+    if (previous) previous.getTracks().forEach((track) => track.stop());
+    setWebcamStream(null);
+
+    try {
+      // Same 720p shape as the demo clips, so the engine sees comparable frames.
+      const next = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      // A newer request (or an unmount) won the race: this stream is already stale.
+      if (!webcamMountedRef.current || request !== webcamRequestRef.current) {
+        next.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      webcamStreamRef.current = next;
+      setWebcamStream(next);
+      setWebcamState('live');
+    } catch (error) {
+      if (!webcamMountedRef.current || request !== webcamRequestRef.current) return;
+      setWebcamState('error');
+      setWebcamError(cameraErrorFor(error));
+    }
+  }, []);
+
   useEffect(() => {
     setStreamFailed(false);
     setVideoFailed(false);
   }, [activeCamera?.id]);
+
+  // Stream lifecycle: opening on selection, releasing on any other camera and on unmount.
+  // The engine toggle is deliberately not part of this: turning detection off stops the
+  // worker, never the camera, and the raw feed keeps playing.
+  useEffect(() => {
+    webcamMountedRef.current = true;
+    return () => {
+      webcamMountedRef.current = false;
+      webcamRequestRef.current += 1; // invalidate any getUserMedia still pending
+      stopWebcam();
+    };
+  }, [stopWebcam]);
+
+  useEffect(() => {
+    if (!isWebcamCamera) {
+      // Leaving the local camera must release the device: the LED goes off, and the next
+      // clip does not inherit a stream nobody is watching.
+      stopWebcam();
+      setWebcamState('idle');
+      setWebcamError(null);
+      return;
+    }
+    startWebcam();
+  }, [isWebcamCamera, startWebcam, stopWebcam]);
+
+  // A MediaStream cannot go through `src` (React never writes srcObject) and Chromium does
+  // not re-arm autoplay for a new resource, so this effect owns "attach the current stream
+  // and start it", exactly like /lab. The element keeps the same key while the engine is
+  // toggled, so switching detection off does not re-request the camera.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (!isWebcamCamera || !webcamStream) {
+      // Back on a clip the same DOM node may be reused (engine on keeps one element):
+      // detach the stream explicitly, otherwise the <video> keeps playing the camera.
+      if (video.srcObject) video.srcObject = null;
+      if (!isWebcamCamera && video.src) {
+        const played = video.play();
+        if (played?.catch) played.catch(() => {});
+      }
+      return;
+    }
+    if (video.srcObject !== webcamStream) video.srcObject = webcamStream;
+    const played = video.play();
+    if (played?.catch) {
+      // Muted playback is allowed by the autoplay policy, so a rejection here is real.
+      played.catch((error) => console.warn('Redarea camerei locale a fost refuzată', error));
+    }
+  }, [isWebcamCamera, webcamStream, browserEngineOn]);
 
   // WebGPU is a question, not an assumption: one probe decides the default and the copy.
   useEffect(() => {
@@ -178,7 +350,9 @@ export default function LiveView() {
     .map((id) => cameras.find((camera) => camera.id === id)?.code || id)
     .join(', ');
   const noLiveForCamera = Boolean(demoCameras.length && activeCamera?.id && !demoCameras.includes(activeCamera.id));
-  const showStream = Boolean(activeCamera?.stream_url && !streamFailed && !isOffline && !noLiveForCamera);
+  // The local camera has neither a stream URL nor a demo clip: both paths would show a
+  // feed that is not the operator's camera, so they are disabled by id.
+  const showStream = Boolean(activeCamera?.stream_url && !streamFailed && !isOffline && !noLiveForCamera && !isWebcamCamera);
   // Fallback static: fără backend nu există MJPEG, deci rulăm un clip local în buclă.
   // Ordine: VITE_MEDIA_VIDEO (override global) → {BASE_URL}media/{camera.id}.mp4 → gradient.
   // Clipurile sunt produse de scripts/prepare-demo-media.sh și rămân în afara git-ului.
@@ -186,12 +360,23 @@ export default function LiveView() {
   const mediaBaseUrl = import.meta.env.BASE_URL || '/';
   const demoVideoSrc = mediaVideoOverride
     || (activeCamera?.id ? `${mediaBaseUrl}media/${activeCamera.id}.mp4` : null);
-  const showDemoVideo = Boolean(demoVideoSrc && !videoFailed && !isOffline && !noLiveForCamera);
+  const showDemoVideo = Boolean(demoVideoSrc && !videoFailed && !isOffline && !noLiveForCamera && !isWebcamCamera);
   // FPS măsurat de backend din cadența cadrului live; absent = nu se poate măsura,
   // nu 0. Vezi backend/app/services/live_rate.py.
   const liveFps = activeCamera?.id ? health?.live_fps?.[activeCamera.id] : null;
   const edgeSeen = health?.edge_last_seen_s;
   const edgeActive = Boolean(health?.db && edgeSeen != null && edgeSeen < 60);
+
+  // "live" means the browser really holds a track. Permission errors, a pending request and
+  // the moment after a switch all fall outside it, so nothing claims a feed that is not there.
+  const webcamLive = isWebcamCamera && webcamState === 'live' && Boolean(webcamStream);
+  // The two sources the browser engine can process. Everything the clip path shows (toggle,
+  // fps badge, honest note, panel) keys off this, so the webcam path is not a second UI.
+  const engineSource = showDemoVideo || webcamLive;
+  // The engine keeps one <video> node across a source swap while it runs (the worker holds
+  // that exact element), and remounts per clip while it is off. A webcam stream is not a
+  // `src`, so it gets its own stable key in the off state.
+  const videoKey = browserEngineOn ? 'live-engine' : isWebcamCamera ? 'webcam-source' : demoVideoSrc;
 
   // Configuration, not detection: the zone the active camera is watched against.
   const cameraZones = (zones || []).filter((zone) => zone.camera_id === activeCamera?.id);
@@ -229,14 +414,15 @@ export default function LiveView() {
   const engineReason = gpuAvailable === null
     ? 'se verifică WebGPU…'
     : gpuAvailable
-      ? 'WebGPU disponibil — detecția reală rulează pe acest clip.'
+      ? isWebcamCamera
+        ? 'WebGPU disponibil — detecția reală rulează pe fluxul camerei locale.'
+        : 'WebGPU disponibil — detecția reală rulează pe acest clip.'
       : 'rulează pe WASM single-thread; ~2 fps';
 
-  // The engine only runs on the local clip fallback, and only while the viewer asked for
-  // it. Fullscreen renders the raw clip in a separate tree, so the worker is stopped there
-  // instead of being left pointing at a <video> that no longer exists.
-  const browserEngineOn = enginePreference === true;
-  const engineEnabled = browserEngineOn && showDemoVideo && displayMode !== 'fullscreen';
+  // The engine runs on the local clip fallback or on the live webcam stream, and only while
+  // the viewer asked for it. Fullscreen renders the raw clip in a separate tree, so the
+  // worker is stopped there instead of being left pointing at a <video> that no longer exists.
+  const engineEnabled = browserEngineOn && engineSource && displayMode !== 'fullscreen';
   const engine = useEngine({
     videoRef,
     canvasRef,
@@ -513,8 +699,9 @@ export default function LiveView() {
               >
                 {(cameras || []).map((c) => {
                   const offline = c.status === 'offline';
+                  const local = c.id === WEBCAM_CAMERA_ID;
                   const live = !demoCameras.length || demoCameras.includes(c.id);
-                  const suffix = offline ? ' • offline' : live ? '' : ' • fără feed în demo';
+                  const suffix = offline ? ' • offline' : local ? ' • cameră locală' : live ? '' : ' • fără feed în demo';
                   return (
                     <option key={c.id} value={c.id}>
                       {(c.code || c.id) + (c.name && c.name !== (c.code || c.id) ? ` — ${c.name}` : '') + suffix}
@@ -565,27 +752,30 @@ export default function LiveView() {
 
               {/* Motorul din browser ține minte alegerea local. Cât timp e oprit, pornirea
                   e acțiunea principală din overlay, nu un switch mic în toolbar. */}
-              {showDemoVideo && browserEngineOn && (
+              {engineSource && browserEngineOn && (
                 <button
                   type="button"
                   onClick={toggleBrowserEngine}
                   aria-pressed={browserEngineOn}
                   className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 shadow transition-all bg-[#33E1FF] text-[#1F1F1F] hover:bg-[#7EEBFF]"
-                  title="Oprește detecția în browser și revino la clipul brut"
+                  title="Oprește detecția în browser și revino la fluxul brut"
                 >
                   <Cpu size={13} />
                   <span>Oprește motorul în browser</span>
                 </button>
               )}
 
-              {/* Buton Full-Screen direct pe feed */}
-              <button
-                onClick={() => setDisplayMode('fullscreen')}
-                className="p-1.5 rounded-lg bg-slate-500/10 hover:bg-slate-500/20 text-slate-300 border border-slate-500/20"
-                title="Deschide în modul Full-Screen Imersiv"
-              >
-                <Maximize2 size={14} />
-              </button>
+              {/* Buton Full-Screen direct pe feed. Camera locală nu îl are: modul imersiv
+                  desenează alt arbore React, iar acolo <video> ar pierde srcObject. */}
+              {!isWebcamCamera && (
+                <button
+                  onClick={() => setDisplayMode('fullscreen')}
+                  className="p-1.5 rounded-lg bg-slate-500/10 hover:bg-slate-500/20 text-slate-300 border border-slate-500/20"
+                  title="Deschide în modul Full-Screen Imersiv"
+                >
+                  <Maximize2 size={14} />
+                </button>
+              )}
             </div>
           </div>
 
@@ -620,36 +810,79 @@ export default function LiveView() {
                     className="w-full h-full object-cover"
                     onError={() => setStreamFailed(true)}
                   />
-                ) : showDemoVideo ? (
+                ) : (isWebcamCamera || showDemoVideo) ? (
                   <>
                     <video
-                      // While the engine is on the element must survive a camera change:
-                      // useEngine keeps its listeners and frame loop on this exact node.
-                      key={browserEngineOn ? 'live-engine' : demoVideoSrc}
+                      // While the engine is on the element must survive a source change:
+                      // useEngine keeps its listeners and frame loop on this exact node, and
+                      // the webcam stream is attached to whichever node this is.
+                      key={videoKey}
                       ref={videoRef}
-                      src={demoVideoSrc}
+                      // A MediaStream is not a URL: the webcam gets it through srcObject in
+                      // the effect above, and must never load /media/webcam-live.mp4.
+                      src={isWebcamCamera ? undefined : demoVideoSrc}
                       className="w-full h-full object-cover"
                       autoPlay
-                      loop
+                      loop={!isWebcamCamera}
                       muted
                       playsInline
-                      aria-label={`Clip demo ${activeCamera?.id}`}
-                      onError={() => setVideoFailed(true)}
+                      aria-label={isWebcamCamera ? 'Flux cameră locală' : `Clip demo ${activeCamera?.id}`}
+                      onError={isWebcamCamera ? undefined : () => setVideoFailed(true)}
                     />
                     {/* The worker's frames are drawn into a 2d context created with
                         alpha:false, so every processed frame is fully opaque: the raw,
                         unblurred clip can never show through a blurred face. The canvas
-                        shares object-cover with the video, so the crop is identical. */}
-                    {browserEngineOn && (
+                        shares object-cover with the video, so the crop is identical. The
+                        same is true for the webcam: with the engine on, the raw camera
+                        frame is never visible behind the processed one. */}
+                    {browserEngineOn && engineSource && (
                       <canvas
                         ref={canvasRef}
                         aria-hidden="true"
                         className="absolute inset-0 w-full h-full object-cover pointer-events-none"
                       />
                     )}
-                    <div className="absolute top-11 left-2.5 px-2 py-1 rounded bg-black/75 text-white text-[10px] font-mono border border-white/10">
-                      ÎNREGISTRARE • DEMO STATIC
-                    </div>
+                    {isWebcamCamera ? (
+                      <div className="absolute top-2.5 right-2.5 px-2 py-1 rounded bg-black/75 text-[#33E1FF] text-[10px] font-mono border border-[#33E1FF]/40">
+                        CAMERĂ LOCALĂ • getUserMedia
+                      </div>
+                    ) : (
+                      <div className="absolute top-11 left-2.5 px-2 py-1 rounded bg-black/75 text-white text-[10px] font-mono border border-white/10">
+                        ÎNREGISTRARE • DEMO STATIC
+                      </div>
+                    )}
+
+                    {/* Permission lifecycle, same copy as /lab: a pending grant says what
+                        it waits for, a failure says what the browser answered. */}
+                    {isWebcamCamera && webcamState === 'requesting' && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-center px-4 bg-black/80">
+                        <Camera size={34} className="text-[#33E1FF]" />
+                        <p className="text-white text-sm font-bold">Se cere accesul la cameră…</p>
+                        <p className="text-slate-300 text-xs">Confirmă permisiunea în browser.</p>
+                      </div>
+                    )}
+
+                    {isWebcamCamera && webcamState === 'error' && webcamError && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-center px-4 bg-black/85">
+                        <CameraOff size={34} className="text-[#D73833]" />
+                        <p className="text-white text-sm font-bold">{webcamError.title}</p>
+                        <p className="text-slate-300 text-xs max-w-sm">{webcamError.detail}</p>
+                        <p className="font-mono text-[10px] text-slate-500">
+                          {[webcamError.name, webcamError.message].filter(Boolean).join(': ')}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={startWebcam}
+                          className="mt-1 px-3 py-1.5 rounded-lg bg-[#33E1FF] hover:bg-[#7EEBFF] text-[#1F1F1F] text-[11px] font-bold inline-flex items-center gap-1.5 shadow"
+                        >
+                          <RotateCcw size={13} />
+                          Încearcă din nou
+                        </button>
+                        <p className="text-[10px] text-slate-400">
+                          sau alege altă cameră din meniul Cameră
+                        </p>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="text-center opacity-30 select-none">
@@ -665,23 +898,34 @@ export default function LiveView() {
                   </div>
                 )}
 
-                {/* Overlay-ul e fie real (canvasul motorului), fie absent. Când clipul demo
+                {/* Overlay-ul e fie real (canvasul motorului), fie absent. Când sursa
                     rulează fără motor nu se desenează nicio cutie de persoană: doar zona
                     configurată și o notă care spune exact ce vede vizitatorul. */}
-                {showDemoVideo && !browserEngineOn && <ZoneOutline zone={activeZone} />}
+                {engineSource && !browserEngineOn && <ZoneOutline zone={activeZone} />}
 
-                {browserEngineOn && (
+                {browserEngineOn && engineSource && (
                   <div className="absolute bottom-12 right-2.5 px-2 py-1 rounded bg-black/80 text-[#33E1FF] text-[10px] font-mono border border-[#33E1FF]/40">
                     {USE_MOCK ? 'detecție reală · ' : ''}procesat local · {engine.fps ? engine.fps.toFixed(1) : '—'} fps
                   </div>
                 )}
 
-                {showDemoVideo && !browserEngineOn && (
+                {engineSource && !browserEngineOn && (
                   <div className="absolute z-10 bottom-14 left-1/2 -translate-x-1/2 w-[min(27rem,calc(100%-1.5rem))] px-3 py-2 rounded-xl bg-black/85 border border-[#FFEB33]/60 shadow-lg text-center">
                     <p className="text-[11px] font-bold text-[#FFEB33]">
                       detecția este oprită — cutiile nu urmăresc video
                     </p>
                     <p className="text-[10px] text-slate-300 mt-0.5">{engineReason}</p>
+                    {/* Privacy differs by source. The demo clip is footage SafeSight ships;
+                        the webcam is the visitor's own camera on their own machine, so the
+                        raw view is acceptable ONLY with this note visible and only because
+                        nothing leaves the browser. The engine, when started, blurs faces
+                        before the frame is drawn. */}
+                    {isWebcamCamera && (
+                      <p className="text-[10px] text-slate-300 mt-0.5">
+                        Vezi fluxul brut al camerei tale locale. Blurul de față apare doar când
+                        pornești motorul; nimic nu părăsește browserul.
+                      </p>
+                    )}
                     <button
                       type="button"
                       onClick={toggleBrowserEngine}
@@ -701,12 +945,12 @@ export default function LiveView() {
                   <span>{activeCamera?.resolution || '4K (3840x2160)'}</span>
                 </div>
 
-                {!edgeActive && !noLiveForCamera && (
+                {!edgeActive && !noLiveForCamera && !isWebcamCamera && (
                   <div className="absolute top-2.5 right-2.5 max-w-xs px-2.5 py-1.5 rounded-lg bg-amber-500/95 text-slate-950 text-[10px] font-bold shadow border border-amber-300">
                     Edge fără cadre live. Pornește: ./run.sh demo
                   </div>
                 )}
-                {demoClip && !noLiveForCamera && (
+                {demoClip && !noLiveForCamera && !isWebcamCamera && (
                   <div className="absolute bottom-12 left-2.5 px-2 py-1 rounded bg-black/75 text-white text-[10px] font-mono border border-white/10">
                     Sursă demo: {demoClip}
                   </div>
@@ -719,7 +963,9 @@ export default function LiveView() {
                     <p className="text-[10px] text-slate-300 font-normal mt-0.5 leading-none">{activeCamera?.subtitle}</p>
                   </div>
                   <span className="text-[10px] font-mono text-slate-400">
-                    RTSP: {activeCamera?.rtsp_url ? activeCamera?.rtsp_url.split('/').pop() : activeCamera?.id}
+                    {isWebcamCamera
+                      ? 'SURSĂ: camera acestui dispozitiv'
+                      : `RTSP: ${activeCamera?.rtsp_url ? activeCamera?.rtsp_url.split('/').pop() : activeCamera?.id}`}
                   </span>
                 </div>
               </div>
@@ -753,8 +999,16 @@ export default function LiveView() {
               <div>
                 <span className="text-[9px] text-slate-400 block font-semibold leading-tight">Stare Pipeline</span>
                 <span className="font-mono font-bold text-emerald-500 text-[11px] flex items-center gap-1">
-                  <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${liveFps ? 'bg-emerald-500' : 'bg-slate-500'}`} />
-                  {liveFps ? `${liveFps} FPS • Live` : 'FPS necunoscut'}
+                  <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${liveFps || (webcamLive && engine.fps) ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+                  {isWebcamCamera
+                    ? webcamLive
+                      ? engine.fps
+                        ? `${engine.fps.toFixed(1)} FPS • motor browser`
+                        : 'cameră locală • motor oprit'
+                      : 'cameră locală • fără flux'
+                    : liveFps
+                      ? `${liveFps} FPS • Live`
+                      : 'FPS necunoscut'}
                 </span>
               </div>
             </div>
@@ -766,7 +1020,7 @@ export default function LiveView() {
               <div className="truncate">
                 <span className="text-[9px] text-slate-400 block font-semibold leading-tight">Model Detecție</span>
                 <span className="font-mono font-bold text-slate-700 dark:text-slate-300 truncate block text-[11px]">
-                  {browserEngineOn && showDemoVideo ? 'YOLO26n · în browser' : showStream ? 'edge · YOLO26' : 'oprit'}
+                  {browserEngineOn && engineSource ? 'YOLO26n · în browser' : showStream ? 'edge · YOLO26' : 'oprit'}
                 </span>
               </div>
             </div>
