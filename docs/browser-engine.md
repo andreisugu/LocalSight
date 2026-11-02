@@ -28,9 +28,9 @@ onestă, pentru UI și demo:
 - cadrele, tensorii și snapshot-urile trăiesc doar în memoria tab-ului;
 - blur-ul de fețe rulează înainte ca vreun cadru să fie desenat în snapshot sau în
   înregistrare, exact ca în `pipeline.py:191-202` (blur → shrink → overlay, în ordinea asta);
-- ce pleacă pe rețea sunt doar fișierele statice ale aplicației (JS, `yolo26n.onnx`,
-  `yunet.onnx`) și clipul demonstrativ — în jos, nu în sus. Un tab închis nu lasă nimic
-  pe server, pentru că nu există server.
+- ce pleacă pe rețea sunt doar fișierele statice ale aplicației (JS, `efficientdet_lite0.onnx`
+  sau `efficientdet_lite2.onnx`, `yunet.onnx`) și clipul demonstrativ — în jos, nu în sus. Un
+  tab închis nu lasă nimic pe server, pentru că nu există server.
 
 Limita care trebuie spusă, nu ascunsă: modelul și clipul se descarcă de pe origin-ul
 Pages, deci un observator al traficului vede *ce* aplicație rulezi, nu ce vede camera.
@@ -81,9 +81,9 @@ Modulele din `frontend/src/engine/` (spike-ul):
 
 | Fișier | Rol |
 |---|---|
-| `worker.js` | bucla de cadre, un singur cadru în zbor, YOLO + YuNet + blur, mesaje |
-| `detectors.js` | încărcare ORT-web (`webgpu` cu fallback WASM), letterbox 640, `runYolo` / `runYuNet`, `rgbaToNchw` |
-| `decode.js` | decodare YOLO26n (640, conf 0.35, NMS 0.45, clasa 0) și YuNet (stride 8/16/32, NMS 0.3) |
+| `worker.js` | bucla de cadre, un singur cadru în zbor, detector de persoane + YuNet + blur, mesaje |
+| `detectors.js` | încărcare ORT-web (`webgpu` cu fallback WASM), letterbox, `runEfficientDet` / `runYuNet`, `rgbaToNchw` |
+| `decode.js` | decodare EfficientDet (25 detecții, normalizate, clasa 0) și YuNet (stride 8/16/32, NMS 0.3) |
 | `useEngine.js` | hook React: worker, `requestVideoFrameCallback`, canvas, statistici |
 
 Restul planului de port nu există încă: `tracker.js`, `zones.js`, `privacy.js`,
@@ -111,7 +111,7 @@ Restul planului de port nu există încă: `tracker.js`, `zones.js`, `privacy.js
 | `_strong_blur` (shrink 8×, blur, up) | `privacy.py:275` | `privacy.js` | `drawImage` la 1/8 cu `imageSmoothingQuality: 'high'`, `ctx.filter = 'blur(3.1px)'` pe canvasul mic, apoi înapoi; fallback pe box-blur 3×3 dacă `filter` lipsește |
 | `_blur_box` (marjă 0.2, bandă de cap 0.35) | `privacy.py:225-252` | `privacy.js` | plasa de siguranță pentru fețe mici rămâne obligatorie |
 | `FaceBlurrer` fail-closed | `privacy.py:179` | `privacy.js` | dacă `yunet.onnx` nu se încarcă: fără snapshot, fără înregistrare, banner explicit |
-| `detector.letterbox` + `decode` (640, fill 114, conf 0.35, NMS 0.45, clasa 0) | `ncnn_detector.py:32,49` | `detector.js` | aceiași parametri; decodarea anulează letterbox-ul înainte de pipeline |
+| `detector.letterbox` + `decode` (640, fill 114, conf 0.35, NMS 0.45, clasa 0) | `ncnn_detector.py:32,49` | `detector.js` | portul a păstrat întâi parametrii YOLO; detectorul implicit e acum EfficientDet-Lite (letterbox pătrat cu fill negru, intrare `uint8` NHWC, 25 detecții normalizate, clasă 0), iar decodarea anulează letterbox-ul înainte de pipeline la fel |
 | ByteTrack | `detector.py:106` | `tracker.js` | **înlocuit**, vezi mai jos |
 | `vest_sample` / `VestTracker` | `ppe.py` | `vest.js`, apelat din `worker.js` | HSV pe `ImageData` din cadrul brut, înainte de blur; `vestStates` intră în `pipeline.step()`. Fără `cv2.inRange`, doar aritmetică pe `Uint8ClampedArray` |
 | `FaceBlurrer.blur_with_faces` (banda de cap 0.35) | `privacy.py:200-235` | `worker.js` | după blurul pe fețe, se blurează topul de 35% al fiecărei persoane — plasa de siguranță pentru fețele ratate de YuNet |
@@ -142,23 +142,44 @@ Abaterea e limitată la build-ul static și trebuie notată în README-ul lui, n
 
 | Fișier | Mărime | Licență | Intrare | De ce așa |
 |---|---|---|---|---|
-| `yolo26n.onnx` | 9,9 MB (9 930 308 B) | AGPL-3.0 (Ultralytics) | 1×3×640×640 fp32 | exportat din `yolo26n.pt`; fp32 pentru că int8 QDQ a ieșit de 2,4× mai lent pe CPU (`docs/performance.md`, rândul „YOLO int8”) și pentru că WebGPU nu are suport bun pentru cuantizare |
+| `efficientdet_lite0.onnx` | 13,2 MB (13 796 655 B) · SHA-256 `eb67a97b…b635` | Apache-2.0 (greutăți, © 2020 Google LLC) + CC BY 3.0 (conversie ONNX, Namas Bhandari) | `uint8 [1, 320, 320, 3]` NHWC, RGB, fără normalizare | varianta implicită: 320 px dă cel mai bun raport fps/acoperire pe un laptop de demo, iar `uint8` evită conversia la fp32 pe fiecare cadru |
+| `efficientdet_lite2.onnx` | 21,9 MB (22 948 355 B) · SHA-256 `ae663a7c…cde6` | idem | `uint8 [1, 448, 448, 3]` NHWC, RGB | 448 px ține mai bine oamenii mici de pe un apron filmat larg; costă aproximativ jumătate din fps (secțiunea 5) |
 | `yunet.onnx` | 232 KB (232 598 B) | MIT (OpenCV Zoo, `face_detection_yunet_2023mar`) | H×W dinamic, multiplu de 32 | modelul publicat declară 640×640 fix; `privacy.py:106-116` îl face deja dinamic |
 
-**De ce patch-ul dinamic e obligatoriu.** Graful YuNet are straturi de fuziune care cer
+**Contractul EfficientDet.** Intrare `uint8` NHWC `[1, H, W, 3]`, RGB 0..255, fără
+normalizare, letterbox pătrat cu umplutură **neagră** (nu gri 114 ca la YOLO). Ieșiri:
+`boxes [1, 25, 4]` normalizate `[ymin, xmin, ymax, xmax]`, `classes [1, 25]`,
+`scores [1, 25]`, `count [1]`; exportul le numește `StatefulPartitionedCall:3/:2/:1`, iar
+decodorul le potrivește după nume, apoi după ordinea din graf, apoi după tip (întreg = clasă,
+fracționar = scor). Se păstrează doar clasa 0 (persoană), apoi NMS, apoi se anulează
+letterbox-ul. Pragul de încredere e al aplicației, nu al grafului.
+
+**De ce s-a schimbat detectorul.** YOLO26n era AGPL-3.0, iar build-ul static distribuie
+greutățile fiecărui vizitator — AGPL §13 se aplică și la găzduire, deci fiecare demo public
+era o distribuție de greutăți copyleft. EfficientDet-Lite are greutăți Apache-2.0 (Google) și
+o conversie ONNX CC BY 3.0 (Namas Bhandari): ambele permit uz comercial, cu atribuire.
+Prețul e viteza, și se spune: ~8,8 fps (Lite0) și ~4,8 fps (Lite2), față de 5,2–6,0 fps
+măsurat pe YOLO26n la cadru 1280, pe aceeași mașină. Lanțul complet de proveniență și
+ce rămâne deschis (filmările demo): [`legal/model-provenance.md`](legal/model-provenance.md).
+
+**De ce patch-ul dinamic e obligatoriu la YuNet.** Graful YuNet are straturi de fuziune care cer
 ca ambele laturi să fie multipli de 32 (`privacy.py:17-20`). Dacă inputul rămâne 640×640,
 singura variantă în browser ar fi să redimensionăm fiecare cadru 1080p la 640 — exact
 scurtătura pe care `docs/performance.md` o respinge: 1920 → 720p a tăiat fețele găsite
 de la 62 la 8. Deci: dims `height`/`width` simbolice în graful ONNX, cadru real umplut cu
 zerouri până la multiplu de 32, fără rescalare. Patch-ul e un pas de build
-(`frontend/scripts/prepare-models.py`, Python + `onnx`), nu cod de runtime.
+(`frontend/scripts/prepare-models.py`, Python + `onnx`), nu cod de runtime. EfficientDet nu
+are nevoie de patch: inputul e fix și pătrat prin construcție.
 
-**Cum ajung fișierele pe Pages.** Cele două `.onnx` sunt urmărite în
-`frontend/public/models/` — excepția țintită din `.gitignore`; restul modelelor rămâne
-ignorat — și se regenerează cu `python3 frontend/scripts/prepare-models.py`. Vite copiază
+**Cum ajung fișierele pe Pages.** Cele trei `.onnx` sunt urmărite în
+`frontend/public/models/` — excepția țintată din `.gitignore`; restul modelelor rămâne
+ignorat — și se regenerează cu `python3 frontend/scripts/prepare-models.py` (argumentele
+curente se citesc din `--help`; s-au schimbat o dată cu detectorul). Vite copiază
 `public/` în `dist/`, deci job-ul din `.github/workflows/pages.yml` nu descarcă nimic:
 `npm run build` le include same-origin, fără CORS și fără pas separat de copiere. Un fetch
-dintr-un release extern ar adăuga o dependență de rețea în calea critică de pornire.
+dintr-un release extern ar adăuga o dependență de rețea în calea critică de pornire. În
+`dist/models/` ajung și cele două texte de licență (`LICENSE-APACHE-2.0.txt`,
+`LICENSE-CC-BY-3.0.txt`), iar `NOTICE` e linkuit din sidebar.
 
 ## 5. Runtime
 
@@ -179,16 +200,18 @@ navigările și scripturile de worker și le reconstruiește cu
 `Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: require-corp`.
 Nu cachează nimic, ca un deploy să nu rămână ascuns în spatele unui shell vechi. Prima
 încărcare nu e izolată; după ce worker-ul preia pagina, `main.jsx` face **un singur reload**
-(guard în `sessionStorage`). Măsurat pe clipul de 1080p: **5,2–6,0 fps** în Chromium și
-**5,2 fps** în Firefox, cu cadrul procesat la 1280 px — față de 1,5–1,8 fps pe un fir și
-~3,7 fps la 1920×1080. Capul la 1280 nu schimbă porțile PPE: acestea se calculează în pixeli ai
+(guard în `sessionStorage`). Măsurat în browser pe clipul de 1080p: **~8,8 fps** cu
+EfficientDet-Lite0 (320 px) și **~4,8 fps** cu Lite2 (448 px). Pentru comparație, YOLO26n —
+detectorul dinainte, scos din build — măsura 5,2–6,0 fps în Chromium și 5,2 fps în Firefox,
+cu cadrul procesat la 1280 px, față de 1,5–1,8 fps pe un fir și ~3,7 fps la 1920×1080. Capul la 1280 nu schimbă porțile PPE: acestea se calculează în pixeli ai
 cadrului sursă, ca în `ppe.py`. Dacă service worker-ul nu e disponibil, aplicația
 rulează identic, doar pe un fir; izolarea e o optimizare, nu o dependență.
 
 ## 6. Buget de performanță
 
-Referința sunt cifrele măsurate pe build-ul CPU (`docs/performance.md`, Ryzen 7 7840HS,
-OpenCV 5.0, YOLO26n, YuNet 2023mar), o cameră la 1080p:
+**Istoric.** Referința sunt cifrele măsurate pe build-ul CPU (`docs/performance.md`,
+Ryzen 7 7840HS, OpenCV 5.0, YOLO26n, YuNet 2023mar), o cameră la 1080p. Rândul „detect” e
+YOLO26n, nu detectorul de azi: nu se compară 1:1 cu un motor care rulează EfficientDet-Lite.
 
 | Etapă | Python, torch | Python, ncnn (Vulkan) | Observație |
 |---|---|---|---|
@@ -202,11 +225,12 @@ OpenCV 5.0, YOLO26n, YuNet 2023mar), o cameră la 1080p:
 
 | Măsurătoare | Ipoteză | De ce ar putea să nu țină |
 |---|---|---|
-| YOLO26n 640, WebGPU | 5–15 ms | upload fp32 640×640 (~4.9 MB) + readback; drivere care serializează |
-| YOLO26n 640, WASM 4 fire (măsurat) | 5,2–6,0 fps cu cadru 1280 | ~3,7 fps la 1920×1080; fără `crossOriginIsolated`, 1,5–1,8 fps |
+| EfficientDet-Lite0 320, WASM (măsurat) | ~8,8 fps cu cadru 1280 | cifra de azi; scade cu rezoluția cadrului și fără `crossOriginIsolated` |
+| EfficientDet-Lite2 448, WASM (măsurat) | ~4,8 fps cu cadru 1280 | inputul de 448 px costă ~2× față de 320 px; de ales când oamenii din cadru sunt mici |
+| EfficientDet-Lite0 320, WebGPU | 5–15 ms | intrarea `uint8` 320×320×3 e ~0,3 MB, deci transferul nu mai domină; câștigul depinde de driver |
 | YuNet 1080p, WebGPU | 20–50 ms | intrare fp32 1920×1080 = ~8.3 MB per cadru; modelul e mic, transferul domină (aceeași concluzie ca la iGPU + ncnn în `docs/performance.md`) |
 | YuNet 1080p, WASM | 80–200 ms | depinde de fire; 4 fire prin service worker-ul COOP/COEP |
-| primul cadru după încărcare | < 3 s | depinde de cache; rece: 9,9 MB + runtime |
+| primul cadru după încărcare | < 3 s | depinde de cache; rece: 13,2 MB (Lite0) sau 21,9 MB (Lite2) + runtime |
 | memorie tab | < 300 MB | buffere 1080p + blob-uri de snapshot |
 
 Reguli de buget care decurg din referință:
@@ -243,24 +267,26 @@ treilea mod de rulare, util când WebGPU lipsește.
 
 1. **WebGPU pe mașina privitorului.** Cel mai probabil mod de eșec al demonstrației.
    Fallback-ul WASM pe un fir coboară la 1,5–1,8 fps; cu service worker-ul COOP/COEP urcă
-   la 5,2–6,0 fps (cadru 1280), suficient pentru demo. De decis pragul de „mod lent”.
-   De decis: prag minim (dacă YOLO > 80 ms, se afișează explicit „rulează în mod lent”) și
-   dacă demo-ul oficial cere Chrome/Edge pe desktop. De măsurat pe o placă integrată, una
-   dedicată și un Mac.
+   la ~8,8 fps cu Lite0 (320 px) și ~4,8 fps cu Lite2 (448 px) la cadru 1280, suficient
+   pentru demo. De decis pragul de „mod lent”: dacă inferența depășește ~80 ms, UI-ul scrie
+   explicit că rulează încet — și dacă demo-ul oficial cere Chrome/Edge pe desktop. De
+   măsurat pe o placă integrată, una dedicată și un Mac.
 2. **Costul YuNet la 1080p.** Ipoteza 20–50 ms poate fi optimistă dacă transferul domină;
    alternative dacă nu ține: blur pe banda de cap a cutiei de persoană ca mecanism
    principal (există deja ca plasă de siguranță, `privacy.py:225-231`) și YuNet doar pe
    regiunea persoanelor — dar decupajele pierd 21–46% din fețe (`docs/performance.md`),
    deci nu e o simplă optimizare.
-3. **Încărcarea modelelor.** 9,9 MB + runtime ORT + compilare de shadere: primul cadru
-   poate întârzia pe o conexiune de sală, iar fără cache fiecare reload plătește din nou.
-   De decis dacă demo-ul are un ecran de încărcare cu progres real.
+3. **Încărcarea modelelor.** 13,2 MB (Lite0) sau 21,9 MB (Lite2) + runtime ORT +
+   compilare de shadere: primul cadru poate întârzia pe o conexiune de sală, iar fără cache
+   fiecare reload plătește din nou. De decis dacă demo-ul are un ecran de încărcare cu progres
+   real; un al doilea model în `dist/` nu se descarcă dacă nu e cerut.
 4. **Memoria.** Un cadru 1080p RGBA e 8.3 MB, tensorul fp32 NCHW al YuNet alți 8.3 MB,
    fiecare snapshot un blob. Fără `revokeObjectURL` și fără limită de snapshot-uri, tab-ul
    crește monoton într-o tură de 8 ore.
 5. **Limitele Pages.** Sit de 1 GB, trafic lunar limitat, fișiere sub 100 MB — OK pentru
-   10 MB de modele, dar un clip demo 1080p lung le poate atinge; fără anteturi custom,
-   orice idee care are nevoie de un antet moare aici.
+   ~36 MB pentru cele două detectoare din `dist/models/` (13,2 + 21,9 MB), deși browserul
+   descarcă doar graful ales; un clip demo 1080p lung poate atinge limita singur; fără
+   anteturi custom, orice idee care are nevoie de un antet moare aici.
 6. **Continuitatea id-urilor de track.** Un tracker IoU simplu schimbă id-ul la ocluzie;
    asta resetează fereastra de 15 cadre și poate întârzia un eveniment. De măsurat numărul
    de `transitions` per incident față de ByteTrack, pe aceleași clipuri.

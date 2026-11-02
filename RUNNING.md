@@ -160,7 +160,7 @@ să încarce aplicația, nu un 404, pentru că Pages servește acel fișier pe o
 necunoscută. `VITE_BUILD_SHA` se compilează în bundle și apare în footer-ul sidebar-ului ca
 `build <sha>`; fără variabilă, un build local scrie `build dev`. Workflow-ul îl injectează
 din commitul pe care l-a testat CI, iar footer-ul linkează și `NOTICE` (notificările
-AGPL/MIT livrate în `dist/NOTICE`).
+Apache-2.0 / CC BY 3.0 / MIT livrate în `dist/NOTICE`).
 
 ### Verificarea build-ului publicat
 
@@ -213,14 +213,21 @@ blochează) motorul cade pe un singur fir.
 ## Modele și media
 
 ```bash
-python3 frontend/scripts/prepare-models.py --yolo <export.onnx> --yunet <yunet.onnx>
+python3 frontend/scripts/prepare-models.py --help   # argumentele curente; sursele se dau explicit
+python3 frontend/scripts/prepare-models.py <argumentele din --help>
 bash scripts/prepare-demo-media.sh --check   # doar listează ce s-ar encodea
 bash scripts/prepare-demo-media.sh           # scrie în frontend/public/media/
 ```
 
-Cele două ONNX din `frontend/public/models/` sunt singurele binare comise intenționat, ca
-Pages să le poată servi. Sursele lor, împreună cu restul stack-ului Python, se află în
-istoricul git și în repo-ul upstream.
+Scriptul copiază cele două exporturi ONNX EfficientDet-Lite (neatinse) și rescrie doar
+inputul YuNet la `[1, 3, "height", "width"]`. Sursele sunt publice și se dau ca argumente:
+`https://github.com/namas191297/efficientdetlite/tree/main/onnx_models` pentru detector și
+`https://github.com/opencv/opencv_zoo` (`models/face_detection_yunet`) pentru YuNet.
+
+ONNX-urile din `frontend/public/models/` (EfficientDet-Lite0, Lite2, YuNet) sunt
+singurele binare comise intenționat, ca Pages să le poată servi; cu ele merg și textele de
+licență (`LICENSE-APACHE-2.0.txt`, `LICENSE-CC-BY-3.0.txt`). Licențele și proveniența:
+[`docs/legal/model-provenance.md`](docs/legal/model-provenance.md).
 
 ## Dacă ceva nu merge
 

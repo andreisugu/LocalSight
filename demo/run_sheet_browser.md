@@ -9,11 +9,12 @@ demo-ul SafeSight pe `ml/` + `backend/` și rămâne material istoric.
 1. Deschide linkul într-un tab nou și fă **Ctrl+Shift+R** (să nu prinzi un bundle vechi).
 2. Verifică în Live, în cardul „Motor & senzori":
    - implicit vezi **doar detecții reale**; incidentele din fixtures sunt ascunse, iar KPI-urile care nu pot fi derivate arată „— / fără date demo”. Pentru demo-ul cu fixtures: **Sistem & Audit → Date demo → Arată incidentele demo**.
-   - pe **Firefox**: `MODEL DETECȚIE: YOLO26n · wasm`, motorul e **oprit** implicit;
+   - pe **Firefox**: `MODEL DETECȚIE: EfficientDet-Lite0 · wasm`, motorul e **oprit** implicit;
    - pe **Chrome/Edge**: dacă există adapter WebGPU, motorul pornește singur; altfel pornește-l tu.
 3. Pornește motorul o dată și așteaptă primul cadru (2–3 s). Trebuie să vezi cutii `PERSON`,
-   fețele blurate și ~5–6 fps pe WASM (4 fire, cadru 1280). Dacă nu apare nimic în 30 s, oprește-l și
-   repornește; watchdog-ul îl mută singur pe WASM dacă providerul cerut se blochează.
+   fețele blurate și ~8–9 fps cu Lite0 pe WASM (cadru 1280; ~4–5 fps cu Lite2 la 448 px).
+   Dacă nu apare nimic în 30 s, oprește-l și repornește; watchdog-ul îl mută singur pe WASM
+   dacă providerul cerut se blochează.
 4. Opțional, dar recomandat pentru demo: în cardul „Motor & senzori”, **Calibrare sol** pe CAM-01 — 4 clicuri pe colțurile unui dreptunghi de sol și 10 × 10 m. Calibrarea se salvează per cameră și trece reload-ul; fără ea, lista de viteze scrie „necalibrat”, nu inventează cifre.
 5. Deschide `/zones` și verifică fundalul: primul cadru din clipul camerei, nu panou negru.
 6. Opțional, doar dacă vrei să arăți procesarea tuturor camerelor: **Sistem & Audit → Camere în fundal** (OFF implicit). Pornește câte un worker per cameră la ~0,5 fps; consumă aproximativ 3× memoria/CPU. Nu-l lăsa pornit pe un laptop mic în timpul demo-ului.
@@ -51,7 +52,7 @@ Ce să nu promiți: nu există Slack, nu există backend. Incidentele, acțiunil
 
 | Real, în tab | Demo / fixture |
 |---|---|
-| YOLO26n + YuNet + tracker + zone + reguli | KPI-urile din strip și incidentele fără chip `local` |
+| EfficientDet-Lite0/Lite2 + YuNet + tracker + zone + reguli | KPI-urile din strip și incidentele fără chip `local` |
 | Blur pe fețe înainte de desenare, fail-closed | Raportul de incident (șablon, nu LLM) |
 | Detecția de vestă hi-vis și starea PPE | Escaladarea din fixture-uri |
 | Coada de triaj, deadline-urile și hold-ul pe WARNING | Pragurile și starea vin din evenimentele reale; acțiunile sunt în memorie |
@@ -61,6 +62,9 @@ Ce să nu promiți: nu există Slack, nu există backend. Incidentele, acțiunil
 
 ## Limite pe care le spui tu primul
 
-- WASM cu 4 fire prin service worker COOP/COEP: ~5–6 fps cu cadru 1280; fără el, 1,5–1,8 fps.
+- Modelul: **greutăți Apache-2.0 (Google), fără AGPL; conversia ONNX e CC BY 3.0** — de aici
+  și detectorul, nu din YOLO. Atribuirea e în „Licențe" (`dist/NOTICE`).
+- WASM cu 4 fire prin service worker COOP/COEP: ~8–9 fps cu Lite0 la cadru 1280 (~4–5 fps cu
+  Lite2); fără el, 1,5–1,8 fps.
 - Firefox: WebGPU e ignorat intenționat (0,4–0,7 fps și instabil); Chrome/Edge pot folosi GPU-ul.
 - Nimic nu pleacă în rețea; starea se pierde la reload; snapshot-urile trăiesc în memorie.

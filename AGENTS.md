@@ -7,8 +7,9 @@ publicat static pe GitHub Pages. Nicio imagine nu pleacă din tab.
 
 **Starea de azi:** site-ul static e live
 (`https://andreisugu.github.io/LocalSight/`, `VITE_USE_MOCK=true`) și motorul din browser
-rulează în tab: YOLO26n + YuNet + tracker + zone + reguli + blur + detectarea de vestă
-hi-vis. Build-ul servit de `pages.yml` nu are backend. **Stack-ul Python de referință
+rulează în tab: EfficientDet-Lite0/Lite2 (greutăți Apache-2.0, conversie ONNX CC BY 3.0) +
+YuNet (MIT) + tracker + zone + reguli + blur + detectarea de vestă hi-vis, prin ONNX Runtime
+Web. Build-ul servit de `pages.yml` nu are backend. **Stack-ul Python de referință
 (`backend/`, `ml/`, `automation/`) a fost șters din acest fork**; produsul e aplicația
 statică din `frontend/`, iar codul Python vechi rămâne în istoricul git și în repo-ul
 upstream SafeSight. Pe Firefox motorul alege intenționat WASM (WebGPU încă nu e stabil
@@ -25,7 +26,8 @@ schimbă.
   Build-ul static ia modelele din `frontend/public/models/` și clipurile din
   `frontend/public/media/`.
 - `docs/` — `browser-engine.md` (design-ul portului), `media.md` (clipurile demo),
-  `performance.md` (măsurători istorice), `contract.md` (plicul evenimentului).
+  `performance.md` (măsurători istorice), `contract.md` (plicul evenimentului),
+  `legal/model-provenance.md` (dosarul de licențe și proveniență al modelelor).
 - `scripts/` — `prepare-demo-media.sh` (encodează clipurile) și `provenance.py`
   (raportul de proveniență).
 - `data/` — clipuri și adnotări locale, în afara git în afară de README-uri.
@@ -54,8 +56,9 @@ Testele rulează în Node, fără browser, pe tot ce ține de logică (`src/engi
 Modele și media (binare, regenerate, nu inventate):
 
 ```bash
-python3 frontend/scripts/prepare-models.py --yolo <export.onnx> --yunet <yunet.onnx>
-                                             # rescrie yolo26n.onnx + yunet.onnx (sursele: istoric git)
+python3 frontend/scripts/prepare-models.py --help   # argumentele curente (sursele se dau explicit)
+python3 frontend/scripts/prepare-models.py <argumentele din --help>
+                                             # copiază EfficientDet-Lite0/Lite2 + patch input YuNet
 bash scripts/prepare-demo-media.sh --check   # doar listează ce s-ar encodea
 bash scripts/prepare-demo-media.sh           # scrie în frontend/public/media/
 ```
@@ -95,8 +98,9 @@ bash scripts/prepare-demo-media.sh           # scrie în frontend/public/media/
 - Un singur subiect per commit; diff-uri mici. `main` rămâne rulabil.
 - Nu lăsa niciodată arborele pe detached HEAD; lucrează pe un branch numit.
 - Nu face commit la modele, clipuri, `.env` sau baze de date locale. `.gitignore` prinde
-  `*.onnx`, `*.pt`, `*.mp4`, `*.db`; singura excepție sunt cele două ONNX din
-  `frontend/public/models/`, deja urmărite pentru build-ul static. Nu adăuga altele.
+  `*.onnx`, `*.pt`, `*.mp4`, `*.db`; singura excepție sunt ONNX-urile din
+  `frontend/public/models/` — EfficientDet-Lite0, Lite2 și YuNet — ținute în repo pentru
+  build-ul static. Nu adăuga altele.
 - Fără secrete în cod, în fixtures sau în istoric.
 - Nu forța push, nu `reset --hard`, nu șterge fișiere fără să întrebi.
 - Commit/push/merge doar când umanul cere explicit.
@@ -106,9 +110,12 @@ bash scripts/prepare-demo-media.sh           # scrie în frontend/public/media/
 - **Licența BSL 1.1 rămâne.** Vezi `LICENSE`: copierea și uzul neproducție sunt permise;
   producția (inclusiv serviciu găzduit sau embedded) cere licență comercială. Nu schimba
   licența și nu adăuga cod sub altă licență fără aprobare.
-- **Ultralytics YOLO este AGPL-3.0 — capcană comercială.** BSL-ul acestui repo nu
-  suprascrie AGPL-ul. Un build comercial are nevoie fie de licența Enterprise de la
-  Ultralytics, fie de alt detector. Nu livra YOLO, în tăcere, într-un produs plătit.
+- **Fără greutăți YOLO/AGPL în build.** Detectorul e EfficientDet-Lite0/Lite2: greutățile
+  sunt Apache-2.0 (© 2020 Google LLC), conversia ONNX e CC BY 3.0 (Namas Bhandari), iar
+  YuNet e MIT. Atribuirea e obligatorie, nu politicoasă: `frontend/public/NOTICE` și cele
+  două texte din `frontend/public/models/LICENSE-*.txt` rămân în build. Nu reintroduce
+  YOLO/Ultralytics, nici măcar fine-tunat sau „doar pentru demo” — licența urmează
+  greutățile. Detalii: `THIRD_PARTY.md` și `docs/legal/model-provenance.md`.
 - **Nicio față neblurată în niciun asset commitat** — cadre, snapshot-uri, clipuri,
   capturi pentru docs. Blur-ul rulează înainte de salvare sau afișare, cu plasă de
   siguranță pe banda capului; dacă modelul de fețe nu se încarcă, nu se produce imagine
