@@ -171,8 +171,8 @@ Ce cod a rămas de la fiecare autor se măsoară pe linii cu
 liniile rămase. Standardul de „înlocuit" — implementare nouă, logică testată, nu doar clase
 schimbate — și lista a ce s-a amânat sunt în
 [`docs/rewrite-backlog.md`](docs/rewrite-backlog.md); raportul generat este
-[`docs/provenance.md`](docs/provenance.md). La 2 noiembrie 2026: **97,0%** din liniile de
-cod de produs sunt ale noastre, **3,0%** sunt schelet JSX/etichete/valori de design, iar
+[`docs/provenance.md`](docs/provenance.md). La 2 noiembrie 2026: **98,6%** din liniile de
+cod de produs sunt ale noastre, **1,4%** sunt schelet JSX/etichete/importuri, iar
 auditul nu mai găsește **nicio linie de logică** moștenită. Stack-ul Python a fost scos din
 fork; rămâne în istoricul git și în upstream.
 
