@@ -48,9 +48,8 @@ function Badge({ token, fallback, isDarkMode }) {
 
 export default function IncidentsListView() {
   const { isDarkMode, themeStyles } = useTheme();
-  const { events, cameras, setSelectedEventId, setCurrentView } = useSecurity();
+  const { events, cameras, setSelectedEventId, setCurrentView, searchQuery, setSearchQuery } = useSecurity();
   const [statusFilter, setStatusFilter] = useState('all');
-  const [query, setQuery] = useState('');
 
   const cameraName = useMemo(() => {
     const names = Object.fromEntries(cameras.map((c) => [c.id, c.code ? `${c.code} • ${c.id}` : c.id]));
@@ -64,7 +63,7 @@ export default function IncidentsListView() {
 
   const rows = useMemo(() => {
     const filter = STATUS_FILTERS.find((f) => f.id === statusFilter) || STATUS_FILTERS[0];
-    const q = query.trim().toLowerCase();
+    const q = searchQuery.trim().toLowerCase();
     return events
       .filter((e) => filter.match(e.status))
       .filter(
@@ -75,7 +74,7 @@ export default function IncidentsListView() {
             .some((v) => String(v).toLowerCase().includes(q))
       )
       .sort((a, b) => String(b.detected_at).localeCompare(String(a.detected_at)));
-  }, [events, statusFilter, query]);
+  }, [events, statusFilter, searchQuery]);
 
   const open = (eventId) => {
     setSelectedEventId(eventId);
@@ -97,8 +96,8 @@ export default function IncidentsListView() {
         <label className="relative block w-full sm:w-72">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Caută tip, cameră, zonă, ID…"
             style={{ backgroundColor: themeStyles.cardBg, borderColor: themeStyles.panelBorder }}
             className="w-full pl-8 pr-3 py-2 rounded-lg border text-xs focus:outline-none focus:ring-2 focus:ring-[#FFEB33]"
