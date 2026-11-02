@@ -1,7 +1,8 @@
-# CI for LocalSight: backend API, ML edge pipeline and frontend build.
+# CI for LocalSight: backend API, ML edge pipeline, frontend build and the
+# browser smoke test of the static build.
 #
-# The three jobs are independent on purpose: a red backend does not cancel or
-# hide the ML and frontend results.
+# The four jobs are independent on purpose: a red backend does not cancel or
+# hide the ML, frontend and e2e results.
 #
 # Model-dependent tests skip on their own when the weights or demo clips are
 # missing (see ml/tests/test_privacy.py: `skipif(not MODEL.is_file())` and
@@ -89,3 +90,32 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  e2e:
+    name: frontend / e2e smoke
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Only Chromium is used by playwright.config.js; --with-deps installs the
+      # system libraries the runner image does not ship with.
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # The suite builds the mock app (VITE_USE_MOCK=true) and serves the real
+      # dist with `vite preview`, so what is tested is what Pages would deploy.
+      - name: Run e2e smoke tests
+        run: npm run test:e2e
