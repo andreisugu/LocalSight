@@ -90,9 +90,9 @@ jobs:
         run: npm ci
 
       # Pure logic only: the engine, the event contract helpers and the report/confidence
-      # formatters. No browser, no models, no network.
+      # formatters, plus the demo fixtures and the API transport mappers.
       - name: Unit tests
-        run: node --test src/engine/*.test.mjs src/utils/*.test.mjs src/constants/*.test.mjs
+        run: npm run test:unit
 
   frontend:
     name: frontend / build
