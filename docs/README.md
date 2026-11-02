@@ -18,6 +18,9 @@ o dată în tabelul de mai jos.
 | [assets/localsight-live.png](assets/localsight-live.png) | actual | Captură LocalSight: feed-ul camerei CAM-01 cu zona motorului și incidentele detectate | Imaginea din README-ul rădăcină; o înlocuiești când se schimbă UI-ul |
 | [assets/localsight-incidents.png](assets/localsight-incidents.png) | actual | Captură LocalSight: lista de incidente cu severitate, status și dovadă foto | Idem |
 | [assets/localsight-zones.png](assets/localsight-zones.png) | actual | Captură LocalSight: configurarea zonei pe canvas și parametrii regulii | Idem |
+| [qa/ui-findings.md](qa/ui-findings.md) | actual | QA adversarial pe interfață: 14 constatări cu pași de reproducere, severitate și dovezi | Nu se rezolvă „după impresii”; fiecare fix pornește de la un pas de aici |
+| [qa/engine-parity.md](qa/engine-parity.md) | actual | Motorul JS vs referința Python: geometrie, reguli, recall YOLO/YuNet pe cadre reale | Dovada că portul e echivalent; o discrepanță nouă se compară cu tabelele de aici |
+| [qa/privacy-findings.md](qa/privacy-findings.md) | actual | Ce se vede pe ecran și ce pleacă în rețea cu motorul pornit; scurgerile găsite | Se recitește înainte de orice afirmație publică despre blur |
 
 Legendă: **actual** = descrie direcția LocalSight; **referință** = încă adevărat și util la
 port; **istoric** = descrie implementarea SafeSight (backend/edge) și nu mai decide nimic.
