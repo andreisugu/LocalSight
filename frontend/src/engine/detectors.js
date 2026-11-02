@@ -44,13 +44,26 @@ function loadOrt() {
   return ortPromise;
 }
 
-function configureOrt(ort) {
+/**
+ * Apply the runtime configuration once per worker.
+ *
+ * `threads` comes from the page (`resolveWasmThreads`), which is the only place that
+ * knows the isolation state and the operator's choice. A caller that omits it keeps the
+ * historical default: four threads when isolated, one otherwise.
+ *
+ * @param {typeof import('onnxruntime-web/webgpu')} ort
+ * @param {number} [threads]
+ * @returns {void}
+ */
+export function configureOrt(ort, threads) {
   if (configured) return;
   // The webgpu bundle embeds the asyncify glue, so it asks for the asyncify .wasm file.
   ort.env.wasm.wasmPaths = { wasm: ortWasmUrl };
-  // Multi-threaded wasm needs COOP/COEP headers; GitHub Pages does not send them, so a
-  // static build silently falls back to one thread instead of failing to start.
-  ort.env.wasm.numThreads = globalThis.crossOriginIsolated ? 4 : 1;
+  // Multi-threaded wasm needs COOP/COEP headers; without them there is no
+  // SharedArrayBuffer, so the runtime stays at one thread.
+  ort.env.wasm.numThreads = Number.isFinite(threads) && threads >= 1
+    ? Math.floor(threads)
+    : (globalThis.crossOriginIsolated ? 4 : 1);
   ort.env.wasm.proxy = false;
   // The YuNet shape mismatch warning is expected (see the model README) and would print
   // twice per frame; fatal keeps the console clean while real failures still throw.
@@ -179,13 +192,14 @@ function inputShape(session) {
  * Load both sessions. Resolves with plain objects so the worker can pass them around.
  *
  * @param {(stage: string) => void} [onProgress]
- * @param {{providers?: string[]}} [options] explicit execution providers. Omitting this
- *   keeps the spike behaviour: probe WebGPU and ask for `['webgpu', 'wasm']`. The bench
- *   page passes a single provider so the returned `actualProviders` says what really ran.
+ * @param {{providers?: string[], threads?: number}} [options] explicit execution providers
+ *   and wasm thread count. Omitting both keeps the spike behaviour: probe WebGPU, ask for
+ *   `['webgpu', 'wasm']`, and let ORT use the isolation-based default. The bench page
+ *   passes a single provider so the returned `actualProviders` says what really ran.
  */
 export async function loadModels(onProgress = () => {}, options = {}) {
   const ort = await loadOrt();
-  configureOrt(ort);
+  configureOrt(ort, options.threads);
   const providers = Array.isArray(options.providers) && options.providers.length
     ? options.providers
     : await preferredProviders();

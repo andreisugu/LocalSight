@@ -1,8 +1,14 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Box, Cpu, Database, Lock, Server, Settings, ShieldCheck, Terminal, Video } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { TYPE_LABELS } from '../../services/api';
+import {
+  readEngineSettings,
+  resolveWasmThreads,
+  storeSafetyBlur,
+  storeWasmThreads,
+} from '../../utils/engineSettings';
 import {
   AUDIT_LIMIT,
   buildAuditRows,
@@ -79,6 +85,38 @@ function SummaryCell({ tile, themeStyles }) {
 export default function SettingsView() {
   const { themeStyles } = useTheme();
   const { cameras, zones, events, health, setSelectedEventId, setCurrentView } = useSecurity();
+
+  // Persisted engine settings. The panel writes and reads the same localStorage key the
+  // engine reads on its next start, so what is shown here is what the worker will do.
+  const [engineSettings, setEngineSettings] = useState(() => readEngineSettings());
+  const isolation = useMemo(
+    () => ({
+      crossOriginIsolated: typeof globalThis !== 'undefined' && Boolean(globalThis.crossOriginIsolated),
+      hardwareConcurrency: typeof navigator === 'undefined' ? undefined : navigator.hardwareConcurrency,
+    }),
+    []
+  );
+  const resolvedThreads = resolveWasmThreads(engineSettings.wasmThreads, isolation);
+  const cores = Number.isFinite(isolation.hardwareConcurrency)
+    ? Math.floor(isolation.hardwareConcurrency)
+    : null;
+  // The actual count and the reason for it: a select that says "8" on a page that runs
+  // one thread would be a lie.
+  const threadReason = !isolation.crossOriginIsolated
+    ? '1 — izolarea nu e activă; rulează single-thread'
+    : engineSettings.wasmThreads === 'auto'
+      ? `${resolvedThreads} — izolat, ${cores ?? '?'} nuclee; automat (max. 4)`
+      : `${resolvedThreads} — izolat, ${cores ?? '?'} nuclee; ales ${engineSettings.wasmThreads}${
+          resolvedThreads < engineSettings.wasmThreads ? ', limitat de nuclee' : ''
+        }`;
+
+  const changeThreads = (event) => {
+    const value = event.target.value;
+    setEngineSettings(storeWasmThreads(value === 'auto' ? 'auto' : Number(value)));
+  };
+  const changeSafetyBlur = (event) => {
+    setEngineSettings(storeSafetyBlur(event.target.checked));
+  };
 
   const isMock = Boolean(health?.mock);
   const latestModel = useMemo(() => latestDetectionModel(events), [events]);
@@ -201,6 +239,74 @@ export default function SettingsView() {
               </p>
             </>
           )}
+        </section>
+
+        <section
+          aria-labelledby="engine-settings-heading"
+          style={surface}
+          className="space-y-3 rounded-xl border p-4"
+        >
+          <h3 id="engine-settings-heading" className="flex flex-wrap items-center gap-2 text-sm font-bold uppercase">
+            <Cpu size={16} aria-hidden="true" className="text-[#0284C7] dark:text-[#FFEB33]" />
+            Motor &amp; performanță
+          </h3>
+          <p className="text-xs" style={muted}>
+            Firele WASM și blurul de siguranță se citesc la pornirea worker-ului: se aplică la următoarea pornire a
+            motorului.
+          </p>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label htmlFor="wasm-threads" className="block text-xs font-bold">
+                Fire WASM
+              </label>
+              <select
+                id="wasm-threads"
+                value={String(engineSettings.wasmThreads)}
+                onChange={changeThreads}
+                style={{
+                  backgroundColor: themeStyles.cardBg,
+                  borderColor: themeStyles.panelBorder,
+                  color: themeStyles.text,
+                }}
+                className="w-full rounded-lg border px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#FFEB33] sm:max-w-[10rem]"
+              >
+                <option value="auto">Automat</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="4">4</option>
+                <option value="6">6</option>
+                <option value="8">8</option>
+              </select>
+              <p className="font-mono text-[11px] leading-snug" style={muted}>
+                {threadReason}
+              </p>
+              <p className="text-[11px] leading-snug" style={muted}>
+                Automat înseamnă maximum 4 fire; un număr ales este limitat de nucleele mașinii. Fără izolare
+                (COOP/COEP) browserul nu poate porni fire suplimentare.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="flex items-start gap-2 text-xs font-bold">
+                <input
+                  type="checkbox"
+                  checked={engineSettings.safetyBlur}
+                  onChange={changeSafetyBlur}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[#0284C7] focus:outline-none focus:ring-2 focus:ring-[#FFEB33]"
+                />
+                <span>Blur de siguranță pe cap</span>
+              </label>
+              <p className="text-[11px] leading-snug" style={muted}>
+                OFF = doar fețele găsite de YuNet sunt blurate; o față ratată (profil) poate rămâne vizibilă.
+                Recomandat ON pentru demo-uri publice.
+              </p>
+              <p className="text-[11px] leading-snug" style={muted}>
+                Cu ON, banda superioară a fiecărei persoane (35%) este blurată; cu OFF rămâne clară, iar blurul
+                de față și oprirea pe eroare (fail-closed) nu se schimbă.
+              </p>
+            </div>
+          </div>
         </section>
 
         <section aria-labelledby="privacy-heading" style={surface} className="space-y-2 rounded-xl border p-4">
