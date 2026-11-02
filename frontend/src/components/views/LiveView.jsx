@@ -25,6 +25,7 @@ import ConfidenceBadge from '../common/ConfidenceBadge';
 import { canDo } from '../../constants/eventActions';
 import { USE_MOCK } from '../../services/api';
 import { useEngine } from '../../engine/useEngine';
+import { webgpuAvailable } from '../../engine/webgpu';
 import LiveEngineCard from '../live/LiveEngineCard';
 
 // A double-click is two clicks at the same spot within this window (Chromium uses 500 ms).
@@ -339,21 +340,13 @@ export default function LiveView() {
   }, [isWebcamCamera, webcamStream, browserEngineOn]);
 
   // WebGPU is a question, not an assumption: one probe decides the default and the copy.
+  // It uses the engine's own rule (`webgpuAvailable`), so a browser that exposes WebGPU but
+  // is kept on wasm by the engine (Firefox today) does not auto-start the slow path.
   useEffect(() => {
     let cancelled = false;
-    const probe = async () => {
-      if (typeof navigator === 'undefined' || !navigator.gpu) {
-        if (!cancelled) setGpuAvailable(false);
-        return;
-      }
-      try {
-        const adapter = await navigator.gpu.requestAdapter();
-        if (!cancelled) setGpuAvailable(Boolean(adapter));
-      } catch {
-        if (!cancelled) setGpuAvailable(false);
-      }
-    };
-    probe();
+    webgpuAvailable().then((usable) => {
+      if (!cancelled) setGpuAvailable(usable);
+    });
     return () => {
       cancelled = true;
     };

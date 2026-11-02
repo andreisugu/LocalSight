@@ -15,6 +15,7 @@
 // module (see `worker.format` in vite.config.js), which is what allows the dynamic import
 // below to become its own chunk; an IIFE worker cannot code-split and would inline ORT.
 import ortWasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?url';
+import { webgpuAvailable, withTimeout } from './webgpu.js';
 
 const MODEL_BASE = `${import.meta.env.BASE_URL}models`;
 export const YOLO_MODEL_URL = `${MODEL_BASE}/yolo26n.onnx`;
@@ -62,20 +63,7 @@ function configureOrt(ort) {
  * @returns {Promise<string[]>}
  */
 export async function preferredProviders() {
-  if (typeof navigator === 'undefined' || !navigator.gpu) return ['wasm'];
-  // Firefox exposes WebGPU to workers once `dom.webgpu.*` is on, but ONNX Runtime is not a
-  // useful path there yet: asking for both graphs at once made one session creation block
-  // the worker thread forever (no frame, no error, no timer possible), and built
-  // sequentially it runs at 0.4–0.7 fps versus 1.5 fps on wasm — measured on Firefox
-  // 157/159, Linux, stand12 at 1920×1080. Wasm is the path that works; /bench can still
-  // force `webgpu` for anyone testing a future build.
-  if (/Firefox\//.test(navigator.userAgent || '')) return ['wasm'];
-  try {
-    const adapter = await withTimeout(navigator.gpu.requestAdapter(), 4000, 'requestAdapter');
-    return adapter ? ['webgpu', 'wasm'] : ['wasm'];
-  } catch {
-    return ['wasm'];
-  }
+  return (await webgpuAvailable()) ? ['webgpu', 'wasm'] : ['wasm'];
 }
 
 /**
@@ -146,19 +134,9 @@ async function fetchModelBytes(url) {
   return new Uint8Array(await response.arrayBuffer());
 }
 
-// Firefox exposes WebGPU to workers once the prefs are on, but ONNX Runtime's WebGPU
-// session can then sit in `InferenceSession.create` forever: no rejection, no frame, no
-// error in the console. A timeout is the only way to tell "still compiling shaders" from
-// "never going to answer"; past it we rebuild on wasm, which is the path the edge uses.
+// A WebGPU session that never settles is indistinguishable from one still compiling
+// shaders; past this budget the worker rebuilds the graph on wasm.
 const WEBGPU_SESSION_TIMEOUT_MS = 12_000;
-
-function withTimeout(promise, ms, label) {
-  let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms} ms`)), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-}
 
 async function createSession(ort, url, providers) {
   const bytes = await fetchModelBytes(url);
