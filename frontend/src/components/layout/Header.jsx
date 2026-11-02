@@ -14,6 +14,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { USE_MOCK } from '../../services/api';
+import { IconButton, Panel, Pill } from '../ui';
 
 // Public assets are prefixed with the Vite base so the build also works from a repo
 // subpath (GitHub Pages); same rule as the engine assets.
@@ -25,40 +26,46 @@ const NAME_PREVIEW_LIMIT = 80;
 
 // The mock build has no edge ingest. These entries fabricate the same envelopes the
 // backend would push, with the labels mockData already uses for the incident types.
+// `tone` feeds the shared Pill; `itemClass` keeps the menu row's own hover colour.
 const SIMULATED_EVENTS = [
   {
     type: 'RESTRICTED_ZONE',
     severity: 'CRITICAL',
     label: 'Persoană în Zonă Motor',
     badge: 'CRITICAL',
+    tone: 'danger',
     itemClass: 'text-[#D73833] hover:bg-[#D73833]/15',
-    badgeClass: 'bg-[#D73833] text-white',
   },
   {
     type: 'NO_PPE',
     severity: 'WARNING',
     label: 'Lucrător fără Vestă EIP',
     badge: 'WARNING',
+    tone: 'warning',
     itemClass: 'text-amber-500 hover:bg-[#FFEB33]/15',
-    badgeClass: 'bg-[#FFEB33] text-[#1F1F1F]',
   },
   {
     type: 'SMOKING',
     severity: 'WARNING',
     label: 'Fumat în Zonă Alimentare',
     badge: 'WARNING',
+    tone: 'warning',
     itemClass: 'text-amber-500 hover:bg-[#FFEB33]/15',
-    badgeClass: 'bg-[#FFEB33] text-[#1F1F1F]',
   },
   {
     type: 'CAMERA_OFFLINE',
     severity: 'WARNING',
     label: 'Camera Rampa Sud Offline',
     badge: 'OFFLINE',
+    tone: 'neutral',
     itemClass: 'text-slate-400 hover:bg-slate-500/10',
-    badgeClass: 'bg-slate-600 text-white',
   },
 ];
+
+// The menu heading is smaller than a panel title: it separates the menu label from the
+// items without competing with them. `flex-1` makes the divider span the menu width.
+const MENU_TITLE =
+  'mb-1 flex-1 border-b px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400';
 
 function isTextField(target) {
   if (!target) return false;
@@ -98,6 +105,152 @@ function useDismissableMenu() {
   }, [isOpen]);
 
   return { isOpen, setOpen, containerRef };
+}
+
+/** Search field plus its clear button; the `/` and Escape habits stay in Header. */
+function SearchField({ inputRef, value, onChange, onClear }) {
+  return (
+    <div className="relative">
+      <Search
+        size={16}
+        aria-hidden="true"
+        className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+      />
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== 'Escape') return;
+          event.preventDefault();
+          if (value) onClear();
+          else event.currentTarget.blur();
+        }}
+        placeholder="Caută incidente"
+        aria-label="Caută incidente"
+        title="Caută în incidente (/)"
+        className="w-full rounded-xl border border-white/10 bg-white/5 py-2 pl-10 pr-9 text-xs shadow-inner transition-all placeholder-slate-400 hover:bg-white/10 focus:bg-white/15 focus:outline-none focus:ring-2 focus:ring-[#FFEB33]"
+      />
+      {value && (
+        <IconButton
+          icon={X}
+          size="sm"
+          label="Șterge căutarea"
+          onClick={onClear}
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded text-slate-400 transition-colors hover:text-white"
+        />
+      )}
+    </div>
+  );
+}
+
+/** Brand block: logo + product name + subtitle. */
+function Brand() {
+  return (
+    <>
+      <img
+        src={BRAND_LOGO}
+        alt="LocalSight"
+        className="h-8 w-8 shrink-0 rounded-full border border-white/20 object-cover shadow-md sm:h-10 sm:w-10"
+      />
+      <div className="min-w-0">
+        <h1 className="truncate text-base font-black uppercase leading-none tracking-tight drop-shadow-sm sm:text-xl">
+          LocalSight
+        </h1>
+        <p className="mt-0.5 hidden truncate text-xs font-medium tracking-wide text-slate-400 sm:block">
+          Management condiții siguranță
+        </p>
+      </div>
+    </>
+  );
+}
+
+/** C-10: a real loss of signal only; the mock build never mounts this. */
+function EdgeSignalBanner({ isReconnecting, onReconnect }) {
+  return (
+    <div className="hidden animate-pulse items-center gap-2 rounded-lg bg-[#D73833] px-3 py-1 text-xs font-bold text-white shadow-md lg:flex">
+      <WifiOff size={14} className="shrink-0" />
+      <span className="whitespace-nowrap">Semnal Edge Pierdut (Polling activat)</span>
+      <button
+        type="button"
+        onClick={onReconnect}
+        disabled={isReconnecting}
+        className="ml-2 flex items-center gap-1.5 rounded bg-black/40 px-2.5 py-1 font-mono text-[10px] transition-colors hover:bg-black/60 disabled:opacity-70"
+      >
+        <RefreshCw size={11} className={isReconnecting ? 'animate-spin' : ''} />
+        {isReconnecting ? 'Se reconectează…' : 'Reconectează'}
+      </button>
+    </div>
+  );
+}
+
+/** One selectable role in the operator menu, including its selected surface. */
+function RoleOption({ operator, selected, isDarkMode, themeStyles, onSelect }) {
+  return (
+    <button
+      type="button"
+      role="menuitemradio"
+      aria-checked={selected}
+      onClick={onSelect}
+      style={{
+        backgroundColor: selected ? (isDarkMode ? '#D73833' : '#7EDEED') : 'transparent',
+        color: selected && isDarkMode ? '#FFFFFF' : themeStyles.textColor,
+      }}
+      className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition-colors ${
+        selected ? 'font-bold shadow-sm' : isDarkMode ? 'hover:bg-white/5' : 'hover:bg-slate-100'
+      }`}
+    >
+      <span>
+        <span className="block text-xs font-semibold leading-none">{operator.name}</span>
+        <span
+          className={`mt-0.5 block text-[10px] ${
+            selected
+              ? isDarkMode
+                ? 'text-white/80'
+                : 'text-[#1F1F1F]/70'
+              : 'text-slate-400'
+          }`}
+        >
+          {operator.role}
+        </span>
+      </span>
+      {selected && (
+        <Check
+          size={14}
+          className={`shrink-0 ${isDarkMode ? 'text-white' : 'text-[#1F1F1F]'}`}
+        />
+      )}
+    </button>
+  );
+}
+
+/** The free-text name that lands in the audit log; Enter commits and closes the menu. */
+function OperatorNameField({ borderColor, value, onChange, onCommit, onClose }) {
+  return (
+    <div style={{ borderTopColor: borderColor }} className="mt-1 space-y-1.5 border-t pt-2">
+      <label
+        htmlFor="operator-name"
+        className="block px-1 text-[10px] font-bold uppercase tracking-wider text-slate-400"
+      >
+        Numele tău (apare în jurnal)
+      </label>
+      <input
+        id="operator-name"
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={onCommit}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter') return;
+          onCommit();
+          onClose();
+        }}
+        placeholder="Ex: I. Popescu"
+        className="w-full rounded border border-white/20 bg-black/20 px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#FFEB33]"
+      />
+    </div>
+  );
 }
 
 export default function Header() {
@@ -184,85 +337,30 @@ export default function Header() {
       className="no-print sticky top-0 z-30 flex h-16 shrink-0 select-none items-center gap-2 border-b px-2 shadow-md transition-colors sm:px-4 md:px-6"
     >
       <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
-        <button
-          type="button"
-          onClick={toggleRail}
+        <IconButton
+          icon={Menu}
+          size="lg"
+          label="Comută meniu navigare"
           title={isSidebarCollapsed ? 'Deschide meniu navigare' : 'Restrânge meniu navigare'}
-          aria-label="Comută meniu navigare"
+          onClick={toggleRail}
           aria-expanded={!isSidebarCollapsed}
-          className="flex shrink-0 items-center justify-center rounded-xl bg-white/10 p-2 transition-colors hover:bg-white/20"
-        >
-          <Menu size={18} />
-        </button>
-
-        <img
-          src={BRAND_LOGO}
-          alt="LocalSight"
-          className="h-8 w-8 shrink-0 rounded-full border border-white/20 object-cover shadow-md sm:h-10 sm:w-10"
+          className="rounded-xl bg-white/10 transition-colors hover:bg-white/20"
         />
 
-        <div className="min-w-0">
-          <h1 className="truncate text-base font-black uppercase leading-none tracking-tight drop-shadow-sm sm:text-xl">
-            LocalSight
-          </h1>
-          <p className="mt-0.5 hidden truncate text-xs font-medium tracking-wide text-slate-400 sm:block">
-            Management condiții siguranță
-          </p>
-        </div>
+        <Brand />
       </div>
 
-      {/* C-10: announce a real loss of signal only; the mock build is always connected. */}
       {!isWsConnected && (
-        <div className="hidden animate-pulse items-center gap-2 rounded-lg bg-[#D73833] px-3 py-1 text-xs font-bold text-white shadow-md lg:flex">
-          <WifiOff size={14} className="shrink-0" />
-          <span className="whitespace-nowrap">Semnal Edge Pierdut (Polling activat)</span>
-          <button
-            type="button"
-            onClick={toggleWsSimulation}
-            disabled={isReconnecting}
-            className="ml-2 flex items-center gap-1.5 rounded bg-black/40 px-2.5 py-1 font-mono text-[10px] transition-colors hover:bg-black/60 disabled:opacity-70"
-          >
-            <RefreshCw size={11} className={isReconnecting ? 'animate-spin' : ''} />
-            {isReconnecting ? 'Se reconectează…' : 'Reconectează'}
-          </button>
-        </div>
+        <EdgeSignalBanner isReconnecting={isReconnecting} onReconnect={toggleWsSimulation} />
       )}
 
       <div className="mx-4 hidden max-w-xs flex-1 sm:block md:max-w-sm">
-        <div className="relative">
-          <Search
-            size={16}
-            aria-hidden="true"
-            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
-          />
-          <input
-            ref={searchRef}
-            type="text"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== 'Escape') return;
-              event.preventDefault();
-              if (searchQuery) setSearchQuery('');
-              else event.currentTarget.blur();
-            }}
-            placeholder="Caută incidente"
-            aria-label="Caută incidente"
-            title="Caută în incidente (/)"
-            className="w-full rounded-xl border border-white/10 bg-white/5 py-2 pl-10 pr-9 text-xs shadow-inner transition-all placeholder-slate-400 hover:bg-white/10 focus:bg-white/15 focus:outline-none focus:ring-2 focus:ring-[#FFEB33]"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={clearSearch}
-              title="Șterge căutarea"
-              aria-label="Șterge căutarea"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 transition-colors hover:text-white"
-            >
-              <X size={13} />
-            </button>
-          )}
-        </div>
+        <SearchField
+          inputRef={searchRef}
+          value={searchQuery}
+          onChange={setSearchQuery}
+          onClear={clearSearch}
+        />
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2 md:gap-3">
@@ -283,15 +381,15 @@ export default function Header() {
             </button>
 
             {simulationMenu.isOpen && (
-              <div
+              <Panel
                 role="menu"
                 aria-label="Evenimente de test"
+                title="Evenimente de test (mod mock)"
+                size="menu"
+                titleClassName={MENU_TITLE}
                 style={menuSurface}
-                className="absolute right-0 z-50 mt-2 w-64 max-w-[calc(100vw-1rem)] space-y-1 rounded-xl border p-2 font-sans text-xs shadow-2xl"
+                className="absolute right-0 z-50 mt-2 w-64 max-w-[calc(100vw-1rem)] shadow-2xl"
               >
-                <p className="mb-1 border-b px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Evenimente de test (mod mock)
-                </p>
                 {SIMULATED_EVENTS.map((item) => (
                   <button
                     key={item.type}
@@ -301,33 +399,29 @@ export default function Header() {
                     className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left font-bold ${item.itemClass}`}
                   >
                     <span>{item.label}</span>
-                    <span className={`rounded px-1.5 font-mono text-[10px] ${item.badgeClass}`}>
+                    <Pill tone={item.tone} shape="tag">
                       {item.badge}
-                    </span>
+                    </Pill>
                   </button>
                 ))}
-              </div>
+              </Panel>
             )}
           </div>
         )}
 
-        <button
-          type="button"
+        <IconButton
+          icon={isDarkMode ? Sun : Moon}
+          size="md"
+          label="Comută tema interfeței"
+          title={isDarkMode ? 'Comută pe tema luminoasă' : 'Comută pe tema întunecată'}
           onClick={toggleTheme}
+          iconClassName={isDarkMode ? 'text-[#FFEB33]' : 'text-[#1F1F1F]'}
           style={{
             backgroundColor: isDarkMode ? themeStyles.panelBg : '#F5F5F5',
             borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.15)' : themeStyles.panelBorder,
           }}
-          className="flex items-center justify-center rounded-xl border p-2 text-xs shadow-sm transition-all"
-          title={isDarkMode ? 'Comută pe tema luminoasă' : 'Comută pe tema întunecată'}
-          aria-label="Comută tema interfeței"
-        >
-          {isDarkMode ? (
-            <Sun size={16} className="text-[#FFEB33]" />
-          ) : (
-            <Moon size={16} className="text-[#1F1F1F]" />
-          )}
-        </button>
+          className="rounded-xl border text-xs shadow-sm transition-all"
+        />
 
         <div className="relative min-w-0" ref={operatorMenu.containerRef}>
           <button
@@ -361,86 +455,34 @@ export default function Header() {
           </button>
 
           {operatorMenu.isOpen && availableOperators && (
-            <div
+            <Panel
               role="menu"
               aria-label="Operator activ"
+              title="Rol"
+              size="menu"
+              titleClassName={MENU_TITLE}
               style={menuSurface}
-              className="absolute right-0 z-50 mt-2 w-64 max-w-[calc(100vw-1rem)] space-y-1 rounded-xl border p-2 font-sans text-xs shadow-2xl"
+              className="absolute right-0 z-50 mt-2 w-64 max-w-[calc(100vw-1rem)] shadow-2xl"
             >
-              <p className="mb-1 border-b px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                Rol
-              </p>
-              {availableOperators.map((operator) => {
-                const isSelected = activeOperator?.id === operator.id;
-                return (
-                  <button
-                    key={operator.id}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={isSelected}
-                    onClick={() => chooseOperator(operator.id)}
-                    style={{
-                      backgroundColor: isSelected ? (isDarkMode ? '#D73833' : '#7EDEED') : 'transparent',
-                      color: isSelected && isDarkMode ? '#FFFFFF' : themeStyles.textColor,
-                    }}
-                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition-colors ${
-                      isSelected
-                        ? 'font-bold shadow-sm'
-                        : isDarkMode
-                          ? 'hover:bg-white/5'
-                          : 'hover:bg-slate-100'
-                    }`}
-                  >
-                    <span>
-                      <span className="block text-xs font-semibold leading-none">{operator.name}</span>
-                      <span
-                        className={`mt-0.5 block text-[10px] ${
-                          isSelected
-                            ? isDarkMode
-                              ? 'text-white/80'
-                              : 'text-[#1F1F1F]/70'
-                            : 'text-slate-400'
-                        }`}
-                      >
-                        {operator.role}
-                      </span>
-                    </span>
-                    {isSelected && (
-                      <Check
-                        size={14}
-                        className={`shrink-0 ${isDarkMode ? 'text-white' : 'text-[#1F1F1F]'}`}
-                      />
-                    )}
-                  </button>
-                );
-              })}
-
-              <div
-                style={{ borderTopColor: menuSurface.borderColor }}
-                className="mt-1 space-y-1.5 border-t pt-2"
-              >
-                <label
-                  htmlFor="operator-name"
-                  className="block px-1 text-[10px] font-bold uppercase tracking-wider text-slate-400"
-                >
-                  Numele tău (apare în jurnal)
-                </label>
-                <input
-                  id="operator-name"
-                  type="text"
-                  value={nameDraft}
-                  onChange={(event) => setNameDraft(event.target.value)}
-                  onBlur={commitOperatorName}
-                  onKeyDown={(event) => {
-                    if (event.key !== 'Enter') return;
-                    commitOperatorName();
-                    operatorMenu.setOpen(false);
-                  }}
-                  placeholder="Ex: I. Popescu"
-                  className="w-full rounded border border-white/20 bg-black/20 px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[#FFEB33]"
+              {availableOperators.map((operator) => (
+                <RoleOption
+                  key={operator.id}
+                  operator={operator}
+                  selected={activeOperator?.id === operator.id}
+                  isDarkMode={isDarkMode}
+                  themeStyles={themeStyles}
+                  onSelect={() => chooseOperator(operator.id)}
                 />
-              </div>
-            </div>
+              ))}
+
+              <OperatorNameField
+                borderColor={menuSurface.borderColor}
+                value={nameDraft}
+                onChange={setNameDraft}
+                onCommit={commitOperatorName}
+                onClose={() => operatorMenu.setOpen(false)}
+              />
+            </Panel>
           )}
         </div>
       </div>
