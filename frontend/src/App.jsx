@@ -10,6 +10,7 @@ import ZoneEditorView from './components/views/ZoneEditorView';
 import ReportsView from './components/views/ReportsView';
 import SettingsView from './components/views/SettingsView';
 import LabView from './components/views/LabView';
+import BenchView from './components/views/BenchView';
 import Toast from './components/common/Toast';
 
 function MainAppLayout() {
@@ -30,6 +31,8 @@ function MainAppLayout() {
         return <SettingsView />;
       case 'lab':
         return <LabView />;
+      case 'bench':
+        return <BenchView />;
       case 'live':
       default:
         return <LiveView />;

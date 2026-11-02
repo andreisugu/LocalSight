@@ -27,6 +27,13 @@ let models = null;
 let modelError = null;
 let loading = null;
 
+// Bench options. Defaults are the spike's: probe providers, process the frame at its own
+// resolution. `/lab` never sends an `init` payload, so it keeps exactly that behaviour.
+let initProviders = null;
+// Longest side of the frame handed to the detectors; 0 means "native size". The YOLO graph
+// is fixed at 640x640, so this limit changes the frame, not the YOLO tensor.
+let frameLimit = 0;
+
 let frameCanvas = null;
 let frameCtx = null;
 let letterboxCanvas = null;
@@ -47,9 +54,17 @@ async function ensureModels() {
   if (loading) return loading;
   loading = (async () => {
     try {
-      const loaded = await loadModels((stage) => post({ type: 'status', stage }));
+      const loaded = await loadModels(
+        (stage) => post({ type: 'status', stage }),
+        initProviders ? { providers: initProviders } : {},
+      );
       models = loaded;
-      post({ type: 'ready', providers: loaded.providers });
+      post({
+        type: 'ready',
+        providers: loaded.providers,
+        actualProviders: loaded.actualProviders,
+        fallback: loaded.fallback,
+      });
       return loaded;
     } catch (error) {
       modelError = error instanceof Error ? error : new Error(String(error));
@@ -75,23 +90,37 @@ function ensureFrameCanvas(width, height) {
   faceCtx = null;
 }
 
-function ensureLetterboxCanvas() {
-  if (!letterboxCanvas) {
-    letterboxCanvas = new OffscreenCanvas(YOLO_INPUT_SIZE, YOLO_INPUT_SIZE);
-    letterboxCtx = letterboxCanvas.getContext('2d', { willReadFrequently: true });
-  }
+// `frameLimit` caps the long side without upscaling: a 1280-wide clip stays 1280 at size
+// 1280 and becomes 640x360 at size 640. Native frames (and `/lab`) return their own size.
+function targetFrameSize(width, height) {
+  if (!frameLimit) return { width, height };
+  const scale = Math.min(1, frameLimit / Math.max(width, height));
+  return {
+    width: Math.max(1, Math.round(width * scale)),
+    height: Math.max(1, Math.round(height * scale)),
+  };
+}
+
+function yoloInputSize() {
+  return models?.yoloInput?.width || models?.yoloInput?.height || YOLO_INPUT_SIZE;
+}
+
+function ensureLetterboxCanvas(size) {
+  if (letterboxCanvas && letterboxCanvas.width === size) return letterboxCtx;
+  letterboxCanvas = new OffscreenCanvas(size, size);
+  letterboxCtx = letterboxCanvas.getContext('2d', { willReadFrequently: true });
   return letterboxCtx;
 }
 
-function detectPersons(width, height) {
-  const box = letterbox(width, height, YOLO_INPUT_SIZE);
-  const ctx = ensureLetterboxCanvas();
+function detectPersons(width, height, size) {
+  const box = letterbox(width, height, size);
+  const ctx = ensureLetterboxCanvas(size);
   ctx.fillStyle = `rgb(${LETTERBOX_PAD}, ${LETTERBOX_PAD}, ${LETTERBOX_PAD})`;
-  ctx.fillRect(0, 0, YOLO_INPUT_SIZE, YOLO_INPUT_SIZE);
+  ctx.fillRect(0, 0, size, size);
   ctx.drawImage(frameCanvas, box.padX, box.padY, box.drawW, box.drawH);
 
-  const { data } = ctx.getImageData(0, 0, YOLO_INPUT_SIZE, YOLO_INPUT_SIZE);
-  const blob = rgbaToNchw(data, YOLO_INPUT_SIZE, YOLO_INPUT_SIZE, { swapRB: false });
+  const { data } = ctx.getImageData(0, 0, size, size);
+  const blob = rgbaToNchw(data, size, size, { swapRB: false });
   return { blob, box };
 }
 
@@ -224,13 +253,16 @@ function updateFps() {
 }
 
 async function handleFrame(bitmap) {
-  const width = bitmap.width;
-  const height = bitmap.height;
-  if (!width || !height) {
+  const sourceWidth = bitmap.width;
+  const sourceHeight = bitmap.height;
+  if (!sourceWidth || !sourceHeight) {
     bitmap.close();
     return;
   }
   updateFps();
+  const target = targetFrameSize(sourceWidth, sourceHeight);
+  const width = target.width;
+  const height = target.height;
   ensureFrameCanvas(width, height);
   frameCtx.drawImage(bitmap, 0, 0, width, height);
   bitmap.close();
@@ -260,8 +292,9 @@ async function handleFrame(bitmap) {
   let error = null;
   try {
     await ensureModels();
-    const yolo = detectPersons(width, height);
-    const scores = await runYolo(models, yolo.blob, YOLO_INPUT_SIZE);
+    const yoloSize = yoloInputSize();
+    const yolo = detectPersons(width, height, yoloSize);
+    const scores = await runYolo(models, yolo.blob, yoloSize);
     persons = decodeYolo(scores, {
       numClasses: 80,
       conf: PERSON_CONF,
@@ -311,6 +344,14 @@ let queue = Promise.resolve();
 self.onmessage = (event) => {
   const message = event.data || {};
   if (message.type === 'init') {
+    // Bench options. `/lab` sends a bare `{ type: 'init' }`, so both stay at their
+    // defaults and the spike behaves exactly as before.
+    if (Array.isArray(message.providers) && message.providers.length) {
+      initProviders = message.providers;
+    }
+    if (Number.isFinite(message.inputSize) && message.inputSize > 0) {
+      frameLimit = message.inputSize;
+    }
     ensureModels().catch(() => {});
     return;
   }

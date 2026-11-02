@@ -35,6 +35,8 @@ const VIEW_PATHS = {
   settings: '/settings',
   // Spike page, reachable by URL only: no sidebar entry.
   lab: '/lab',
+  // Measurement page, reachable by URL only: no sidebar entry.
+  bench: '/bench',
 };
 
 function routeFromPath(pathname) {
