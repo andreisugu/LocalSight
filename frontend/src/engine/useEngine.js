@@ -168,7 +168,18 @@ export function useEngine({
         });
         // Incidents must never wait for the stats throttle: a frame budget without an
         // event is still a frame, but an event that arrives late looks like a miss.
-        const incoming = Array.isArray(message.events) ? message.events : [];
+        // The worker cannot own the snapshot URL: its blob URLs die with the worker, and
+        // opening an incident unmounts Live. The page creates the URL here and keeps the
+        // Blob out of the event so only a string reaches the context.
+        const incoming = (Array.isArray(message.events) ? message.events : []).map((event) => {
+          if (!event || !event.snapshot_blob) return event;
+          const { snapshot_blob: blob, ...rest } = event;
+          try {
+            return { ...rest, snapshot_url: URL.createObjectURL(blob) };
+          } catch {
+            return rest;
+          }
+        });
         const now = performance.now();
         if (incoming.length === 0 && now - lastStatsRef.current < STATS_INTERVAL_MS) return;
         lastStatsRef.current = now;

@@ -547,13 +547,12 @@ function drawPpeBadges(ctx, persons, states) {
 // never contain a raw face. The JPEG is intentionally smaller than the processed frame;
 // the live overlay keeps the full resolution, the incident store only needs a thumbnail.
 
-// One blob URL per event frame, shared by every event that frame produced. The URL is never
-// revoked explicitly: the app bounds the count for us (engine history 50, incident list 200),
-// so a session holds a bounded number of blobs (a few MB at most), and a page reload drops
-// them all with the document. Worker-owned URLs share the worker's lifetime, so leaving Live
-// revokes them with the engine worker; the detail view needs the page to own the URL (see the
-// report / the `useEngine` follow-up).
-async function snapshotUrl(width, height) {
+// One Blob per event frame, shared by every event that frame produced. The worker must NOT
+// create the object URL: a blob URL created in a worker is revoked when that worker is
+// terminated, and opening an incident unmounts Live and terminates the engine worker. The
+// page creates and owns the URL in `useEngine`; the app bounds the count (engine history 50,
+// incident list 200), and a reload clears them with the document.
+async function snapshotBlob(width, height) {
   const scale = Math.min(1, SNAPSHOT_MAX_EDGE / Math.max(width, height));
   const snapWidth = Math.max(1, Math.round(width * scale));
   const snapHeight = Math.max(1, Math.round(height * scale));
@@ -568,7 +567,7 @@ async function snapshotUrl(width, height) {
     type: 'image/jpeg',
     quality: SNAPSHOT_QUALITY,
   });
-  return URL.createObjectURL(blob);
+  return blob;
 }
 
 function updateFps() {
@@ -744,12 +743,13 @@ async function handleFrame(message) {
   // Only a frame that produced an incident pays for a snapshot. It is taken here, after the
   // blur and the boxes were drawn on `frameCanvas` and before that canvas is transferred,
   // so the JPEG is the processed frame, never the raw bitmap above. Every event of this
-  // frame shares one URL; a failure leaves pipeline.js's `SNAPSHOT_PENDING` in place and is
-  // reported on the result, because the incident itself is still real.
+  // frame shares one Blob; the page turns it into an object URL. A failure leaves
+  // pipeline.js's `SNAPSHOT_PENDING` in place and is reported on the result, because the
+  // incident itself is still real.
   if (events.length > 0) {
     try {
-      const url = await snapshotUrl(width, height);
-      for (const incident of events) incident.snapshot_url = url;
+      const blob = await snapshotBlob(width, height);
+      for (const incident of events) incident.snapshot_blob = blob;
     } catch (caught) {
       const detail = caught instanceof Error ? caught.message : String(caught);
       error = error ? `${error}; captura incidentului: ${detail}` : `captura incidentului: ${detail}`;
