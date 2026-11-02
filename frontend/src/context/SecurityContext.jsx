@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useState, useMemo, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useState, useMemo, useEffect, useRef } from 'react';
 import {
   INITIAL_CAMERAS,
   INITIAL_EVENTS,
@@ -12,6 +12,7 @@ import {
 import { localSightApi, USE_MOCK } from '../services/api';
 import { playCriticalAlertSound } from '../utils/sound';
 import { STATUS_TOKENS } from '../constants/theme';
+import { canDo } from '../constants/eventActions';
 
 const SecurityContext = createContext();
 
@@ -457,6 +458,9 @@ export function SecurityProvider({ children }) {
 
   // ACȚIUNI PRINCIPALE:
 
+  // Incidentele cu o confirmare deja în zbor: al doilea clic pe același buton e un no-op.
+  const pendingAcks = useRef(new Set());
+
   // 1. Acknowledge (Buton principal, un singur clic - C-02)
   // A failed action: a 409 means the incident changed meanwhile (another operator, Slack, the
   // escalation timer), so show it as it is now; anything else puts the old state back.
@@ -478,6 +482,14 @@ export function SecurityProvider({ children }) {
   const acknowledgeEvent = async (eventId, e) => {
     if (e) e.stopPropagation();
     const previous = events.find((ev) => ev.event_id === eventId);
+    // Confirmarea e idempotentă: un incident deja confirmat (sau unul care nu se poate
+    // confirma: fals pozitiv, rezolvat, inexistent) nu mai pleacă spre API și nu mai
+    // produce toast. Al doilea clic pe același buton, înainte ca React să re-randeze
+    // cardul, nimerește tot acest incident și e ignorat aici.
+    if (!canDo('ack', previous?.status)) return;
+    // Al doilea clic cât timp primul e în zbor nu are voie să confirme de două ori.
+    if (pendingAcks.current.has(eventId)) return;
+    pendingAcks.current.add(eventId);
     setEvents((prev) =>
       prev.map((ev) =>
         ev.event_id === eventId
@@ -496,6 +508,8 @@ export function SecurityProvider({ children }) {
       showToast(`Evenimentul ${eventId.slice(-6)} confirmat de ${operatorName}. Escaladare anulată.`);
     } catch (error) {
       await recoverFromFailedAction(eventId, previous, error, 'Confirmarea a eșuat');
+    } finally {
+      pendingAcks.current.delete(eventId);
     }
   };
 
