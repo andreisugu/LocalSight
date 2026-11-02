@@ -207,4 +207,60 @@ describe('createPipeline', () => {
     feed([person()], { frames: 15 });
     assert.equal(state.events.length, 1, 'a zone from another camera must stay silent');
   });
+
+  // P0: `event_id` is the contract's idempotency key and the store's dedupe key, so two
+  // zones that confirm the same track in the same frame must not build the same id.
+  test('two overlapping zones confirming one track in one frame get distinct ids', () => {
+    // The seed config already has two zones on `stand12`; these two overlap the same person.
+    const left = makeZone();
+    const right = makeZone({
+      id: 'engine-right',
+      name: 'Motor dreapta',
+      polygon: [
+        [0.5, 0.16],
+        [0.8, 0.16],
+        [0.8, 0.68],
+        [0.5, 0.68],
+      ],
+    });
+    const { state, feed } = harness({ zones: [left, right] });
+
+    // Frame by frame, so the "same frame" claim is observable in the output.
+    const perFrame = [];
+    for (let frame = 0; frame < 15; frame += 1) {
+      perFrame.push(feed([person()], { frames: 1 }).length);
+    }
+
+    // Both zones confirm in the same frame (identical debounce), so both events come out
+    // of one `step()` call: the case that used to share one id.
+    assert.deepEqual(perFrame, [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0]);
+    assert.deepEqual(
+      state.events.map((event) => event.zone_id),
+      ['engine-left', 'engine-right'],
+    );
+    assert.equal(state.events[0].track_id, state.events[1].track_id, 'one track in both zones');
+
+    const [first, second] = state.events;
+    assert.notEqual(first.event_id, second.event_id);
+    assert.match(first.event_id, /^evt_stand12_\d{13}_1$/);
+    assert.match(second.event_id, /^evt_stand12_\d{13}_1$/);
+
+    // The real detection time is the frame's clock value for both; only the id differs.
+    const frameMs = BASE_MS + 9 * STEP_MS;
+    const frameIso = new Date(frameMs).toISOString();
+    assert.equal(first.detected_at, frameIso);
+    assert.equal(second.detected_at, frameIso);
+    assert.equal(first.event_id, `evt_stand12_${frameMs}_1`, 'the first event keeps the frame ms');
+    assert.equal(second.event_id, `evt_stand12_${frameMs + 1}_1`, 'the second only offsets the id');
+  });
+
+  test('one zone keeps the id millisecond equal to the frame time', () => {
+    const { state, feed } = harness({ zones: [makeZone()] });
+
+    feed([person()], { frames: 15 });
+
+    const frameMs = BASE_MS + 9 * STEP_MS;
+    assert.equal(state.events[0].event_id, `evt_stand12_${frameMs}_1`);
+    assert.equal(state.events[0].detected_at, new Date(frameMs).toISOString());
+  });
 });

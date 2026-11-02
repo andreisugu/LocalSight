@@ -4,6 +4,9 @@
 // the same `events` list is what makes them appear in Live, Incidents, the KPI counts and
 // the shift report. The provider re-runs this on every render of the engine card, so the
 // dedupe is by `event_id`; a re-render (or React StrictMode) must never add twice.
+//
+// One field the engine does not write is added on the way in: `escalate_after_s` lives on
+// the zone, but the escalation tick reads it off the event.
 
 import { EVENT_LIMIT } from './incidentState.js';
 
@@ -47,6 +50,11 @@ export function mergeEngineEvents(events, incoming, {
         local: true,
         status: 'open',
         model: event.model || DEFAULT_ENGINE_MODEL,
+        // The engine writes detection fields only, but the escalation tick reads the
+        // threshold off the event (`applyEscalations` in `incidentState.js`). Taking it
+        // from the zone is what makes an engine incident escalate like a fixture one;
+        // `null` means "this zone has no timer", exactly like the fixtures.
+        escalate_after_s: event.escalate_after_s ?? zone?.escalate_after_s ?? null,
         report,
       };
     });

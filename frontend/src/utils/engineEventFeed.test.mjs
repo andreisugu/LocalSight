@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_ENGINE_MODEL, mergeEngineEvents } from './engineEventFeed.js';
+import { applyEscalations } from './incidentState.js';
 
 const cameras = [{ id: 'stand12', name: 'CAM-01 • Stand 12' }];
 const zones = [{ zone_id: 'engine-left', id: 'engine-left', name: 'Zona motor stâng' }];
@@ -101,4 +102,75 @@ test('the list keeps the feed limit', () => {
   assert.equal(next.length, 200);
   assert.equal(next[0].event_id, 'evt_engine_1700000000000_1');
   assert.equal(next[199].event_id, 'evt_198');
+});
+
+// P1: the engine writes detection fields only, but `applyEscalations` needs the zone's
+// timer; without it an engine incident never escalates while a fixture one does.
+test('an engine event takes escalate_after_s from its zone', () => {
+  const zonesWithTimer = [
+    { zone_id: 'engine-left', name: 'Zona motor stâng', escalate_after_s: 30 },
+  ];
+  const [merged] = mergeEngineEvents([], [engineEvent()], { zones: zonesWithTimer, buildReport });
+
+  assert.equal(merged.escalate_after_s, 30);
+});
+
+test('an escalate_after_s the event already carries wins over the zone', () => {
+  const zonesWithTimer = [{ zone_id: 'engine-left', escalate_after_s: 30 }];
+  const [merged] = mergeEngineEvents([], [engineEvent({ escalate_after_s: 120 })], {
+    zones: zonesWithTimer,
+    buildReport,
+  });
+
+  assert.equal(merged.escalate_after_s, 120);
+});
+
+test('a zone without a timer or an unknown zone leaves null, not undefined', () => {
+  const [noTimer] = mergeEngineEvents([], [engineEvent()], {
+    zones: [{ zone_id: 'engine-left', escalate_after_s: null }],
+    buildReport,
+  });
+  const [unknownZone] = mergeEngineEvents([], [engineEvent()], { buildReport });
+
+  assert.equal(noTimer.escalate_after_s, null);
+  assert.equal(unknownZone.escalate_after_s, null);
+});
+
+test('an engine incident escalates once the zone timer elapses', () => {
+  const zonesWithTimer = [{ zone_id: 'engine-left', escalate_after_s: 30 }];
+  const [merged] = mergeEngineEvents([], [engineEvent()], { zones: zonesWithTimer, buildReport });
+  const detected = Date.parse(merged.detected_at);
+
+  // The same function the mock tick runs on the shared list.
+  assert.equal(applyEscalations([merged], detected + 29_999)[0].status, 'open');
+  const escalated = applyEscalations([merged], detected + 30_000)[0];
+  assert.equal(escalated.status, 'escalated');
+  assert.equal(escalated.escalated_at, new Date(detected + 30_000).toISOString());
+});
+
+// The store keeps both rows: two overlapping zones on one track are two incidents, and each
+// is acknowledged by its own id (review P0-1, the reason ids had to be unique per frame).
+test('two zones for one track stay two incidents with distinct ids', () => {
+  const batch = [
+    engineEvent({
+      event_id: 'evt_stand12_1793356933120_1',
+      zone_id: 'engine-left',
+    }),
+    engineEvent({
+      event_id: 'evt_stand12_1793356933121_1',
+      zone_id: 'engine-right',
+    }),
+  ];
+  const merged = mergeEngineEvents([], batch, {
+    zones: [
+      { zone_id: 'engine-left', name: 'Motor stâng', escalate_after_s: 30 },
+      { zone_id: 'engine-right', name: 'Motor dreapta', escalate_after_s: 30 },
+    ],
+    buildReport,
+  });
+
+  assert.equal(merged.length, 2);
+  assert.equal(new Set(merged.map((event) => event.event_id)).size, 2);
+  assert.deepEqual(merged.map((event) => event.zone_id), ['engine-left', 'engine-right']);
+  assert.deepEqual(merged.map((event) => event.escalate_after_s), [30, 30]);
 });

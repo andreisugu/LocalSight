@@ -136,6 +136,34 @@ test('buildEvent rejects fields the backend would reject', () => {
   assert.throws(() => sample({ engineOn: 'true' }), TypeError);
 });
 
+// P0: the id's middle number is an identifier, not the detection time. Two zones that
+// confirm the same track in one frame pass distinct `idMs` values and keep one real time.
+test('idMs feeds event_id only, never detected_at or received_at', () => {
+  const event = sample({ detectedAt: T0, receivedAt: T0 + 7, idMs: T0 + 1 });
+
+  assert.equal(event.event_id, 'evt_stand12_1793356933121_17');
+  assert.equal(event.detected_at, ISO_T0, 'the detection time is unchanged');
+  assert.equal(event.received_at, new Date(T0 + 7).toISOString());
+  assert.match(event.event_id, /^evt_[a-z0-9-]+_\d{13}_\d+$/);
+});
+
+test('two events for one track and frame get distinct ids through idMs', () => {
+  const first = sample();
+  const second = sample({ zoneId: 'engine-right', idMs: T0 + 1 });
+
+  assert.notEqual(first.event_id, second.event_id);
+  assert.equal(first.detected_at, second.detected_at);
+  assert.equal(first.event_id, 'evt_stand12_1793356933120_17');
+  assert.equal(second.event_id, 'evt_stand12_1793356933121_17');
+});
+
+test('without idMs the id keeps the contract formula from detectedAt', () => {
+  assert.equal(sample().event_id, `evt_stand12_${T0}_17`);
+  // An id millisecond still has to be a 13-digit epoch, like `eventId` demands.
+  assert.throws(() => sample({ idMs: 0 }), RangeError);
+  assert.throws(() => sample({ idMs: 'now' }), TypeError);
+});
+
 test('ack moves an open event to acknowledged and stops escalation', () => {
   const event = sample();
   const acked = applyAction(event, 'ack', { operator: 'Ana', now: T0 + 5_000 });

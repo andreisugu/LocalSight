@@ -216,6 +216,12 @@ export function createPipeline({
         const type = EVENT_TYPE_BY_RULE[zone.rule_type];
         if (!cooldown.allow(type, zone.id, cooldownNowMs)) continue;
 
+        // The id's millisecond is an identifier, not the detection time. Two zones that
+        // both confirm the same track in the same frame would otherwise build the same
+        // `evt_<camera>_<ms>_<track>`; the event's position inside the frame keeps the
+        // ids distinct while `detected_at` stays the real frame time for all of them.
+        const idMs = nowMs + events.length;
+
         events.push(
           buildEvent({
             cameraId,
@@ -233,6 +239,7 @@ export function createPipeline({
             snapshotUrl,
             model,
             detectedAt: nowMs,
+            idMs,
           }),
         );
         cooldown.record(type, zone.id, cooldownNowMs);
