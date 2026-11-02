@@ -1,4 +1,6 @@
-> **Notă de stare:** raportul descrie build-ul `473ad8e`. F1 (id-uri duplicate la zone suprapuse) a fost reparat pe `main` în `83b8206` — fiecare eveniment primește un id propriu, iar ack-ul este independent. F2–F6 rămân de reparat.
+> **Notă de stare:** raportul descrie build-ul `473ad8e`. Toate constatările au fost reparate pe `main`:
+F1 (id-uri duplicate) în `83b8206`; F2 (caption la blur OFF) și F5 („ZONĂ ACTIVĂ” cu motorul oprit) în `2935224`;
+F3/F4 (etichete de zonă) în `cf8b019`; F6 (thread select fără izolare) în `d3efdec`. Păstrat ca evidență a stării de la acea dată.
 
 # Functional QA round 2 — zones on the frame, WASM threads, safety blur
 

@@ -48,8 +48,8 @@ vechi. Fără el (dev, browser fără service worker) motorul cade pe un singur 
 putea bloca sesiunea ONNX Runtime. Chrome/Edge folosesc WebGPU când există adapter; cifra
 depinde de GPU. Sub 2 fps, panoul din Live avertizează după 10 s de rulare.
 
-Teste: 422 Node (`node --test`, motor, utilitare, date, servicii, componente și raport), 5 E2E Playwright la baza
-`/` și 5 E2E pe forma de deploy (`/LocalSight/`, COI + motor pornit); CI rulează unit,
+Teste: 690 Node (`node --test`, motor, utilitare, date, servicii, componente și raport), 5 E2E Playwright la baza
+`/`, 5 E2E pe forma de deploy (`/LocalSight/`, COI + motor pornit) și 3 E2E de persistență; CI rulează unit,
 build-ul de frontend, ambele suite e2e și o gardă pentru subpath-ul de Pages. Comenzile
 canonice sunt în [`RUNNING.md`](RUNNING.md#teste).
 

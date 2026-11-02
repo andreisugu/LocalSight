@@ -15,7 +15,8 @@ demo-ul SafeSight pe `ml/` + `backend/` și rămâne material istoric.
    fețele blurate și ~5–6 fps pe WASM (4 fire, cadru 1280). Dacă nu apare nimic în 30 s, oprește-l și
    repornește; watchdog-ul îl mută singur pe WASM dacă providerul cerut se blochează.
 4. Deschide `/zones` și verifică fundalul: primul cadru din clipul camerei, nu panou negru.
-5. Deschide `/bench` doar dacă vrei cifre; nu face parte din demo.
+5. Opțional, doar dacă vrei să arăți procesarea tuturor camerelor: **Sistem & Audit → Camere în fundal** (OFF implicit). Pornește câte un worker per cameră la ~0,5 fps; consumă aproximativ 3× memoria/CPU. Nu-l lăsa pornit pe un laptop mic în timpul demo-ului.
+6. Deschide `/bench` doar dacă vrei cifre; nu face parte din demo.
 
 Ce să nu promiți: nu există Slack, nu există backend, nu există persistență între reload-uri.
 
