@@ -1,10 +1,19 @@
 name: Deploy static mock build to GitHub Pages
 
-# Deploys are gated on CI. `ci.yml` runs on every push to main (and every PR); this
-# workflow no longer triggers on `push` at all, so a red CI cannot publish: it starts
-# only when the CI run for main has completed, and the build job below checks that the
-# conclusion was `success`. Manual `workflow_dispatch` stays available for re-running a
-# known-good ref, and falls back to `github.sha` because there is no workflow_run payload.
+# Deploys are gated on CI. `ci.yml` runs on every push to main (and every PR) that
+# touches anything but documentation; this workflow no longer triggers on `push` at
+# all, so a red CI cannot publish: it starts only when the CI run for main has
+# completed, and the build job below checks that the conclusion was `success`. Manual
+# `workflow_dispatch` stays available for re-running a known-good ref, and falls back
+# to `github.sha` because there is no workflow_run payload.
+#
+# Two interactions with ci.yml are deliberate (details: docs/ops/ci-speed.md):
+#   - a docs-only push to main matches ci.yml's `paths-ignore`, so no CI run exists
+#     to trigger this workflow and the previous deployment simply stays live — the
+#     app bundle is identical, only documentation moved;
+#   - a CI run cancelled by `concurrency` on a newer push reports `cancelled`, never
+#     `success`, so the guard below rejects it and the superseded commit is never
+#     published. That run still shows up here as a skipped workflow, not a failure.
 on:
   workflow_run:
     workflows: [CI]

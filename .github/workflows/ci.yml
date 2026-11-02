@@ -2,8 +2,20 @@
 # browser smoke test of that build, the GitHub Pages subpath (base) check, and the
 # second e2e run that serves the real Pages shape and starts the engine.
 #
-# The five jobs are independent on purpose: a red frontend build does not cancel
-# or hide the unit, e2e, pages-base and pages-e2e results.
+# Job shape (numbers and the reasoning behind every choice: docs/ops/ci-speed.md):
+#
+#   unit + build   one job, one `npm ci`. Both steps still run and both report on
+#                  their own line, so a red job says whether the unit tests or the
+#                  build broke. Merging them removes one checkout + Node setup +
+#                  install from every push.
+#   e2e smoke      Chromium restored from the Playwright cache.
+#   Pages e2e      same cache key, its own port and its own Pages-shaped server.
+#   Pages base     the deploy-shaped build + check-base.mjs.
+#
+# e2e smoke / Pages e2e / Pages base stay separate jobs on purpose. They run in
+# parallel, so the wall clock is one pass (Pages e2e is the critical path); folding
+# the two browser suites into one job would put both suites end to end on that path
+# and would make the job name the only place a failure shows up.
 #
 # There is no Python job: the SafeSight reference stack (backend/, ml/,
 # automation/) was removed from this fork. The product is the static app in
@@ -15,14 +27,54 @@ name: CI
 on:
   push:
     branches: [main]
+    # A push that only touches documentation cannot change the built app: it is
+    # skipped instead of paying for five jobs. `paths-ignore` only skips when
+    # *every* changed path matches, so a mixed push still runs everything.
+    #
+    # `frontend/public/` is deliberately absent: it is bundled into dist/.
+    paths-ignore:
+      - 'docs/**'
+      - 'demo/**'
+      - 'README.md'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'CONTRIBUTING.md'
+      - 'RUNNING.md'
+      - 'THIRD_PARTY.md'
+      - 'LICENSE'
+      - '.gitignore'
   pull_request:
+    # Same filter for pull requests. There is no branch protection and no required
+    # status check on this repository, so a docs-only PR is not left waiting for a
+    # check that will never start.
+    paths-ignore:
+      - 'docs/**'
+      - 'demo/**'
+      - 'README.md'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'CONTRIBUTING.md'
+      - 'RUNNING.md'
+      - 'THIRD_PARTY.md'
+      - 'LICENSE'
+      - '.gitignore'
 
 permissions:
   contents: read
 
+# A newer push to the same ref makes the older run pointless: cancel it instead of
+# keeping the runners busy on a commit nobody will look at. This is also what keeps
+# the Pages deploy honest — pages.yml runs only on a completed *successful* CI run
+# for main, so a cancelled run deploys nothing, and the last surviving run is the
+# tip. pages.yml has its own `concurrency: group: pages` with cancel-in-progress
+# false, so an upload that has already started is never interrupted.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  unit:
-    name: frontend / unit
+  unit-build:
+    name: frontend / unit + build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -37,34 +89,21 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      # The npm cache is already warm from setup-node; --prefer-offline skips the
+      # registry round-trip when the tarball is cached, --no-audit/--no-fund drop
+      # two network calls this repo does not consume.
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit --no-fund
 
       # Pure logic only: the engine, the event contract helpers and the report/confidence
       # formatters, plus the demo fixtures and the API transport mappers.
       - name: Unit tests
         run: npm run test:unit
 
-  frontend:
-    name: frontend / build
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
+      # Runs even when the unit tests failed, so the two signals stay separate
+      # instead of the build being skipped and looking healthy.
       - name: Build
+        if: ${{ !cancelled() }}
         run: npm run build
 
   e2e:
@@ -84,12 +123,39 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit --no-fund
 
-      # Only Chromium is used by playwright.config.js; --with-deps installs the
-      # system libraries the runner image does not ship with.
+      # The lockfile pins @playwright/test, which pins the Chromium revision; keying
+      # on the resolved version means a dependency bump that changes browsers misses
+      # the cache instead of serving a browser the suite did not ask for.
+      - name: Read the Playwright version
+        id: playwright-version
+        run: |
+          echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the Playwright browser cache
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-chromium-${{ steps.playwright-version.outputs.version }}
+
+      # Only Chromium is used by playwright.config.js. On a miss this is the full
+      # install: browsers plus the apt libraries the runner image may not ship. On a
+      # hit the browser is already on disk, so the launch probe decides whether the
+      # OS side still works instead of paying for apt on every run.
       - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" != "true" ]; then
+            npx playwright install --with-deps chromium
+            exit 0
+          fi
+          if node -e "const { chromium } = require('@playwright/test'); chromium.launch().then((b) => b.close()).catch(() => process.exit(1));"; then
+            exit 0
+          fi
+          echo "cached Chromium did not launch; installing browsers and OS deps" >&2
+          npx playwright install --with-deps chromium
 
       # The suite builds the mock app (VITE_USE_MOCK=true) and serves the real
       # dist with `vite preview`, so what is tested is what Pages would deploy.
@@ -116,10 +182,34 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      # Same key as the smoke job: one cache entry serves both, and a miss in a
+      # parallel run only means one extra download, never a wrong browser.
+      - name: Read the Playwright version
+        id: playwright-version
+        run: |
+          echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the Playwright browser cache
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-chromium-${{ steps.playwright-version.outputs.version }}
 
       - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" != "true" ]; then
+            npx playwright install --with-deps chromium
+            exit 0
+          fi
+          if node -e "const { chromium } = require('@playwright/test'); chromium.launch().then((b) => b.close()).catch(() => process.exit(1));"; then
+            exit 0
+          fi
+          echo "cached Chromium did not launch; installing browsers and OS deps" >&2
+          npx playwright install --with-deps chromium
 
       # playwright.pages.config.js builds with VITE_USE_MOCK=true VITE_BASE=/LocalSight/,
       # serves dist/ under the subpath with a Pages-like 404 fallback, then asserts the
@@ -149,7 +239,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit --no-fund
 
       # Build exactly like pages.yml (mock mode, served under /LocalSight/), then
       # mirror its SPA fallback so the check sees the artifact Pages would deploy.
