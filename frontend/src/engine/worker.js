@@ -31,6 +31,20 @@ const FACE_NMS = 0.3;
 const BLUR_SCALE = 8;
 const BLUR_SIGMA = 25 / BLUR_SCALE;
 
+// Event snapshot: the frame that produced an incident, downscaled to a thumbnail-sized
+// JPEG. 960 px on the long side keeps each capture ~50-90 KB while staying readable in the
+// incident card and the detail view, and it is cheap enough to do on the rare event frame.
+const SNAPSHOT_MAX_EDGE = 960;
+const SNAPSHOT_QUALITY = 0.8;
+
+// PPE state -> badge. `unknown` is a first-class state: a track that has not collected
+// enough colour samples yet must be visible and must never look like a pass.
+const PPE_BADGES = Object.freeze({
+  vest: { text: 'VESTĂ', colour: '#16A34A' },
+  no_vest: { text: 'FĂRĂ VESTĂ', colour: '#D73833' },
+  unknown: { text: 'PPE ?', colour: '#475569' },
+});
+
 let models = null;
 let modelError = null;
 let loading = null;
@@ -48,6 +62,10 @@ let letterboxCanvas = null;
 let letterboxCtx = null;
 let faceCanvas = null;
 let faceCtx = null;
+// Dedicated scratch canvas for the event snapshot, sized to the downscaled frame. It is
+// separate from `frameCanvas` because that one is transferred to the page on every frame.
+let snapshotCanvas = null;
+let snapshotCtx = null;
 
 // Fail-closed placeholder. `guardCanvas` is the one offscreen canvas that never receives a
 // source frame, so when the models are missing (or a blur pass throws) this is the only
@@ -478,6 +496,81 @@ function drawBoxes(ctx, boxes, colour, label) {
   }
 }
 
+// One small badge per person, on the same processed canvas as the boxes: the incident
+// snapshot therefore carries the PPE state that was true when the event fired. The badge
+// sits on the person label row, right-aligned above the box; when that row is too narrow
+// for both, it stacks one row above the `PERSON <score>` label, never inside the box (the
+// top 35% is the head band the blur covers). The state is never hidden: every person gets
+// exactly one badge, `unknown` included.
+function drawPpeBadges(ctx, persons, states) {
+  const fontPx = Math.round(ctx.canvas.width / 55);
+  if (fontPx < 1) return;
+  const padding = 3;
+  const rowHeight = fontPx + padding * 2;
+  const canvasWidth = ctx.canvas.width;
+  const canvasHeight = ctx.canvas.height;
+  ctx.font = `${fontPx}px ui-monospace, monospace`;
+  ctx.textBaseline = 'top';
+
+  for (let index = 0; index < persons.length; index += 1) {
+    const person = persons[index];
+    const badge = PPE_BADGES[states[index]] || PPE_BADGES.unknown;
+    const rect = clampRect(person.x1, person.y1, person.x2, person.y2, canvasWidth, canvasHeight);
+    if (rect.width < 2 || rect.height < 2) continue;
+
+    const badgeWidth = Math.round(ctx.measureText(badge.text).width) + padding * 2;
+    const score = Number.isFinite(person.score) ? person.score.toFixed(2) : '0.00';
+    const labelWidth = Math.round(ctx.measureText(`PERSON ${score}`).width) + padding * 2;
+    // Same row as `drawBoxes`, which puts the PERSON label above the box's top-left.
+    let y = Math.max(0, rect.top - rowHeight);
+    let x = Math.max(0, Math.min(canvasWidth - badgeWidth, rect.left + rect.width - badgeWidth));
+    if (x < rect.left + labelWidth + padding) {
+      // No room next to the PERSON label. Never drop into the box (the top 35% is the face
+      // the blur covers): stack a second row above the label instead, and only when the
+      // box starts at the very top of the frame fall back to just below the box.
+      const stacked = rect.top - rowHeight * 2;
+      y = stacked >= 0
+        ? stacked
+        : Math.min(canvasHeight - rowHeight, rect.top + rect.height + 2);
+    }
+
+    ctx.fillStyle = badge.colour;
+    ctx.fillRect(x, y, badgeWidth, rowHeight);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(badge.text, x + padding, y + padding);
+  }
+}
+
+// --- Event snapshot -------------------------------------------------------------
+// The frame is already blurred (faces and the head band) and annotated when this runs, and
+// it is read from `frameCanvas`, never from the incoming bitmap: a snapshot can therefore
+// never contain a raw face. The JPEG is intentionally smaller than the processed frame;
+// the live overlay keeps the full resolution, the incident store only needs a thumbnail.
+
+// One blob URL per event frame, shared by every event that frame produced. The URL is never
+// revoked explicitly: the app bounds the count for us (engine history 50, incident list 200),
+// so a session holds a bounded number of blobs (a few MB at most), and a page reload drops
+// them all with the document. Worker-owned URLs share the worker's lifetime, so leaving Live
+// revokes them with the engine worker; the detail view needs the page to own the URL (see the
+// report / the `useEngine` follow-up).
+async function snapshotUrl(width, height) {
+  const scale = Math.min(1, SNAPSHOT_MAX_EDGE / Math.max(width, height));
+  const snapWidth = Math.max(1, Math.round(width * scale));
+  const snapHeight = Math.max(1, Math.round(height * scale));
+  if (!snapshotCanvas || snapshotCanvas.width !== snapWidth || snapshotCanvas.height !== snapHeight) {
+    snapshotCanvas = new OffscreenCanvas(snapWidth, snapHeight);
+    snapshotCtx = snapshotCanvas.getContext('2d', { alpha: false });
+  }
+  snapshotCtx.imageSmoothingEnabled = true;
+  snapshotCtx.imageSmoothingQuality = 'high';
+  snapshotCtx.drawImage(frameCanvas, 0, 0, snapWidth, snapHeight);
+  const blob = await snapshotCanvas.convertToBlob({
+    type: 'image/jpeg',
+    quality: SNAPSHOT_QUALITY,
+  });
+  return URL.createObjectURL(blob);
+}
+
 function updateFps() {
   const now = performance.now();
   if (lastFrameAt > 0) {
@@ -614,6 +707,19 @@ async function handleFrame(message) {
     return;
   }
 
+  // PPE badges are cosmetic: a failure here omits them, but the frame is already blurred
+  // and annotated, so it still goes out. Skipped entirely when the colour pass failed (the
+  // state is unknown for every track then, and a badge would be a guess).
+  if (!vestFailed && vestStates.length > 0) {
+    try {
+      drawPpeBadges(frameCtx, persons, vestStates);
+    } catch (caught) {
+      console.warn(
+        `[engine] badge-ul PPE nu a putut fi desenat: ${caught instanceof Error ? caught.message : String(caught)}`,
+      );
+    }
+  }
+
   // A failure here is a wiring bug, not a broken model: report it per frame instead of
   // poisoning `modelError`, which would stop the engine for good.
   if (!modelError && pipeline && !vestFailed) {
@@ -624,14 +730,29 @@ async function handleFrame(message) {
         // One PPE state per detection, in the order `step` receives them; a PPE zone
         // only fires on `no_vest`, so `unknown` stays silent.
         vestStates,
-        // The lab has no renderer/store yet that already saved a blurred frame, so the
-        // event carries pipeline.js's explicit placeholder. This is a static-build
-        // deviation, documented in docs/browser-engine.md §3.
+        // pipeline.step runs before the snapshot exists: the rendered frame is captured
+        // right below, from the same canvas that is about to be posted. The placeholder is
+        // only the fallback if that capture fails.
         snapshotUrl: SNAPSHOT_PENDING,
       });
       events = result.events;
     } catch (caught) {
       error = caught instanceof Error ? caught.message : String(caught);
+    }
+  }
+
+  // Only a frame that produced an incident pays for a snapshot. It is taken here, after the
+  // blur and the boxes were drawn on `frameCanvas` and before that canvas is transferred,
+  // so the JPEG is the processed frame, never the raw bitmap above. Every event of this
+  // frame shares one URL; a failure leaves pipeline.js's `SNAPSHOT_PENDING` in place and is
+  // reported on the result, because the incident itself is still real.
+  if (events.length > 0) {
+    try {
+      const url = await snapshotUrl(width, height);
+      for (const incident of events) incident.snapshot_url = url;
+    } catch (caught) {
+      const detail = caught instanceof Error ? caught.message : String(caught);
+      error = error ? `${error}; captura incidentului: ${detail}` : `captura incidentului: ${detail}`;
     }
   }
 
