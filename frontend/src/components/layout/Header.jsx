@@ -55,12 +55,12 @@ export default function Header() {
         </button>
         <img
           src="/logo.png"
-          alt="SafeSight Logo"
+          alt="LocalSight Logo"
           className="w-10 h-10 rounded-full object-cover shadow-md border border-white/20 shrink-0"
         />
         <div>
           <h1 className="font-black text-xl tracking-tight leading-none uppercase drop-shadow-sm">
-            SafeSight
+            LocalSight
           </h1>
           <p className="text-xs font-medium text-slate-400 tracking-wide mt-0.5">
             Management condiții siguranță
