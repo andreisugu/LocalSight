@@ -127,6 +127,7 @@ Fiecare folder are propriul `README.md` cu pornirea și comanda lui de verificar
 - [`docs/contract.md`](docs/contract.md) — contractul canonic dintre module; se schimbă doar prin pull request aprobat de cel afectat.
 - [`RUNNING.md`](RUNNING.md) — cerințe, setup, variante de pornire, probleme frecvente.
 - [`docs/performance.md`](docs/performance.md) — ce s-a măsurat și ce s-a închis, cu cifre.
+- [`docs/media.md`](docs/media.md) — cum se fac clipurile web din sursele 4K (`scripts/prepare-demo-media.sh`), unde stau și cum se publică.
 - Briefingurile interne de rol A–D (Typst + PDF) sunt în repo-ul privat `DaVecTORzzz/safesight-docs`. Sunt explicative; dacă diferă de contract, contractul câștigă.
 
 ## Ce e real, ce e fallback
