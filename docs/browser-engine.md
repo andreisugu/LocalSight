@@ -4,7 +4,8 @@ LocalSight mută pipeline-ul SafeSight din procesul Python de edge în tab. Docu
 descrie ce se portează, în ce modul JS ajunge fiecare piesă, ce se măsoară și ce rămâne
 afară. Nu conține cod. Surse: `ml/safesight_ml/{pipeline,zones,privacy,detector,
 ncnn_detector,ppe}.py`, `docs/performance.md`, `docs/contract.md`,
-`frontend/src/services/api.js`, `.github/workflows/pages.yml`.
+`frontend/src/services/api.js`, `frontend/src/engine/`, `frontend/scripts/prepare-models.py`,
+`.github/workflows/pages.yml`.
 
 ## 1. Scop și constrângere
 
@@ -15,10 +16,10 @@ Constrângerile sunt fixe, nu preferințe:
 
 | Constrângere | Consecință directă |
 |---|---|
-| Hosting static (GitHub Pages, `base: /LocalSight/`, vezi `frontend/vite.config.js`) | Nu există `POST /edge/events`, nici `GET /events`; starea trăiește în memorie |
+| Hosting static (GitHub Pages, `VITE_BASE=/LocalSight/` în `.github/workflows/pages.yml`, vezi `frontend/vite.config.js`) | Nu există `POST /edge/events`, nici `GET /events`; starea trăiește în memorie |
 | Fără anteturi custom | Fără `Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` ⇒ fără `SharedArrayBuffer` ⇒ WASM single-thread (secțiunea 5) |
 | Fără upload, fără stocare | Cadrele nu părăsesc niciodată tab-ul; nici măcar snapshot-ul nu se salvează pe disc |
-| Repo fără `.onnx` (AGENTS.md:71) | Modelele intră în `dist/` la build, nu în git (secțiunea 4) |
+| Fără descărcare de modele la runtime | Cele două ONNX sunt urmărite în `frontend/public/models/` (excepție țintită în `.gitignore`) și Vite le copiază în `dist/` la build (secțiunea 4) |
 
 Afirmația de confidențialitate devine literală: **nimic nu părăsește tab-ul**. Formularea
 onestă, pentru UI și demo:
@@ -46,38 +47,45 @@ main thread (React 19)                     Web Worker (engine)
 │ editor de zone           │  config JSON  │  in-memory store + metrics           │
 └──────────────────────────┘               └──────────────────────────────────────┘
         ▲                                            │
-        └──── canvas transferat (transferControlToOffscreen) ◄── desen adnotat
+        └──── canvas transferat (transferControlToOffscreen, țintă) ◄── desen adnotat
 ```
+
+**Starea de azi.** Spike-ul de la `/lab` acoperă doar detectorul și blur-ul: `useEngine.js`
+taie cadre din `<video>` (clip din `VITE_DEMO_VIDEO` sau fișier ales) și le trimite în
+worker ca `ImageBitmap`; worker-ul întoarce cadrul adnotat, iar main thread-ul îl
+desenează pe un canvas 2D. Tracker-ul, zonele, store-ul și `transferControlToOffscreen`
+sunt încă ținta, nu cod.
 
 Trei reguli de structură:
 
-1. **Un singur traseu de cadre.** `<video>` primește fie un `<source>` de clip în buclă,
-   fie `srcObject = stream` din `getUserMedia`. Restul codului nu știe care e sursa.
-   Ritmul îl dă `requestVideoFrameCallback`, nu `setInterval`: un cadru se procesează o
-   singură dată, chiar dacă redarea are 30 fps și modelul duce 15.
-2. **Worker-ul deține pixelii.** `canvas.transferControlToOffscreen()` în `postMessage`,
-   iar fiecare cadru ajunge ca `ImageBitmap` (transferabil, fără copie prin structured
-   clone). Main thread-ul nu primește niciodată cadre întregi — doar evenimente, starea
-   zonelor și numere de metrici. Un `body` de 8 MB pe cadru ar fi mai scump decât inferența.
+1. **Un singur traseu de cadre.** `<video>` primește un clip în buclă (URL din
+   `VITE_DEMO_VIDEO` sau fișier ales); `getUserMedia` rămâne de adăugat. Restul codului
+   nu știe care e sursa. Ritmul îl dă `requestVideoFrameCallback` (cu `requestAnimationFrame`
+   ca fallback), nu `setInterval`: un cadru se procesează o singură dată, chiar dacă
+   redarea are 30 fps și modelul duce 15.
+2. **Worker-ul procesează pixelii.** Fiecare cadru ajunge în worker ca `ImageBitmap`
+   (transferabil, fără copie prin structured clone) și iese tot ca `ImageBitmap`, pe care
+   main thread-ul îl desenează. Ținta e `canvas.transferControlToOffscreen()`, ca main
+   thread-ul să nu atingă pixelii deloc; un `body` de 8 MB pe cadru ar fi mai scump decât
+   inferența.
 3. **Un singur worker.** Fără `SharedArrayBuffer` nu există memorie partajată; un al
    doilea worker ar însemna o a doua sesiune ONNX și doi tensori de 1080p în RAM.
 
-Sursa se schimbă din UI fără reload: oprește `MediaStream`-ul, golește `src`, pornește
-cealaltă. Worker-ul primește `{type: 'source', width, height}` și își realocă bufferele.
+Sursa se schimbă din UI fără reload: se înlocuiește `src`-ul clipului, iar worker-ul reia
+cadrele la noua dimensiune. Pentru `getUserMedia` rămân de făcut oprirea `MediaStream`-ului
+și mesajul `{type: 'source', width, height}`.
 
-Module noi, propuse sub `frontend/src/engine/`:
+Modulele din `frontend/src/engine/` (spike-ul):
 
 | Fișier | Rol |
 |---|---|
-| `worker.js` | bucla de cadre, backpressure, mesaje |
-| `detector.js` | letterbox 640 + decodare YOLO26n + NMS |
-| `tracker.js` | tracker IoU (înlocuiește ByteTrack) |
-| `zones.js` | poligoane, `ZoneMembership`, `RuleEngine`, `triggers_event` |
-| `privacy.js` | decodare YuNet + blur puternic + bandă de cap |
-| `pipeline.js` | echivalentul `Pipeline.process` |
-| `render.js` | overlay pe OffscreenCanvas |
-| `store.js` | evenimente în memorie, zone în `localStorage`, KPI derivate |
-| `metrics.js`, `protocol.js` | `StageTimer` cu `performance.now()`; forma mesajelor main ↔ worker |
+| `worker.js` | bucla de cadre, un singur cadru în zbor, YOLO + YuNet + blur, mesaje |
+| `detectors.js` | încărcare ORT-web (`webgpu` cu fallback WASM), letterbox 640, `runYolo` / `runYuNet`, `rgbaToNchw` |
+| `decode.js` | decodare YOLO26n (640, conf 0.35, NMS 0.45, clasa 0) și YuNet (stride 8/16/32, NMS 0.3) |
+| `useEngine.js` | hook React: worker, `requestVideoFrameCallback`, canvas, statistici |
+
+Restul planului de port nu există încă: `tracker.js`, `zones.js`, `privacy.js`,
+`pipeline.js`, `render.js`, `store.js`, `metrics.js`, `protocol.js`.
 
 ## 3. Ce se portează, funcție cu funcție
 
@@ -127,21 +135,22 @@ Abaterea e limitată la build-ul static și trebuie notată în README-ul lui, n
 
 | Fișier | Mărime | Licență | Intrare | De ce așa |
 |---|---|---|---|---|
-| `yolo26n.onnx` | ~9.5 MB | AGPL-3.0 (Ultralytics) | 1×3×640×640 fp32 | exportat din `yolo26n.pt`; fp32 pentru că int8 QDQ a ieșit de 2,4× mai lent pe CPU (`docs/performance.md`, rândul „YOLO int8”) și pentru că WebGPU nu are suport bun pentru cuantizare |
-| `yunet.onnx` | ~228 KB | MIT (OpenCV Zoo, `face_detection_yunet_2023mar`) | H×W dinamic, multiplu de 32 | modelul publicat declară 640×640 fix; `privacy.py:106-116` îl face deja dinamic |
+| `yolo26n.onnx` | 9,9 MB (9 930 308 B) | AGPL-3.0 (Ultralytics) | 1×3×640×640 fp32 | exportat din `yolo26n.pt`; fp32 pentru că int8 QDQ a ieșit de 2,4× mai lent pe CPU (`docs/performance.md`, rândul „YOLO int8”) și pentru că WebGPU nu are suport bun pentru cuantizare |
+| `yunet.onnx` | 232 KB (232 598 B) | MIT (OpenCV Zoo, `face_detection_yunet_2023mar`) | H×W dinamic, multiplu de 32 | modelul publicat declară 640×640 fix; `privacy.py:106-116` îl face deja dinamic |
 
 **De ce patch-ul dinamic e obligatoriu.** Graful YuNet are straturi de fuziune care cer
 ca ambele laturi să fie multipli de 32 (`privacy.py:17-20`). Dacă inputul rămâne 640×640,
 singura variantă în browser ar fi să redimensionăm fiecare cadru 1080p la 640 — exact
 scurtătura pe care `docs/performance.md` o respinge: 1920 → 720p a tăiat fețele găsite
 de la 62 la 8. Deci: dims `height`/`width` simbolice în graful ONNX, cadru real umplut cu
-zerouri până la multiplu de 32, fără rescalare. Patch-ul e un pas de build (Python,
-`onnx`), nu cod de runtime.
+zerouri până la multiplu de 32, fără rescalare. Patch-ul e un pas de build
+(`frontend/scripts/prepare-models.py`, Python + `onnx`), nu cod de runtime.
 
-**Cum ajung fișierele pe Pages.** `.onnx` nu intră în git (AGENTS.md:71), dar browserul
-are nevoie de ele. Varianta recomandată: job-ul din `.github/workflows/pages.yml` descarcă
-modelele (release asset sau folderul Drive) și le copiază în `frontend/dist/models/` înainte
-de `upload-pages-artifact` — same-origin, fără CORS, fără binare în istoric. Un fetch
+**Cum ajung fișierele pe Pages.** Cele două `.onnx` sunt urmărite în
+`frontend/public/models/` — excepția țintită din `.gitignore`; restul modelelor rămâne
+ignorat — și se regenerează cu `python3 frontend/scripts/prepare-models.py`. Vite copiază
+`public/` în `dist/`, deci job-ul din `.github/workflows/pages.yml` nu descarcă nimic:
+`npm run build` le include same-origin, fără CORS și fără pas separat de copiere. Un fetch
 dintr-un release extern ar adăuga o dependență de rețea în calea critică de pornire.
 
 ## 5. Runtime
@@ -184,7 +193,7 @@ OpenCV 5.0, YOLO26n, YuNet 2023mar), o cameră la 1080p:
 | YOLO26n 640, WASM single-thread | 40–90 ms | ~4× mai lent decât 4 fire; sub 12 fps |
 | YuNet 1080p, WebGPU | 20–50 ms | intrare fp32 1920×1080 = ~8.3 MB per cadru; modelul e mic, transferul domină (aceeași concluzie ca la iGPU + ncnn în `docs/performance.md`) |
 | YuNet 1080p, WASM | 80–200 ms | un singur fir față de 4 |
-| primul cadru după încărcare | < 3 s | depinde de cache; rece: 9.5 MB + runtime |
+| primul cadru după încărcare | < 3 s | depinde de cache; rece: 9,9 MB + runtime |
 | memorie tab | < 300 MB | buffere 1080p + blob-uri de snapshot |
 
 Reguli de buget care decurg din referință:
@@ -229,7 +238,7 @@ treilea mod de rulare, util când WebGPU lipsește.
    principal (există deja ca plasă de siguranță, `privacy.py:225-231`) și YuNet doar pe
    regiunea persoanelor — dar decupajele pierd 21–46% din fețe (`docs/performance.md`),
    deci nu e o simplă optimizare.
-3. **Încărcarea modelelor.** 9.5 MB + runtime ORT + compilare de shadere: primul cadru
+3. **Încărcarea modelelor.** 9,9 MB + runtime ORT + compilare de shadere: primul cadru
    poate întârzia pe o conexiune de sală, iar fără cache fiecare reload plătește din nou.
    De decis dacă demo-ul are un ecran de încărcare cu progres real.
 4. **Memoria.** Un cadru 1080p RGBA e 8.3 MB, tensorul fp32 NCHW al YuNet alți 8.3 MB,
