@@ -3,7 +3,7 @@ import { Sparkles } from 'lucide-react';
 import { formatConfidence } from '../../utils/confidence';
 
 // Contract v2.2: `confidence` is `{ detector, temporal: { seen, window } }`. The badge
-// prints those numbers and nothing else; a missing value is shown as missing, not as a
+// prints those numbers and nothing else; a missing value is shown as missing, never as a
 // plausible default (the inherited version displayed 0.90 / 14 of 15 when the event had
 // no confidence at all).
 export default function ConfidenceBadge({ confidence }) {
@@ -17,16 +17,17 @@ export default function ConfidenceBadge({ confidence }) {
     );
   }
 
+  // "0.93 · 14/15 cadre"; a half-filled event keeps the em dash instead of inventing the
+  // missing half.
+  const value = temporal ? `${score ?? '—'} · ${temporal} cadre` : score ?? '—';
+
   return (
-    <div
-      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-black/20 text-xs font-mono font-bold border border-white/10 select-none"
+    <span
       title={title}
+      className="inline-flex select-none items-center gap-1.5 rounded border border-white/10 bg-black/20 px-2 py-0.5 font-mono text-xs font-bold"
     >
-      <Sparkles size={11} className="text-amber-400 shrink-0" />
-      <span>
-        {score ?? '—'}
-        {temporal && <> · {temporal} cadre</>}
-      </span>
-    </div>
+      <Sparkles size={11} aria-hidden="true" className="shrink-0 text-amber-400" />
+      <span>{value}</span>
+    </span>
   );
 }

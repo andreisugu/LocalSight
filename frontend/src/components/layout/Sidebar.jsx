@@ -1,18 +1,83 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Video,
   AlertOctagon,
-  PenTool,
-  FileText,
-  Settings,
   ChevronLeft,
   ChevronRight,
-  ShieldCheck
+  FileText,
+  PenTool,
+  Settings,
+  ShieldCheck,
+  Video,
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { USE_MOCK } from '../../services/api';
 
+// Below Tailwind's `sm` (640px) a 240px rail would leave ~135px of content on a 375px
+// phone, so the rail starts collapsed there and opens as an overlay.
+const PHONE_QUERY = '(max-width: 639px)';
+// An explicit user choice beats the viewport. We never write this key ourselves, so a
+// resize cannot get stuck on a choice the user made weeks ago.
+const COLLAPSE_PREFERENCE_KEY = 'localsight.sidebarCollapsed';
+
+const NAV_ITEMS = [
+  {
+    id: 'live',
+    label: 'Live',
+    subtitle: 'Monitorizare & Stream',
+    icon: Video,
+  },
+  {
+    id: 'incidents',
+    label: 'Incidente',
+    subtitle: 'Istoric, dovadă & raport',
+    icon: AlertOctagon,
+    // The detail screen is an incident, so it keeps this entry active.
+    also: ['incident_detail'],
+  },
+  {
+    id: 'zones',
+    label: 'Configurare Zone',
+    subtitle: 'Poligoane & Cadru de referință',
+    icon: PenTool,
+  },
+  {
+    id: 'reports',
+    label: 'Rapoarte Tură',
+    subtitle: 'Statistici & Export PDF',
+    icon: FileText,
+  },
+  {
+    id: 'settings',
+    // No "edge" box: in the static build everything runs in the tab.
+    label: 'Sistem & Audit',
+    subtitle: USE_MOCK ? 'Stare locală & jurnal demo' : 'Stare sistem & jurnal',
+    icon: Settings,
+  },
+];
+
+function readCollapsePreference() {
+  try {
+    const stored = localStorage.getItem(COLLAPSE_PREFERENCE_KEY);
+    if (stored === 'collapsed') return true;
+    if (stored === 'expanded') return false;
+  } catch {
+    // No storage: the viewport decides.
+  }
+  return null;
+}
+
+function isPhoneViewport() {
+  return window.matchMedia(PHONE_QUERY).matches;
+}
+
+/** A route belongs to one nav entry; the incident detail also lights up "Incidente". */
+function navItemMatches(item, view) {
+  if (item.id === view) return true;
+  return Boolean(item.also?.includes(view));
+}
+
+/** Short age for the badge: "acum", "12m", "3h". */
 function formatAge(minutes) {
   if (minutes === null) return '';
   if (minutes < 1) return 'acum';
@@ -20,44 +85,22 @@ function formatAge(minutes) {
   return `${Math.floor(minutes / 60)}h`;
 }
 
-// Sub 640px (Tailwind `sm`) meniul de 240px ar lăsa ~135px de conținut pe un telefon
-// de 375px, deci acolo pornește colapsat și se deschide peste conținut (overlay).
-const PHONE_SIDEBAR_QUERY = '(max-width: 639px)';
-// O preferință scrisă explicit de utilizator are prioritate față de viewport; noi nu o
-// scriem niciodată, ca o redimensionare să nu rămână blocată într-o alegere veche.
-const SIDEBAR_PREFERENCE_KEY = 'localsight.sidebarCollapsed';
-
-function storedSidebarPreference() {
-  try {
-    const value = localStorage.getItem(SIDEBAR_PREFERENCE_KEY);
-    if (value === 'collapsed') return true;
-    if (value === 'expanded') return false;
-  } catch {
-    // Fără storage: decidem după viewport.
-  }
-  return null;
-}
-
-function isPhoneViewport() {
-  return window.matchMedia(PHONE_SIDEBAR_QUERY).matches;
-}
-
 /**
- * Semnalul de atenție: câte cazuri așteaptă și de cât timp așteaptă cel mai vechi.
- * Un număr singur nu spune dacă e proaspăt sau uitat; vârsta o spune.
+ * The attention signal: how many cases wait and how long the oldest one has waited.
+ * A bare count cannot tell a fresh incident from a forgotten one; the age can.
  */
 function AttentionBadge({ open, escalated, oldestMinutes }) {
   if (open === 0 && escalated === 0) return null;
 
-  // Fără escaladare încă: semnalul trebuie să apară când apare și incidentul, nu 30 s
-  // mai târziu. Galben = așteaptă; roșu = așteaptă de prea mult.
+  // Before the first escalation the signal must appear with the incident, not 30 s later.
+  // Yellow = waiting; red = waiting for too long.
   if (escalated === 0) {
-    const tooltip = `${open} ${open === 1 ? 'incident deschis' : 'incidente deschise'}`;
+    const label = `${open} ${open === 1 ? 'incident deschis' : 'incidente deschise'}`;
     return (
       <span
-        title={tooltip}
-        aria-label={tooltip}
-        className="shrink-0 flex items-center rounded-full bg-[#FFEB33] text-[#1F1F1F] text-[10px] font-bold px-1.5 py-0.5 shadow"
+        title={label}
+        aria-label={label}
+        className="flex shrink-0 items-center rounded-full bg-[#FFEB33] px-1.5 py-0.5 text-[10px] font-bold text-[#1F1F1F] shadow"
       >
         {open}
       </span>
@@ -66,25 +109,46 @@ function AttentionBadge({ open, escalated, oldestMinutes }) {
 
   const age = formatAge(oldestMinutes);
   const total = open + escalated;
-  const tooltip = `${escalated} ${escalated === 1 ? 'incident escaladat' : 'incidente escaladate'}${
-    age ? `, cel mai vechi ${age === 'acum' ? 'chiar acum' : `acum ${age}`}` : ''
-  } · ${total} ${total === 1 ? 'în total' : 'în total'}`;
+  const label = `${escalated} ${
+    escalated === 1 ? 'incident escaladat' : 'incidente escaladate'
+  }${age ? `, cel mai vechi ${age === 'acum' ? 'chiar acum' : `acum ${age}`}` : ''} · ${total} în total`;
+
   return (
     <span
-      title={tooltip}
-      aria-label={tooltip}
-      className="flex items-stretch shrink-0 rounded-full overflow-hidden shadow ring-1 ring-[#D73833]/60"
+      title={label}
+      aria-label={label}
+      className="flex shrink-0 items-stretch overflow-hidden rounded-full shadow ring-1 ring-[#D73833]/60"
     >
-      <span className="flex items-center gap-1 bg-[#D73833] text-white text-[10px] font-bold px-1.5 py-0.5">
-        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+      <span className="flex items-center gap-1 bg-[#D73833] px-1.5 py-0.5 text-[10px] font-bold text-white">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
         {escalated}
       </span>
       {age && (
-        <span className="flex items-center bg-[#1F1F1F] text-[#FF8A80] text-[9px] font-mono px-1.5 py-0.5">
+        <span className="flex items-center bg-[#1F1F1F] px-1.5 py-0.5 font-mono text-[9px] text-[#FF8A80]">
           {age}
         </span>
       )}
     </span>
+  );
+}
+
+/** Footer card: says what is running, with the tag that qualifies it. */
+function StatusCard({ title, tag, tagClass, children }) {
+  return (
+    <div className="space-y-1.5 rounded-xl border-2 border-[#7EDEED] bg-white p-2.5 text-[11px] shadow-sm dark:border-white/10 dark:bg-black/35">
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5">
+          <ShieldCheck size={16} className="text-amber-500 dark:text-[#FFEB33]" />
+          <span className="font-black uppercase tracking-tight text-[#1F1F1F] dark:text-[#F5F5F5]">
+            {title}
+          </span>
+        </span>
+        <span className={`shrink-0 rounded px-1.5 py-0.5 font-mono text-[10px] font-bold shadow-sm ${tagClass}`}>
+          {tag}
+        </span>
+      </div>
+      {children}
+    </div>
   );
 }
 
@@ -95,20 +159,21 @@ export default function Sidebar() {
     setCurrentView,
     isSidebarCollapsed,
     setIsSidebarCollapsed,
-    kpis,
     events,
-    health
+    health,
   } = useSecurity();
 
   const edgeSeen = health?.edge_last_seen_s;
   const edgeActive = Boolean(health?.db && edgeSeen != null && edgeSeen < 60);
   const edgeLabel = edgeActive ? 'ACTIV' : edgeSeen == null ? 'FĂRĂ DATE' : 'ÎNTÂRZIAT';
-  const edgeColor = edgeActive ? 'bg-emerald-600 text-white' : 'bg-[#FFEB33] text-[#1F1F1F] font-black';
+  const edgeTagClass = edgeActive
+    ? 'bg-emerald-600 text-white'
+    : 'bg-[#FFEB33] font-black text-[#1F1F1F]';
 
-  // Vârsta celui mai vechi incident escaladat, recalculată la 30 s.
-  const [, setTick] = useState(0);
+  // Re-render every 30 s so the age of the oldest escalated case keeps moving.
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const timer = setInterval(() => setTick((value) => value + 1), 30000);
+    const timer = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(timer);
   }, []);
 
@@ -116,244 +181,190 @@ export default function Sidebar() {
     const list = events || [];
     const open = list.filter((event) => event.status === 'open').length;
     const escalated = list.filter((event) => event.status === 'escalated');
-    const oldest = escalated.reduce((minimum, event) => {
-      // De la detectare, nu de la escaladare: cât așteaptă cazul, nu de când sună alarma.
+    // Measured from detection, not escalation: how long the case waits, not how long the
+    // alarm has been ringing.
+    const oldest = escalated.reduce((earliest, event) => {
       const stamp = new Date(event.detected_at || event.escalated_at || 0).getTime();
-      return Number.isFinite(stamp) && stamp > 0 ? Math.min(minimum, stamp) : minimum;
+      return Number.isFinite(stamp) && stamp > 0 ? Math.min(earliest, stamp) : earliest;
     }, Number.POSITIVE_INFINITY);
     return {
       open,
       escalated: escalated.length,
-      oldestMinutes: Number.isFinite(oldest) ? Math.max(0, Math.round((Date.now() - oldest) / 60000)) : null,
+      oldestMinutes: Number.isFinite(oldest) ? Math.max(0, Math.round((now - oldest) / 60000)) : null,
     };
-  }, [events]);
+  }, [events, now]);
 
-  // Starea pe care am impus-o noi din viewport: dacă utilizatorul apasă butonul de
-  // colaps, starea diferă de ea și alegerea lui nu mai e suprascrisă.
-  const autoValueRef = useRef(null);
+  // The state we imposed from the viewport. When the user toggles the rail, state no
+  // longer matches it and we stop overriding their choice.
+  const autoCollapsedRef = useRef(null);
 
   useEffect(() => {
-    const stored = storedSidebarPreference();
+    const stored = readCollapsePreference();
     if (stored !== null) {
-      autoValueRef.current = stored;
+      autoCollapsedRef.current = stored;
       setIsSidebarCollapsed(stored);
       return undefined;
     }
-    const query = window.matchMedia(PHONE_SIDEBAR_QUERY);
-    const sync = () => {
-      if (autoValueRef.current !== null && isSidebarCollapsed !== autoValueRef.current) return;
-      const next = query.matches;
-      autoValueRef.current = next;
-      setIsSidebarCollapsed(next);
+
+    const phone = window.matchMedia(PHONE_QUERY);
+    const applyViewport = () => {
+      if (autoCollapsedRef.current !== null && isSidebarCollapsed !== autoCollapsedRef.current) return;
+      autoCollapsedRef.current = phone.matches;
+      setIsSidebarCollapsed(phone.matches);
     };
-    sync();
-    query.addEventListener('change', sync);
-    return () => query.removeEventListener('change', sync);
+    applyViewport();
+    phone.addEventListener('change', applyViewport);
+    return () => phone.removeEventListener('change', applyViewport);
   }, [isSidebarCollapsed, setIsSidebarCollapsed]);
 
-  // Ecranele principale ale aplicației LocalSight
-  const menuItems = [
-    {
-      id: 'live',
-      label: 'Live',
-      subtitle: 'Monitorizare & Stream',
-      icon: Video,
-      // Numărul de incidente deschise stă pe „Incidente", unde se și acționează.
-    },
-    {
-      id: 'incidents',
-      label: 'Incidente',
-      subtitle: 'Istoric, dovadă & raport',
-      // The detail page belongs to this entry.
-      also: ['incident_detail'],
-      icon: AlertOctagon,
-      // Cazurile care așteaptă, cu vârsta celui mai vechi: un număr singur nu spune
-      // dacă e proaspăt sau uitat.
-      attention: attention.open > 0 || attention.escalated > 0,
-      attentionOpen: attention.open,
-      attentionEscalated: attention.escalated,
-      attentionAge: attention.oldestMinutes
-    },
-    {
-      id: 'zones',
-      label: 'Configurare Zone',
-      subtitle: 'Poligoane & Cadru de referință',
-      icon: PenTool
-    },
-    {
-      id: 'reports',
-      label: 'Rapoarte Tură',
-      subtitle: 'Statistici & Export PDF',
-      icon: FileText
-    },
-    {
-      id: 'settings',
-      // Fără cutie „edge": în build-ul static totul rulează în tab.
-      label: 'Sistem & Audit',
-      subtitle: USE_MOCK ? 'Stare locală & jurnal demo' : 'Stare sistem & jurnal',
-      icon: Settings
-    }
-  ];
+  const edgeSuffix = edgeSeen == null ? 'edge fără date' : `edge acum ${Math.round(edgeSeen)}s`;
+
+  const goToView = (viewId) => {
+    setCurrentView(viewId);
+    // The rail covers the screen on a phone: close it after choosing.
+    if (isPhoneViewport()) setIsSidebarCollapsed(true);
+  };
+
+  const collapseRail = () => setIsSidebarCollapsed(true);
 
   return (
     <>
-      {/* Pe telefon meniul se deschide peste conținut: un fundal care închide la click,
-          ca să nu fie nevoie să găsești butonul de colaps. */}
+      {/* On a phone the rail covers the content, so a backdrop closes it by click: no
+          need to hunt for the collapse button. */}
       {!isSidebarCollapsed && (
         <div
-          data-testid="sidebar-backdrop"
           aria-hidden="true"
-          onClick={() => setIsSidebarCollapsed(true)}
-          className="no-print sm:hidden fixed inset-x-0 top-16 bottom-0 z-30 bg-black/60"
+          onClick={collapseRail}
+          className="no-print fixed inset-x-0 bottom-0 top-16 z-30 bg-black/60 sm:hidden"
         />
       )}
+
       <aside
+        aria-label="Navigare"
         style={{
-          backgroundColor: isDarkMode ? (themeStyles.navBg || '#181818') : '#FFFFFF',
-          borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#E5E7EB',
-          width: isSidebarCollapsed ? '0px' : '15rem'
+          backgroundColor: isDarkMode ? themeStyles.navBg : '#FFFFFF',
+          borderColor: themeStyles.navBorder,
+          width: isSidebarCollapsed ? '0px' : '15rem',
         }}
-        className={`no-print flex flex-col justify-between border-r transition-all duration-300 z-20 select-none shadow-md shrink-0 h-full overflow-hidden max-sm:fixed max-sm:top-16 max-sm:bottom-0 max-sm:left-0 max-sm:h-auto max-sm:z-40 ${
+        className={`no-print z-20 flex h-full shrink-0 select-none flex-col justify-between overflow-hidden border-r shadow-md transition-all duration-300 max-sm:fixed max-sm:bottom-0 max-sm:left-0 max-sm:top-16 max-sm:z-40 max-sm:h-auto ${
           isSidebarCollapsed ? 'border-r-0' : ''
         }`}
       >
-      {/* Zona de Sus: Meniu Principal & Lista Categorisită de Feed-uri */}
-      <div className="flex-1 py-3 px-2 space-y-4 overflow-y-auto overflow-x-hidden">
-        {/* Rubrici Principale */}
-        <div className="space-y-1">
-          {!isSidebarCollapsed && (
-            <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Module Operaționale
-            </div>
-          )}
-
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = currentView === item.id || Boolean(item.also?.includes(currentView));
-
-            return (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setCurrentView(item.id);
-                  // Pe telefon meniul acoperă ecranul: se închide după alegere.
-                  if (isPhoneViewport()) setIsSidebarCollapsed(true);
-                }}
-                style={{
-                  backgroundColor: isActive
-                    ? (isDarkMode ? '#D73833' : '#7EDEED')
-                    : 'transparent',
-                  color: isActive
-                    ? (isDarkMode ? '#FFFFFF' : '#1F1F1F')
-                    : (isDarkMode ? '#F5F5F5' : '#1F1F1F')
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs md:text-sm font-semibold transition-all group text-left relative ${
-                  isActive ? 'shadow-md font-bold' : (isDarkMode ? 'hover:bg-white/5' : 'hover:bg-slate-100 text-slate-700')
-                }`}
-                title={item.label}
-              >
-                <Icon size={19} className="shrink-0" />
-                {!isSidebarCollapsed && (
-                  <div className="flex-1 truncate">
-                    <span className="block leading-tight truncate">{item.label}</span>
-                    <p className={`text-[10px] font-normal truncate mt-0.5 ${isActive ? (isDarkMode ? 'text-white/80' : 'text-[#1F1F1F]/80') : (isDarkMode ? 'text-slate-400' : 'text-slate-500')}`}>
-                      {item.subtitle}
-                    </p>
-                  </div>
-                )}
-
-                {item.attention && (
-                  <AttentionBadge
-                    open={item.attentionOpen}
-                    escalated={item.attentionEscalated}
-                    oldestMinutes={item.attentionAge}
-                  />
-                )}
-
-                {/* Badge alerte deschise / escaladate */}
-                {item.badge && (
-                  <span
-                    title={item.badgeTitle || undefined}
-                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow shrink-0 ${
-                      item.badgeCritical
-                        ? 'bg-[#D73833] text-white animate-pulse'
-                        : 'bg-[#FFEB33] text-[#1F1F1F] font-black'
-                    }`}
-                  >
-                    {item.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-      </div>
-
-      {/* Zona de Jos: Status Edge & Buton Minimizare (Fără textul "NAV") */}
-      <div
-        style={{ borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.08)' : '#E5E7EB' }}
-        className="p-2.5 border-t space-y-2 shrink-0 bg-slate-50/90 dark:bg-black/15"
-      >
-        {!isSidebarCollapsed && (
-          USE_MOCK ? (
-            // Build-ul static nu are backend, edge sau ByteTrack. Spunem exact ce rulează
-            // în tab, ca starea din footer să nu pară o conexiune reală.
-            <div className="p-2.5 rounded-xl bg-white dark:bg-black/35 border-2 border-[#7EDEED] dark:border-white/10 text-[11px] space-y-1.5 shadow-sm">
-              <div className="flex items-center justify-between font-black text-[#1F1F1F] dark:text-[#F5F5F5]">
-                <span className="flex items-center gap-1.5 tracking-tight">
-                  <ShieldCheck size={16} className="text-amber-500 dark:text-[#FFEB33]" />
-                  <span className="font-black uppercase tracking-tight text-[#1F1F1F] dark:text-[#F5F5F5]">Motor local</span>
-                </span>
-                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-200">
-                  STATIC
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-700 dark:text-slate-400 leading-tight font-medium">
-                YOLO26n + tracker local (IoU + distanță centru)
+        <nav aria-label="Module" className="flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-2 py-3">
+          <div className="space-y-1">
+            {!isSidebarCollapsed && (
+              <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Module Operaționale
               </p>
-              <p className="text-[10px] text-slate-700 dark:text-slate-400 leading-tight font-medium">
-                Blur YuNet în tab · fără backend sau edge
-              </p>
-              <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-tight font-mono">
-                Capturile rămân în memorie, nu se încarcă
-              </p>
-            </div>
-          ) : (
-            <div className="p-2.5 rounded-xl bg-white dark:bg-black/35 border-2 border-[#7EDEED] dark:border-white/10 text-[11px] space-y-1.5 shadow-sm">
-              <div className="flex items-center justify-between font-black text-[#1F1F1F] dark:text-[#F5F5F5]">
-                <span className="flex items-center gap-1.5 tracking-tight">
-                  <ShieldCheck size={16} className="text-amber-500 dark:text-[#FFEB33]" />
-                  <span className="font-black uppercase tracking-tight text-[#1F1F1F] dark:text-[#F5F5F5]">Edge AI</span>
-                </span>
-                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shadow-sm ${edgeColor}`}>{edgeLabel}</span>
-              </div>
-              <p className="text-[10px] text-slate-700 dark:text-slate-400 leading-tight font-medium">
-                {health?.db ? 'Backend online' : 'Backend offline'} · {edgeSeen == null ? 'edge fără date' : `edge acum ${Math.round(edgeSeen)}s`}
-              </p>
-              <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-tight font-mono">
-                YOLO26 + ByteTrack • snapshot automat
-              </p>
-            </div>
-          )
-        )}
+            )}
 
-        <button
-          onClick={() => setIsSidebarCollapsed(true)}
-          className="w-full flex items-center justify-center gap-2 py-2 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-white/5 dark:hover:bg-white/10 dark:text-slate-300 transition-all font-semibold text-xs shadow-sm"
-          title="Restrânge Meniul"
+            {NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isActive = navItemMatches(item, currentView);
+              const isWaiting = attention.open > 0 || attention.escalated > 0;
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => goToView(item.id)}
+                  style={{
+                    backgroundColor: isActive ? (isDarkMode ? '#D73833' : '#7EDEED') : 'transparent',
+                    color: isActive && isDarkMode ? '#FFFFFF' : themeStyles.textColor,
+                  }}
+                  className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-semibold transition-all md:text-sm ${
+                    isActive
+                      ? 'font-bold shadow-md'
+                      : isDarkMode
+                        ? 'hover:bg-white/5'
+                        : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                  title={item.label}
+                >
+                  <Icon size={19} className="shrink-0" />
+                  {!isSidebarCollapsed && (
+                    <span className="flex-1 truncate">
+                      <span className="block truncate leading-tight">{item.label}</span>
+                      <span
+                        className={`mt-0.5 block truncate text-[10px] font-normal ${
+                          isActive
+                            ? isDarkMode
+                              ? 'text-white/80'
+                              : 'text-[#1F1F1F]/80'
+                            : isDarkMode
+                              ? 'text-slate-400'
+                              : 'text-slate-500'
+                        }`}
+                      >
+                        {item.subtitle}
+                      </span>
+                    </span>
+                  )}
+
+                  {item.id === 'incidents' && isWaiting && (
+                    <AttentionBadge
+                      open={attention.open}
+                      escalated={attention.escalated}
+                      oldestMinutes={attention.oldestMinutes}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+
+        <div
+          style={{ borderColor: themeStyles.navBorder }}
+          className="shrink-0 space-y-2 border-t bg-slate-50/90 p-2.5 dark:bg-black/15"
         >
-          {isSidebarCollapsed ? (
-            <ChevronRight size={18} />
-          ) : (
-            <>
-              <ChevronLeft size={16} />
-              <span>Restrânge meniu</span>
-            </>
-          )}
-        </button>
-      </div>
-    </aside>
+          {!isSidebarCollapsed &&
+            (USE_MOCK ? (
+              // The static build has no backend, edge or ByteTrack. State exactly what
+              // runs in the tab, so the footer cannot look like a live connection.
+              <StatusCard
+                title="Motor local"
+                tag="STATIC"
+                tagClass="bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-200"
+              >
+                <p className="text-[10px] font-medium leading-tight text-slate-700 dark:text-slate-400">
+                  YOLO26n + tracker local (IoU + distanță centru)
+                </p>
+                <p className="text-[10px] font-medium leading-tight text-slate-700 dark:text-slate-400">
+                  Blur YuNet în tab · fără backend sau edge
+                </p>
+                <p className="font-mono text-[10px] leading-tight text-slate-600 dark:text-slate-400">
+                  Capturile rămân în memorie, nu se încarcă
+                </p>
+              </StatusCard>
+            ) : (
+              <StatusCard title="Edge AI" tag={edgeLabel} tagClass={edgeTagClass}>
+                <p className="text-[10px] font-medium leading-tight text-slate-700 dark:text-slate-400">
+                  {health?.db ? 'Backend online' : 'Backend offline'} · {edgeSuffix}
+                </p>
+                <p className="font-mono text-[10px] leading-tight text-slate-600 dark:text-slate-400">
+                  YOLO26 + ByteTrack • snapshot automat
+                </p>
+              </StatusCard>
+            ))}
+
+          <button
+            type="button"
+            onClick={collapseRail}
+            title="Restrânge Meniul"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-100 px-2 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+          >
+            {isSidebarCollapsed ? (
+              <ChevronRight size={18} />
+            ) : (
+              <>
+                <ChevronLeft size={16} />
+                <span>Restrânge meniu</span>
+              </>
+            )}
+          </button>
+        </div>
+      </aside>
     </>
   );
 }
