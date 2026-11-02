@@ -1,3 +1,5 @@
+> **Notă de stare:** raportul descrie build-ul `473ad8e`. F1 (id-uri duplicate la zone suprapuse) a fost reparat pe `main` în `83b8206` — fiecare eveniment primește un id propriu, iar ack-ul este independent. F2–F6 rămân de reparat.
+
 # Functional QA round 2 — zones on the frame, WASM threads, safety blur
 
 **Branch:** `prep/qa-functional` · **Date:** 2 November 2026 · **Author:** QA subagent (read-only).
