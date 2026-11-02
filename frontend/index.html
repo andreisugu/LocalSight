@@ -6,7 +6,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LocalSight - Management condiții siguranță</title>
   </head>
-  <body class="bg-[#1F1F1F] text-[#F5F5F5] overflow-hidden">
+  <body class="bg-white text-[#1F1F1F] dark:bg-[#1F1F1F] dark:text-[#F5F5F5] overflow-hidden">
+    <!-- The theme is stored before React mounts; apply it before the first paint so a
+         light-mode reload does not flash the dark body. Default is dark. -->
+    <script>
+      try {
+        if (localStorage.getItem('localsight.theme') !== 'light') {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (error) {
+        document.documentElement.classList.add('dark');
+      }
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
