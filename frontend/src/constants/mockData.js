@@ -55,6 +55,10 @@ const currentShiftId =
       ? 'shift_1'
       : 'shift_2';
 
+// Tura curentă a datelor demo, ca selectorul din Rapoarte să indice exact ce descrie
+// raportul, nu o tură fixă.
+export const OPERATIONAL_SHIFT_ID = currentShiftId;
+
 const minutesIntoShift =
   ((currentParts.hour - SHIFT_START_HOURS[currentShiftId] + 24) % 24) * 60 + currentParts.minute;
 
@@ -73,6 +77,9 @@ function operationalDate(parts) {
   if (parts.hour < 6) day.setUTCDate(day.getUTCDate() - 1);
   return `${day.getUTCFullYear()}-${pad2(day.getUTCMonth() + 1)}-${pad2(day.getUTCDate())}`;
 }
+
+// Ziua operațională a datelor demo: aceeași valoare pe care o afișează raportul de tură.
+export const OPERATIONAL_DATE = operationalDate(currentParts);
 
 const SNAPSHOTS = {
   stand12:
@@ -584,7 +591,7 @@ const summary =
 
 export const INITIAL_SHIFT_REPORT = {
   shift: SHIFT_LABELS[currentShiftId],
-  date: operationalDate(currentParts),
+  date: OPERATIONAL_DATE,
   kpi: {
     total_events: INITIAL_EVENTS.length,
     critical_events: criticalEvents,

@@ -404,10 +404,9 @@ export const safeSightApi = {
 
   connectEventsSocket(onMessage, onError, onOpen) {
     if (USE_MOCK) {
-      const interval = setInterval(() => {
-        onMessage({ type: 'kpi.updated', data: { ...INITIAL_KPIS } });
-      }, 4000);
-      return () => clearInterval(interval);
+      // Fără tick periodic de KPI în mock: cifrele (deschise/escaladate) se recalculează
+      // din `events` în SecurityContext, altfel un ack ar fi anulat după 4 secunde.
+      return () => {};
     }
 
     const wsUrl = `${API_BASE_URL.replace(/^http/, 'ws')}/ws/events`;

@@ -5,6 +5,8 @@ import {
   INITIAL_ZONES,
   INITIAL_KPIS,
   INITIAL_SHIFT_REPORT,
+  OPERATIONAL_DATE,
+  OPERATIONAL_SHIFT_ID,
   AVAILABLE_OPERATORS
 } from '../constants/mockData';
 import { safeSightApi, USE_MOCK } from '../services/api';
@@ -127,7 +129,10 @@ export function SecurityProvider({ children }) {
 
   // 4. Evenimente & Incidente
   const [events, setEvents] = useState(USE_MOCK ? INITIAL_EVENTS : []);
-  const [selectedEventId, setSelectedEventId] = useState(LINKED_INCIDENT_ID || (USE_MOCK ? 'evt_stand12_1730284933120_17' : null));
+  // În mock, incidentul deschis implicit e cel mai recent din datele demo, nu un id fix.
+  const [selectedEventId, setSelectedEventId] = useState(
+    LINKED_INCIDENT_ID || (USE_MOCK ? INITIAL_EVENTS[0]?.event_id ?? null : null)
+  );
   // Screen -> address (a new history entry per screen or incident) and Back/Forward -> screen.
   useEffect(() => {
     const path = pathFor(currentView, selectedEventId);
@@ -155,9 +160,10 @@ export function SecurityProvider({ children }) {
 
   // 7. Raport de Tură
   const [shiftReport, setShiftReport] = useState(USE_MOCK ? INITIAL_SHIFT_REPORT : EMPTY_SHIFT_REPORT);
-  const [selectedShift, setSelectedShift] = useState(() => (USE_MOCK ? 'shift_1' : safeSightApi.currentShiftId()));
+  const [selectedShift, setSelectedShift] = useState(() => (USE_MOCK ? OPERATIONAL_SHIFT_ID : safeSightApi.currentShiftId()));
   // Ziua operațională (se schimbă la 06:00), nu ziua calendaristică.
-  const [selectedDate, setSelectedDate] = useState(() => (USE_MOCK ? '2026-10-31' : safeSightApi.shiftDate()));
+  // În mock, aceeași sursă ca raportul de tură, altfel selectorul contrazice datele.
+  const [selectedDate, setSelectedDate] = useState(() => (USE_MOCK ? OPERATIONAL_DATE : safeSightApi.shiftDate()));
 
   // 8. Stare Conexiune & Toast / Banner Erori (Regulă C-10)
   const [isWsConnected, setIsWsConnected] = useState(true);
