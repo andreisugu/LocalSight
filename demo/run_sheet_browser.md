@@ -8,6 +8,7 @@ demo-ul SafeSight pe `ml/` + `backend/` și rămâne material istoric.
 
 1. Deschide linkul într-un tab nou și fă **Ctrl+Shift+R** (să nu prinzi un bundle vechi).
 2. Verifică în Live, în cardul „Motor & senzori":
+   - implicit vezi **doar detecții reale**; incidentele din fixtures sunt ascunse, iar KPI-urile care nu pot fi derivate arată „— / fără date demo”. Pentru demo-ul cu fixtures: **Sistem & Audit → Date demo → Arată incidentele demo**.
    - pe **Firefox**: `MODEL DETECȚIE: YOLO26n · wasm`, motorul e **oprit** implicit;
    - pe **Chrome/Edge**: dacă există adapter WebGPU, motorul pornește singur; altfel pornește-l tu.
 3. Pornește motorul o dată și așteaptă primul cadru (2–3 s). Trebuie să vezi cutii `PERSON`,
@@ -23,9 +24,9 @@ Ce să nu promiți: nu există Slack, nu există backend, nu există persistenț
 | Timp | Ce faci | Ce spui |
 |---|---|---|
 | 0–10 s | Live, camera CAM-01 | „Camerele existente devin un flux de siguranță, nu doar înregistrare. Tot ce urmează rulează în acest tab." |
-| 10–20 s | Arată chip-urile `date demo` de pe KPI și feed | „Cifrele și incidentele din stânga sunt fixture-uri demo, marcate ca atare. Detecția reală apare doar când pornești motorul." |
+| 10–20 s | Arată feed-ul gol și KPI „—” | „Implicit nu vezi date inventate. Pornești motorul și apar doar detecțiile reale; fixture-urile demo se activează explicit din Setări." |
 | 20–35 s | „Pornește motorul în browser" | „Se descarcă modelele o dată, apoi fiecare cadru e detectat local: persoane, fețe blurate înainte de desenare, veste hi-vis. Fără server." |
-| 35–45 s | Urmărește o cutie `PERSON` și badge-ul PPE | „Tracker-ul ține aceeași persoană între cadre; PPE are nevoie de câteva cadre până să decidă, de aceea apare și `PPE ?`." |
+| 35–45 s | Urmărește o cutie `PERSON`, badge-ul PPE și poligonul zonei | „Tracker-ul ține aceeași persoană între cadre; PPE are nevoie de câteva cadre până să decidă, de aceea apare și `PPE ?`. Zona urmărește solul când camera se mișcă; dacă alinierea se pierde, scrie «aliniere pierdută» și regulile tac." |
 | 45–60 s | Click pe un incident `local` din feed | „Incidentul are dovada procesată, severitate, cronologie și un raport șablon — nu AI, și scrie asta." |
 | 60–70 s | „Confirmă" | „Operatorul confirmă; escaladarea se oprește. Human-in-the-loop." |
 | 70–80 s | „Copiază link" din detaliu | „Linkul e stabil și se poate trimite mai departe; Slack nu e conectat în build-ul static." |

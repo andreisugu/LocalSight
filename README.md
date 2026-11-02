@@ -130,7 +130,7 @@ avertismentele sunt în [`RUNNING.md`](RUNNING.md#modele-și-media) și
 
 | Real, în tab | Demo / fixture |
 |---|---|
-| YOLO26n + YuNet + tracker + zone + reguli | KPI-urile din strip și incidentele fără chip `local` |
+| YOLO26n + YuNet + tracker + zone + reguli | Incidentele din fixtures și KPI-urile derivate din ele — **ascunse implicit**, se activează din Setări → Date demo |
 | Blur pe fețe înainte de desenare, fail-closed | Raportul de incident (șablon, nu LLM) |
 | Detecția de vestă hi-vis și starea PPE | Escaladarea din fixture-uri |
 | Incidentele motorului, marcate `local`, cu dovada procesată | Camera locală (flux propriu, doar cu permisiune) |
