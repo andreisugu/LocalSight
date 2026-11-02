@@ -37,7 +37,8 @@ function loadOperatorName() {
 }
 
 // Every screen has an address, so a refresh, Back/Forward and shared links keep the place.
-// The Slack alert links to {APP_BASE_URL}/incidents/{event_id}.
+// The Slack alert links to {APP_BASE_URL}{BASE}/incidents/{event_id}; the backend builds it
+// from APP_BASE_URL, so that value must include the deploy subpath (e.g. /LocalSight).
 const VIEW_PATHS = {
   live: '/',
   incidents: '/incidents',
@@ -50,17 +51,28 @@ const VIEW_PATHS = {
   bench: '/bench',
 };
 
+// Aplicația poate fi servită dintr-un subpath (GitHub Pages: /LocalSight/).
+// BASE_URL vine mereu cu slash final; îl tăiem ca să rămână '' în dev.
+const BASE = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+
+// Rutele de mai sus sunt relative la BASE: aici scoatem prefixul înainte de potrivire.
 function routeFromPath(pathname) {
-  const path = pathname.replace(/\/+$/, '') || '/';
+  let raw = pathname;
+  if (BASE && (raw === BASE || raw.startsWith(`${BASE}/`))) raw = raw.slice(BASE.length);
+  const path = raw.replace(/\/+$/, '') || '/';
   const incident = path.match(/^\/incidents\/([^/]+)$/);
   if (incident) return { view: 'incident_detail', eventId: decodeURIComponent(incident[1]) };
   const view = Object.keys(VIEW_PATHS).find((key) => VIEW_PATHS[key] === path);
   return { view: view || 'live', eventId: null };
 }
 
+// Orice adresă pusă în bară trebuie să conțină BASE, altfel pushState iese din subpath.
 function pathFor(view, eventId) {
-  if (view === 'incident_detail') return eventId ? `/incidents/${encodeURIComponent(eventId)}` : VIEW_PATHS.incidents;
-  return VIEW_PATHS[view] || '/';
+  const path =
+    view === 'incident_detail'
+      ? eventId ? `/incidents/${encodeURIComponent(eventId)}` : VIEW_PATHS.incidents
+      : VIEW_PATHS[view] || '/';
+  return `${BASE}${path}`;
 }
 
 const INITIAL_ROUTE = (() => {
