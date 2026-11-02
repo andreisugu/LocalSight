@@ -202,11 +202,20 @@ export function SecurityProvider({ children }) {
   );
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
-
+  // One timer at a time: the inherited version left every previous timeout running, so a
+  // toast shown 2 s after another disappeared 1.8 s early (the older timer cleared it).
+  const toastTimerRef = useRef(null);
   const showToast = (msg) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3800);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      toastTimerRef.current = null;
+      setToastMessage(null);
+    }, 3800);
   };
+  useEffect(() => () => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+  }, []);
 
   // Încarcă datele reale din backend. Un endpoint picat nu le blochează pe celelalte.
   useEffect(() => {
