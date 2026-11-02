@@ -1,7 +1,8 @@
 // Tests for the browser incident/event layer. Run with:
 //   node --test frontend/src/engine/events.test.mjs
-// Expectations come from ml/safesight_ml/pipeline.py, ml/safesight_ml/events.py,
-// backend/app/services/events.py and backend/app/services/escalation.py.
+// Expectations come from the removed Python reference (git history):
+// ml/safesight_ml/pipeline.py, ml/safesight_ml/events.py, backend/app/services/events.py
+// and backend/app/services/escalation.py.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';

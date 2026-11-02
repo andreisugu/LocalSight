@@ -12,8 +12,9 @@ browserului. Motorul e scris în [`frontend/src/engine/`](frontend/src/engine/):
 YuNet + tracker + zone + reguli + blur + vestă hi-vis. Pe browsere fără WebGPU (inclusiv
 Firefox, intenționat) pornește doar la cerere, pe WASM; un service worker aduce anteturile
 COOP/COEP, deci rulează pe 4 thread-uri (`~5–6 fps` cu cadrul procesat la 1280).
-Pipeline-ul Python din `ml/` + `backend/` rămâne implementarea de referință pe care portul
-o urmează.
+Fork-ul nu mai conține stack-ul Python de referință: `backend/`, `ml/` și `automation/` au
+fost șterse din acest repo, iar tot ce livrează produsul e în `frontend/`. Codul Python
+vechi rămâne disponibil în istoricul git și în repo-ul upstream SafeSight.
 
 Demo static: <https://andreisugu.github.io/LocalSight/>
 
@@ -25,7 +26,6 @@ Demo static: <https://andreisugu.github.io/LocalSight/>
 | Showcase static cu clipurile demo | funcționează, fără backend | linkul de sus |
 | Build și deploy static (GitHub Pages) | funcționează, la fiecare push pe `main` | [`.github/workflows/pages.yml`](.github/workflows/pages.yml) |
 | Modele ONNX servite din repo | funcționează | [`frontend/public/models/`](frontend/public/models/) (9,9 MB + 232 KB) |
-| Implementare de referință CPU | funcționează | [`ml/`](ml/) + [`backend/`](backend/) |
 | Motor browser: YOLO + YuNet + tracker + zone + evenimente | funcționează în Live, `/lab` și `/bench` | [`frontend/src/engine/`](frontend/src/engine/) |
 | WASM pe 4 fire pe Pages | funcționează prin service worker COOP/COEP, fără cache | [`frontend/public/coi-serviceworker.js`](frontend/public/coi-serviceworker.js) |
 | Raport de tură | calculat din incidentele vizibile, marcat `șablon` | `/reports` |
@@ -33,7 +33,7 @@ Demo static: <https://andreisugu.github.io/LocalSight/>
 | Camere | 3 clipuri demo + camera browser (getUserMedia) | selectorul de cameră din Live |
 | Blur pe fețe înainte de desenare | funcționează pe cadrul din canvas și în snapshot | `worker.js`; JPEG 960 px, fețele blurate, URL deținut de pagină |
 | Motor browser în Live | opt-in, ~1,8–3 fps pe WASM | comutatorul „Procesează în browser” |
-| Backend, Slack, MJPEG, SQLite | în afara scopului | rămân în repo ca referință |
+| Backend, Slack, MJPEG, SQLite | în afara scopului | stack-ul Python a fost scos din acest fork; vezi istoricul git |
 
 Cifrele de browser sunt măsurate pe hardware-ul de dezvoltare, pe clipul de 1080p:
 **5,2–6,0 fps** în Chromium și **5,2 fps** în Firefox, pe WASM cu 4 fire și cadrul
@@ -46,7 +46,7 @@ Runtime. Chrome/Edge folosesc WebGPU când există adapter; cifra depinde de GPU
 panoul din Live avertizează după 10 s de rulare.
 
 Teste: 232 Node (`node --test`, motor + utilitare + raport) și 5 E2E Playwright; CI
-rulează unit, backend, ml, build-ul de frontend, e2e și o gardă pentru subpath-ul de Pages.
+rulează unit, build-ul de frontend, e2e și o gardă pentru subpath-ul de Pages.
 
 ## Pagini
 
@@ -85,23 +85,23 @@ npm run preview
 ```
 
 Se deschide la <http://localhost:4173>, iar modelele sunt servite din `dist/models/`.
-Fără `VITE_USE_MOCK=true`, build-ul așteaptă API-ul pe `localhost:8000`.
-
-Stack-ul de referință (Python 3.12+, `uv`, `npm`):
+`VITE_USE_MOCK=true` nu are nevoie de niciun server: datele vin din fixtures, iar motorul
+din browser rulează pe clipurile demo sau pe camera locală. Pentru dezvoltare, în același
+folder:
 
 ```bash
-./run.sh setup   # o singură dată: dependențe backend, ML și frontend
-./run.sh demo    # API :8000, UI :5173, un edge pe fiecare cameră demo
+npm run dev        # Vite pe :5173
 ```
 
-Pe Windows: `run.cmd setup`, apoi `run.cmd demo`. Regulile de lucru pentru autori sunt în
-[`AGENTS.md`](AGENTS.md).
+Regulile de lucru pentru autori sunt în [`AGENTS.md`](AGENTS.md); ghidul de contribuție, în
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Arhitectură
 
-Referința Python separă edge-ul de backend: camera → [`ml/`](ml/) (YOLO26n, tracking,
-reguli de zonă, blur YuNet) → [`backend/`](backend/) (FastAPI, SQLite, WebSocket, MJPEG) →
-UI React. Cifrele măsurate pe CPU sunt în [`docs/performance.md`](docs/performance.md).
+Tot pipeline-ul rulează în tab: camera → detecție → tracking → reguli de zonă → blur →
+eveniment → UI React. Nu există proces de server, nici coadă, nici bază de date. Cifrele
+măsurate în browser sunt în [`docs/browser-engine.md`](docs/browser-engine.md); cele ale
+vechii referințe CPU, în [`docs/performance.md`](docs/performance.md) (istoric).
 
 Traseul, așa cum e scris azi:
 
@@ -123,15 +123,15 @@ cum se obțin firele WASM pe un host fără antete custom, sunt în
 
 | Folder | Rol |
 |---|---|
-| [`frontend/`](frontend/) | produsul: UI React + Vite, modelele statice, build-ul de Pages |
-| [`ml/`](ml/) | pipeline-ul Python de referință: detecție, tracking, zone, blur |
-| [`backend/`](backend/) | API FastAPI de referință: ingestie, stocare, WebSocket, stream |
-| [`automation/`](automation/) | textele de raport și Slack din versiunea veche; nu se portează |
-| [`docs/`](docs/) | contract, nota motorului de browser, media, performanță |
-| [`scripts/`](scripts/) | `dev.py` (launcher), pregătirea clipurilor, preflight |
+| [`frontend/`](frontend/) | produsul: UI React + Vite, motorul din browser, modelele statice, build-ul de Pages |
+| [`docs/`](docs/) | contract, nota motorului de browser, media, documente istorice marcate |
+| [`scripts/`](scripts/) | pregătirea clipurilor și raportul de proveniență |
+| [`data/`](data/) | README-urile de proveniență ale clipurilor și adnotărilor; fișierele mari nu sunt în git |
+| [`demo/`](demo/) | scenariul demo-ului curent și run sheet-urile istorice |
 
-Modelele se regenerează cu `python3 frontend/scripts/prepare-models.py`; clipurile web cu
-[`scripts/prepare-demo-media.sh`](scripts/prepare-demo-media.sh), descris în
+Modelele se regenerează cu `python3 frontend/scripts/prepare-models.py --yolo <export.onnx>
+--yunet <yunet.onnx>` (sursele au fost în stack-ul Python șters; vezi istoricul git);
+clipurile web cu [`scripts/prepare-demo-media.sh`](scripts/prepare-demo-media.sh), descris în
 [`docs/media.md`](docs/media.md).
 
 ## Ce e real, ce e demo
@@ -180,6 +180,6 @@ schimbate — și lista a ce s-a amânat sunt în
 ## Credite
 
 Proiectul a fost construit la un hackathon ca **SafeSight**, de Andrei, Max, Dalina și
-Ariana; README-urile modulelor păstrează numele celor care le-au scris. Acest fork
-păstrează pipeline-ul și dovada că merge pe CPU, dar îl mută în browser și scoate din
-produs backend-ul, alertarea și raportarea.
+Ariana; documentele și run sheet-urile păstrează numele celor care le-au scris. Acest fork
+păstrează pipeline-ul prin portarea lui în browser și scoate din produs backend-ul,
+alertarea și raportarea; stack-ul Python de referință nu mai face parte din repo.

@@ -125,7 +125,7 @@ async function http(path, options = {}) {
   return response.json();
 }
 
-// dev.py demo --webcam: the laptop camera runs on a seeded camera id (no contract change);
+// Webcam selection: the laptop camera runs on a seeded camera id (no contract change);
 // only its label changes here.
 const WEBCAM_CAMERA = import.meta.env.VITE_WEBCAM_CAMERA || '';
 const WEBCAM_METADATA = {

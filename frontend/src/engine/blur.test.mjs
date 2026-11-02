@@ -1,6 +1,6 @@
 // Tests for the geometry of the privacy guard. They pin the browser port to
-// `ml/safesight_ml/privacy.py` (`FaceBlurrer.blur_with_faces` and `_blur_box`), so the head
-// band cannot silently shrink back to "faces YuNet happened to find".
+// the removed `ml/safesight_ml/privacy.py` (`FaceBlurrer.blur_with_faces` and `_blur_box`),
+// so the head band cannot silently shrink back to "faces YuNet happened to find".
 //
 // Numbers only: no canvas, no models, so every expectation is exact.
 

@@ -1,15 +1,13 @@
-# CI for LocalSight: the browser-engine unit tests, backend API, ML edge pipeline,
-# frontend build, the browser smoke test of the static build, and the GitHub Pages
-# subpath (base) check.
+# CI for LocalSight: the browser-engine logic, the static frontend build, the
+# browser smoke test of that build, and the GitHub Pages subpath (base) check.
 #
-# The six jobs are independent on purpose: a red backend does not cancel or hide
-# the unit, ML, frontend, e2e and pages-base results.
+# The four jobs are independent on purpose: a red frontend build does not cancel
+# or hide the unit, e2e and pages-base results.
 #
-# Model-dependent tests skip on their own when the weights or demo clips are
-# missing (see ml/tests/test_privacy.py: `skipif(not MODEL.is_file())` and
-# `pytest.skip("demo clip not available")`). CI never runs fetch_all.sh, so the
-# YOLO/NCNN weights and `data/videos/*.mp4` are absent and those cases are
-# reported as skipped, not failed.
+# There is no Python job: the SafeSight reference stack (backend/, ml/,
+# automation/) was removed from this fork. The product is the static app in
+# frontend/, and nothing in it is executed by Python. The old pytest suites stay
+# in git history and in the upstream repository.
 
 name: CI
 
@@ -22,54 +20,6 @@ permissions:
   contents: read
 
 jobs:
-  backend:
-    name: backend / pytest
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv (Python 3.12)
-        uses: astral-sh/setup-uv@v5
-        with:
-          python-version: "3.12"
-          enable-cache: true
-          cache-dependency-glob: backend/uv.lock
-
-      - name: Sync dependencies
-        run: uv sync
-
-      - name: Run tests
-        run: uv run pytest -q
-
-  ml:
-    name: ml / pytest
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ml
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv (Python 3.12)
-        uses: astral-sh/setup-uv@v5
-        with:
-          python-version: "3.12"
-          enable-cache: true
-          cache-dependency-glob: ml/uv.lock
-
-      # ultralytics is imported lazily, but the pipeline's tracking and NCNN
-      # backends both rely on it, so CI installs the extra instead of testing a
-      # half-populated environment. It pulls torch (~1 GB): the uv cache keeps
-      # repeat runs cheap, and the tests that need real weights still skip.
-      - name: Sync dependencies (with the yolo extra)
-        run: uv sync --extra yolo
-
-      - name: Run tests
-        run: uv run pytest -q
-
   unit:
     name: frontend / unit
     runs-on: ubuntu-latest

@@ -1,6 +1,6 @@
 // Tests for the browser pipeline glue: tracker -> zone rules -> event.
 //
-// The cases mirror `ml/tests/test_pipeline.py` where the reference behaviour is
+// The cases mirror the removed `ml/tests/test_pipeline.py` where the reference behaviour is
 // observable: debounce, one event per presence, the engine switch, the PPE gate and the
 // 60 s incident cooldown. Synthetic boxes only: no video, no models, no DOM.
 

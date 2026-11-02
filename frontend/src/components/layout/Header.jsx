@@ -207,7 +207,7 @@ export default function Header() {
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 shrink-0">
-        {/* Mock-only triggers; the real build uses the backend/edge ingest instead. */}
+        {/* Mock-only triggers; the static build has no ingest path. */}
         {USE_MOCK && (
           <div className="relative" ref={demoMenu.ref}>
             <button

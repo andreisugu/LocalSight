@@ -54,18 +54,12 @@ data/**
 !frontend/public/media/
 !frontend/public/media/*.mp4
 
-# Date generate la rulare; păstrează folderul pentru volumul Docker
-backend/data/*
-!backend/data/.gitkeep
+# Date generate la rulare
 *.db
 *.sqlite
 snapshots/
-ml/out/
 
 # Editor / OS
 .vscode/
 .idea/
 .DS_Store
-
-# ncnn exports (yolo export format=ncnn); regenerate, never commit
-*_ncnn_model/

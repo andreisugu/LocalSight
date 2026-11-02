@@ -14,8 +14,8 @@ const MINUTE_MS = 60_000;
 const SECOND_MS = 1_000;
 const TIME_ZONE = 'Europe/Bucharest';
 
-// Ancora id-urilor demo: un moment fix, nu „acum”. Contractul cere
-// `evt_<camera_id>_<13 cifre>_<track_id>` (backend/app/schemas.py), iar linkul profund
+// Ancora id-urilor demo: un moment fix, nu „acum”. Contractul (docs/contract.md) cere
+// `evt_<camera_id>_<13 cifre>_<track_id>`, iar linkul profund
 // `/incidents/<id>` trebuie să rămână același după reload, în alt tab și pe altă mașină.
 // De aceea mijlocul de 13 cifre e un identificator derivat din ancoră + un decalaj
 // stabil per eveniment, complet separat de `detected_at`, care continuă să se miște cu

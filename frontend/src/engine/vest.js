@@ -1,4 +1,4 @@
-// Hi-vis vest check by colour: the browser port of `ml/safesight_ml/ppe.py`.
+// Hi-vis vest check by colour: the browser port of the removed `ml/safesight_ml/ppe.py`.
 //
 // Each person track gets one of three states: `vest`, `no_vest` or `unknown`. A frame only
 // counts when the person is big enough and fully inside the frame, and `no_vest` also

@@ -3,7 +3,8 @@
 LocalSight mută pipeline-ul SafeSight din procesul Python de edge în tab. Documentul
 descrie ce se portează, în ce modul JS ajunge fiecare piesă, ce se măsoară și ce rămâne
 afară. Nu conține cod. Surse: `ml/safesight_ml/{pipeline,zones,privacy,detector,
-ncnn_detector,ppe}.py`, `docs/performance.md`, `docs/contract.md`,
+ncnn_detector,ppe}.py` (stack-ul Python de referință, **șters din acest fork**: fișierele
+sunt doar în istoricul git / upstream), `docs/performance.md` (istoric), `docs/contract.md`,
 `frontend/src/services/api.js`, `frontend/src/engine/`, `frontend/scripts/prepare-models.py`,
 `.github/workflows/pages.yml`.
 
@@ -221,11 +222,11 @@ Reguli de buget care decurg din referință:
 
 ## 7. Ce rămâne în afara scopului
 
-| Azi (server) | În browser | Notă |
+| Azi (fosta referință Python) | În browser | Notă |
 |---|---|---|
-| Slack (`automation/`) | nimic; evenimentul apare în listă | un webhook în bundle-ul public e un secret public, deci nu |
+| Slack (`automation/`, șters) | nimic; evenimentul apare în listă | un webhook în bundle-ul public e un secret public, deci nu |
 | MJPEG `/stream/{id}.mjpg` | canvas-ul adnotat | feed-ul e canvas-ul, nu un stream |
-| SQLite + `backend/` | `store.js` în memorie | se pierde la reload; zona și `acked` pot merge în `localStorage` |
+| SQLite + `backend/` (șters) | `store.js` în memorie | se pierde la reload; zona și `acked` pot merge în `localStorage` |
 | Raport scris de LLM | șablon determinist (`what/where/when/severity_reason/recommended_action`) | aceleași câmpuri ca `mapEvent`/`regenerateReport` din `frontend/src/services/api.js` |
 | PDF de tură | opțional, client-side (pdf-lib) sau `window.print()` cu stylesheet | nu e în demo |
 | escaladare pe server | `setTimeout` în tab | moare la închiderea tab-ului; se spune în UI |

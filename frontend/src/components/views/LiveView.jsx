@@ -368,7 +368,7 @@ export default function LiveView() {
   }, [browserEngineOn, displayMode]);
 
   const isOffline = activeCamera?.status === 'offline';
-  // dev.py demo: VITE_DEMO_CAMERA = "stand12,taxiway-b", VITE_DEMO_CLIP = "stand12=clip.mp4,taxiway-b=..."
+  // Demo camera selection: VITE_DEMO_CAMERA = "stand12,taxiway-b", VITE_DEMO_CLIP = "stand12=clip.mp4,taxiway-b=..."
   // (a single plain value from older launchers still works).
   const demoCameras = (import.meta.env.VITE_DEMO_CAMERA || '').split(',').map((id) => id.trim()).filter(Boolean);
   const demoClipEntries = (import.meta.env.VITE_DEMO_CLIP || '').split(',').map((item) => item.trim()).filter(Boolean);
@@ -393,8 +393,8 @@ export default function LiveView() {
   const demoVideoSrc = mediaVideoOverride
     || (activeCamera?.id ? `${mediaBaseUrl}media/${activeCamera.id}.mp4` : null);
   const showDemoVideo = Boolean(demoVideoSrc && !videoFailed && !isOffline && !noLiveForCamera && !isWebcamCamera);
-  // FPS măsurat de backend din cadența cadrului live; absent = nu se poate măsura,
-  // nu 0. Vezi backend/app/services/live_rate.py.
+  // FPS raportat de sursa de date din cadența cadrului live; absent = nu se poate măsura,
+  // nu 0. În build-ul static câmpul vine din fixtures.
   const liveFps = activeCamera?.id ? health?.live_fps?.[activeCamera.id] : null;
   const edgeSeen = health?.edge_last_seen_s;
   const edgeActive = Boolean(health?.db && edgeSeen != null && edgeSeen < 60);
@@ -482,7 +482,7 @@ export default function LiveView() {
 
   // Readouts for the single "Motor & senzori" card. Nothing here invents a number: the
   // browser fps exists only while the worker is running, and the clip fps only when the
-  // backend measured it.
+  // fixtures carry one.
   const browserEngineFps = engine.status === 'running' && engine.fps ? engine.fps : null;
   const broken = engine.status === 'error' || engine.status === 'unsupported';
   const pipelineActive = Boolean(liveFps) || Boolean(browserEngineFps);
@@ -533,13 +533,13 @@ export default function LiveView() {
           <h2 className="font-black text-lg uppercase tracking-tight">Nu există feed încă</h2>
           <p style={{ color: themeStyles.textMuted }} className="text-sm">
             {health?.db
-              ? 'Backend-ul e online, dar nu a returnat camere. Verifică seed-ul sau reîncarcă.'
-              : 'Backend-ul încă pornește sau nu răspunde. Frontend-ul reîncearcă automat la 2 secunde.'}
+              ? 'Sursa de date a răspuns, dar lista de camere e goală. Reîncarcă pagina.'
+              : 'Nu există o sursă de date configurată. Build-ul publicat rulează cu fixture-uri, fără backend.'}
           </p>
           <div className="p-3 rounded-lg bg-black/20 text-left font-mono text-xs space-y-1">
-            <p className="text-white font-bold">Pornește tot stack-ul:</p>
-            <p>./run.sh demo</p>
-            <p className="text-slate-400">sau: python scripts/dev.py demo</p>
+            <p className="text-white font-bold">Pornește build-ul static:</p>
+            <p>VITE_USE_MOCK=true npm run build</p>
+            <p className="text-slate-400">apoi: npm run preview</p>
           </div>
           <button
             onClick={() => window.location.reload()}
@@ -1068,7 +1068,7 @@ export default function LiveView() {
 
                 {!edgeActive && !noLiveForCamera && !isWebcamCamera && (
                   <div className="absolute top-2.5 right-2.5 max-w-xs px-2.5 py-1.5 rounded-lg bg-amber-500/95 text-slate-950 text-[10px] font-bold shadow border border-amber-300">
-                    Edge fără cadre live. Pornește: ./run.sh demo
+                    Fără cadru live din edge. Alege un clip demo sau pornește motorul în browser.
                   </div>
                 )}
                 {demoClip && !noLiveForCamera && !isWebcamCamera && (

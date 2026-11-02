@@ -22,9 +22,9 @@ d1cd25851fba0e96d59f25548f072db7d114182c952605f509d14af502438dfb  yunet.onnx
 
 ## `yolo26n.onnx`
 
-Copia exactă a exportului folosit de edge, `ml/yolo26n.onnx` (acolo rămâne
-ignorat de git; aici e excepția țintită din `.gitignore`). Nu se modifică nimic
-în graf: browserul trebuie să ruleze aceleași greutăți ca backend-ul.
+Copia exactă a exportului folosit de edge-ul Python (fișierul `ml/yolo26n.onnx` din
+istoricul git, ignorat acolo de git). Nu se modifică nimic în graf: browserul rulează
+aceleași greutăți ca referința.
 
 Export:
 
@@ -46,15 +46,15 @@ Graful e complet convoluțional, deci limitarea e doar în metadate. Scriptul
 rescrie dimensiunile declarate ale inputului în `[1, 3, "height", "width"]` și
 lasă greutățile și operatorii neatinși. Fișierul acceptă apoi orice dimensiune,
 cu o singură condiție: ambele laturi să fie multiplu de **32**, pentru că graful
-fuzionează stride-urile 8, 16 și 32. Exact la fel procedează backend-ul în
-`ml/safesight_ml/privacy.py`, doar că acolo patch-ul se aplică în memorie la
-încărcare.
+fuzionează stride-urile 8, 16 și 32. Fosta referință Python proceda la fel în
+`safesight_ml/privacy.py` (ștearsă din acest fork, acum doar în istoricul git), doar că
+acolo patch-ul se aplica în memorie la încărcare.
 
 Ieșirile (`cls_*`, `obj_*`, `bbox_*`, `kps_*`) păstrează în continuare mărimile
 declarate pentru 640x640. ONNX Runtime le recalculează la rulare și scrie un
 avertisment de tip „Expected shape from model ... does not match actual shape”.
-Avertismentul e așteptat și inofensiv, la fel ca pe backend; se poate stinge cu
-`ort.env.logLevel = 'error'`.
+Avertismentul e așteptat și inofensiv, la fel ca pe fosta referință Python; se poate stinge
+cu `ort.env.logLevel = 'error'`.
 
 Verificat: input `[1, 3, 'height', 'width']`, rulare la 640x640 și la 480x832
 (ambele multiplu de 32) întoarce 12 ieșiri, cu grilele scalate corect

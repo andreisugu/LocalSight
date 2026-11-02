@@ -1,10 +1,11 @@
 // Incident/event layer of the browser engine.
 //
-// Reference: `ml/safesight_ml/pipeline.py` (how an event is built),
-// `ml/safesight_ml/events.py` (field constraints), `backend/app/services/events.py`
-// (ACTIONS / status machine) and `backend/app/services/escalation.py` (threshold and
-// what an ack cancels). `docs/contract.md` is historical for SafeSight but still owns the
-// envelope shape and the `evt_<camera>_<unix_ms>_<track>` id format.
+// Reference (removed from this fork; in git history): `ml/safesight_ml/pipeline.py` (how
+// an event is built), `ml/safesight_ml/events.py` (field constraints),
+// `backend/app/services/events.py` (ACTIONS / status machine) and
+// `backend/app/services/escalation.py` (threshold and what an ack cancels).
+// `docs/contract.md` is historical for SafeSight but still owns the envelope shape and the
+// `evt_<camera>_<unix_ms>_<track>` id format.
 //
 // One field deviates from the contract on purpose and only in the static build:
 // `snapshot_url` is a `blob:` URL from `URL.createObjectURL`, because no server exists to
@@ -20,7 +21,7 @@ const DEFAULT_INCIDENT_COOLDOWN_S = 60;
 const EVENT_TYPES = new Set(['RESTRICTED_ZONE', 'NO_PPE', 'SMOKING', 'CAMERA_OFFLINE']);
 const SEVERITIES = new Set(['CRITICAL', 'WARNING']);
 const EVENT_ID_CAMERA = /^[a-z0-9-]+$/;
-// Mirrors ACTIONS in backend/app/services/events.py: action -> (allowed from, new status).
+// Mirrors ACTIONS in the removed backend (`services/events.py`): action -> (allowed from, new status).
 const ACTIONS = {
   ack: { from: ['open', 'escalated'], to: 'acknowledged' },
   false_positive: { from: ['open', 'escalated', 'acknowledged'], to: 'false_positive' },
@@ -249,7 +250,7 @@ export function buildEvent({
  * Apply an operator action, returning a new event; the input is never mutated.
  *
  * The transitions and the fields each action touches are exactly those of
- * `apply_action` in `backend/app/services/events.py`:
+ * `apply_action` in the removed `backend/app/services/events.py`:
  * - `ack`: `open` | `escalated` -> `acknowledged`, sets `acked_at` / `acked_by` and
  *   cancels a pending escalation (`escalated_at` is left as it was).
  * - `markFalsePositive`: `open` | `escalated` | `acknowledged` -> `false_positive`,

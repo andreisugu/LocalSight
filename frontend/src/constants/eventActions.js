@@ -1,5 +1,6 @@
-// Which operator action is allowed from which status. Mirrors ACTIONS in
-// backend/app/services/events.py; anything else gets a 409 from the API.
+// Which operator action is allowed from which status. Mirrors the ACTIONS table of the
+// SafeSight backend (removed from this fork; in git history). In the static build anything
+// else is refused locally, with no API to return a 409.
 const ALLOWED_FROM = {
   ack: ['open', 'escalated'],
   false_positive: ['open', 'escalated', 'acknowledged'],

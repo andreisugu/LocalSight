@@ -1,5 +1,11 @@
 # Paritatea motorului din browser cu referința Python
 
+> **Document istoric — dovada portului.** Testul diferențial a rulat față de
+> `ml/safesight_ml/`, stack **șters din acest fork**; comenzile și căile de mai jos nu mai
+> există aici, iar testul nu se mai poate re-rula din acest arbore. Tabelele rămân dovada că
+> portul era echivalent la momentul respectiv. Direcția actuală:
+> [../browser-engine.md](../browser-engine.md).
+
 Test diferențial: aceleași intrări prin `frontend/src/engine/` (Node/Chromium) și prin
 `ml/safesight_ml/`, apoi comparație de ieșiri. Nu s-a modificat niciun cod de aplicație;
 scenariile și scripturile au stat în `/tmp/opencode/qa-parity/` și nu se comit.

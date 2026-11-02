@@ -1,6 +1,6 @@
 // The browser frame pipeline: tracked detections -> zone rules -> incident event.
 //
-// Reference: `Pipeline.process` in `ml/safesight_ml/pipeline.py`. The order of operations
+// Reference (removed from this fork): `Pipeline.process` in `ml/safesight_ml/pipeline.py`. The order of operations
 // is the same: prune the rule state, update membership for every (track, zone) pair, fold
 // the PPE state into the membership flag, let `RuleEngine.observe` decide, then check the
 // incident cooldown and build the event. Everything that needs pixels or I/O stays out:
