@@ -1,20 +1,38 @@
 import React from 'react';
 import { Info } from 'lucide-react';
 import { useSecurity } from '../../context/SecurityContext';
+import { useTheme } from '../../context/ThemeContext';
 
+// Accessible toast. SecurityContext owns the message and its 3.8 s timer (`showToast`);
+// it exposes no dismiss method, so there is no close button to leave dead. The live
+// region stays mounted while empty, which is what makes insertions announced reliably.
+// Long operator names are clamped to three lines instead of stretching the card.
 export default function Toast() {
   const { toastMessage } = useSecurity();
-
-  if (!toastMessage) return null;
+  const { isDarkMode, themeStyles } = useTheme();
 
   return (
-    <div className="no-print fixed bottom-5 right-5 z-50 bg-slate-900/95 text-white px-4 py-3 rounded-xl shadow-2xl border border-[#FFEB33]/70 flex items-center gap-3 animate-bounce-short font-sans text-xs md:text-sm backdrop-blur-md select-none max-w-[calc(100vw-2.5rem)] sm:max-w-md">
-      <Info size={18} className="text-[#FFEB33] shrink-0" />
-      {/* Un mesaj poate conține un nume arbitrar de lung (F7): se rupe pe cuvinte și se
-          limitează la 3 rânduri, ca să nu depășească cardul. */}
-      <span className="leading-snug min-w-0 break-words line-clamp-3" title={toastMessage}>
-        {toastMessage}
-      </span>
+    <div
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      className="no-print pointer-events-none fixed bottom-5 right-5 z-50 max-w-[calc(100vw-2.5rem)] sm:max-w-md"
+    >
+      {toastMessage && (
+        <div
+          style={{
+            backgroundColor: isDarkMode ? 'rgba(24, 24, 24, 0.96)' : 'rgba(255, 255, 255, 0.98)',
+            borderColor: themeStyles.accentColor,
+            color: themeStyles.textColor,
+          }}
+          className="flex items-start gap-3 rounded-xl border px-4 py-3 font-sans text-xs shadow-2xl backdrop-blur-md md:text-sm"
+        >
+          <Info size={18} aria-hidden="true" className="mt-0.5 shrink-0" style={{ color: themeStyles.accentColor }} />
+          <span className="line-clamp-3 min-w-0 flex-1 break-words leading-snug" title={toastMessage}>
+            {toastMessage}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

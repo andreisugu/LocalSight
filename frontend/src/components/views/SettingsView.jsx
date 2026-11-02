@@ -1,79 +1,78 @@
 import React, { useMemo } from 'react';
-import { Settings, ShieldCheck, Server, Cpu, Box, Lock, MessageSquare, Terminal, Video, Database } from 'lucide-react';
+import { Box, Cpu, Database, Lock, Server, Settings, ShieldCheck, Terminal, Video } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { TYPE_LABELS } from '../../services/api';
+import {
+  AUDIT_LIMIT,
+  buildAuditRows,
+  buildCameraRows,
+  buildSystemTiles,
+  formatAuditTime,
+  latestDetectionModel,
+  sourceSummary,
+} from '../../utils/systemView';
 
-// Everything on this page comes from the app's data layer (/health, /cameras, /zones, /events).
-// In the static build that layer is fixtures (health.mock), so the page states the local
-// truth instead of claiming a backend and an edge box that are not there.
-// Nothing is hard-coded: a value we do not have is shown as "—".
+// Rewritten screen. It answers one question — "what is actually running here?" — from the
+// data the app already has: the health record (static vs backend), the camera list, the
+// zones and the incident timestamps. Counts, table rows and audit rows live in
+// utils/systemView.js and are tested there; this file only renders their result.
+// Nothing on the page is hard-coded to a value it cannot verify.
 
-const AUDIT_LIMIT = 60;
+const INCIDENT_VIEW = 'incident_detail';
 
-function formatDateTime(iso) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleString('ro-RO', {
-      timeZone: 'Europe/Bucharest',
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
-  } catch {
-    return iso;
-  }
-}
+const TILE_ICONS = {
+  build: Server,
+  engine: Cpu,
+  model: Box,
+  cameras: Video,
+  backend: Database,
+  edge: Cpu,
+};
 
-// One incident -> the steps it actually went through, each with its own timestamp.
-function auditEntries(event) {
-  const what = `${TYPE_LABELS[event.type] || event.type} · ${event.camera_id}/${event.zone_id}`;
-  const rows = [
-    { at: event.detected_at, actor: 'Edge', action: `Detecție ${what} (track #${event.track_id})` },
-    event.notified_at && { at: event.notified_at, actor: 'Notificare', action: `Alertă Slack trimisă: ${what}` },
-    event.escalated_at && { at: event.escalated_at, actor: 'Escaladare', action: `Neconfirmat la timp: ${what}` },
-  ];
-  if (event.acked_at) {
-    const verb =
-      event.status === 'false_positive' ? 'Marcat fals pozitiv' : event.status === 'resolved' ? 'Rezolvat' : 'Confirmat';
-    rows.push({ at: event.acked_at, actor: 'Operator', action: `${verb}${event.acked_by ? ` de ${event.acked_by}` : ''}: ${what}` });
-  }
-  return rows.filter(Boolean).map((row) => ({ ...row, eventId: event.event_id }));
-}
+const TONE_TEXT = {
+  ok: 'text-emerald-600 dark:text-emerald-400',
+  warn: 'text-amber-600 dark:text-amber-400',
+  bad: 'text-red-600 dark:text-red-400',
+  neutral: 'text-slate-700 dark:text-slate-300',
+  demo: 'text-amber-600 dark:text-amber-400',
+};
 
-function Tile({ icon: Icon, label, value, detail, tone, themeStyles }) {
-  const color = { ok: 'text-emerald-400', warn: 'text-amber-400', bad: 'text-red-400', neutral: 'text-slate-300' }[tone];
+function Chip({ tone = 'neutral', children }) {
+  const tones = {
+    demo: 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    neutral: 'border-slate-400/40 bg-slate-500/10 text-slate-600 dark:text-slate-300',
+  };
   return (
-    <div
-      style={{ backgroundColor: themeStyles.panelBg, borderColor: themeStyles.panelBorder }}
-      className="p-3 rounded-xl border space-y-1"
+    <span
+      className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-mono font-bold tracking-wide ${tones[tone] || tones.neutral}`}
     >
-      <p className="text-[11px] uppercase tracking-wider font-bold flex items-center gap-1.5" style={{ color: themeStyles.textMuted }}>
-        <Icon size={13} /> {label}
-      </p>
-      <p className={`font-mono font-bold text-sm ${color}`}>{value}</p>
-      {detail && (
-        <p className="text-[11px]" style={{ color: themeStyles.textMuted }}>
-          {detail}
-        </p>
-      )}
-    </div>
+      {children}
+    </span>
   );
 }
 
-function Panel({ icon: Icon, title, children, themeStyles }) {
+function SummaryCell({ tile, themeStyles }) {
+  const Icon = TILE_ICONS[tile.id] || Cpu;
   return (
-    <section
+    <div
       style={{ backgroundColor: themeStyles.panelBg, borderColor: themeStyles.panelBorder }}
-      className="p-4 rounded-xl border space-y-3 text-xs"
+      className="min-w-0 rounded-xl border p-3"
     >
-      <h3 className="font-bold text-sm uppercase flex items-center gap-1.5">
-        <Icon size={16} className="text-[#7EDEED] dark:text-[#FFEB33]" /> {title}
-      </h3>
-      {children}
-    </section>
+      <dt
+        className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider"
+        style={{ color: themeStyles.textMuted }}
+      >
+        <Icon size={13} aria-hidden="true" />
+        {tile.label}
+      </dt>
+      <dd className="mt-1">
+        <span className={`block font-mono text-sm font-bold ${TONE_TEXT[tile.tone] || TONE_TEXT.neutral}`}>{tile.value}</span>
+        <span className="mt-0.5 block text-[11px] leading-snug" style={{ color: themeStyles.textMuted }}>
+          {tile.detail}
+        </span>
+      </dd>
+    </div>
   );
 }
 
@@ -81,267 +80,241 @@ export default function SettingsView() {
   const { themeStyles } = useTheme();
   const { cameras, zones, events, health, setSelectedEventId, setCurrentView } = useSecurity();
 
-  const edgeSeen = health?.edge_last_seen_s;
-  const edgeTone = edgeSeen == null ? 'warn' : edgeSeen < 60 ? 'ok' : 'warn';
-  const edgeValue = edgeSeen == null ? 'FĂRĂ DATE' : edgeSeen < 60 ? 'ACTIV' : 'ÎNTÂRZIAT';
-  // The static build has no backend and no edge box: `health.mock` is what the data layer
-  // reports there. Every claim below is gated on it so the page never invents a system.
   const isMock = Boolean(health?.mock);
-  // Camera sources, derived from the array we actually have: demo clips carry an RTSP URL,
-  // the browser camera does not.
-  const demoCameras = cameras.filter((camera) => camera.rtsp_url);
-  const localCameras = cameras.filter((camera) => !camera.rtsp_url);
-  const sourceValue = `${cameras.length} ${cameras.length === 1 ? 'sursă' : 'surse'}`;
-  const sourceParts = [
-    `${demoCameras.length} ${demoCameras.length === 1 ? 'clip demo' : 'clipuri demo'}`,
-    localCameras.length > 0 &&
-      (localCameras.length === 1 ? 'camera locală' : `${localCameras.length} camere locale`),
-  ].filter(Boolean);
-  const sourceDetail = `${sourceParts.length > 0 ? `${sourceParts.join(' + ')}; ` : ''}date demo`;
-  // The model is whatever the edge put on its latest event; the backend has no other source.
-  const latestModel = useMemo(
-    () => [...events].sort((a, b) => String(b.detected_at).localeCompare(String(a.detected_at)))[0]?.model,
-    [events]
+  const latestModel = useMemo(() => latestDetectionModel(events), [events]);
+  const tiles = useMemo(
+    () => buildSystemTiles({ isMock, health, cameras, zones, latestModel }),
+    [isMock, health, cameras, zones, latestModel]
+  );
+  const cameraRows = useMemo(() => buildCameraRows(cameras, { isMock, zones }), [cameras, isMock, zones]);
+  const sources = useMemo(() => sourceSummary(cameras, { isMock }), [cameras, isMock]);
+  const auditRows = useMemo(
+    () => buildAuditRows(events, { typeLabels: TYPE_LABELS, isMock, limit: AUDIT_LIMIT }),
+    [events, isMock]
   );
 
-  const audit = useMemo(
-    () =>
-      events
-        .flatMap(auditEntries)
-        .filter((row) => row.at)
-        .sort((a, b) => String(b.at).localeCompare(String(a.at)))
-        .slice(0, AUDIT_LIMIT),
-    [events]
-  );
+  const muted = { color: themeStyles.textMuted };
+  const surface = { backgroundColor: themeStyles.panelBg, borderColor: themeStyles.panelBorder };
+  const clipPhrase = `${sources.clips} ${sources.clips === 1 ? 'clip demo' : 'clipuri demo'}`;
 
-  const openIncident = (eventId) => {
-    setSelectedEventId(eventId);
-    setCurrentView('incident_detail');
+  const showIncident = (id) => {
+    if (!id) return;
+    setSelectedEventId(id);
+    setCurrentView(INCIDENT_VIEW);
   };
 
   return (
-    <div className="flex-1 p-4 md:p-6 overflow-y-auto space-y-5 h-full max-w-5xl mx-auto">
-      <div>
-        <h2 className="font-black text-lg uppercase tracking-tight flex flex-wrap items-center gap-2">
-          <Settings size={20} className="text-[#7EDEED] dark:text-[#FFEB33]" />
-          {isMock ? 'Sistem & Audit' : 'Edge & Audit'}
-          {isMock && (
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 font-mono">
-              MOD MOCK: evenimente simulate
-            </span>
-          )}
-        </h2>
-        <p style={{ color: themeStyles.textMuted }} className="text-xs">
-          {isMock
-            ? 'Starea locală a build-ului static și jurnalul acțiunilor din fixture-urile demo; fără backend.'
-            : 'Starea sistemului și istoricul acțiunilor, din datele backend-ului.'}
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {isMock ? (
-          // Static build: there is no backend and no edge box to report on, so the tiles
-          // describe what actually runs — this tab.
-          <>
-            <Tile
-              icon={Server}
-              label="Build"
-              value="STATIC"
-              detail="fără backend, fără edge; totul rulează în tab"
-              tone="neutral"
-              themeStyles={themeStyles}
-            />
-            <Tile
-              icon={Cpu}
-              label="Motor browser"
-              value="OPȚIONAL"
-              detail="pornit din Live sau /lab; YOLO26n + YuNet"
-              tone="neutral"
-              themeStyles={themeStyles}
-            />
-            <Tile
-              icon={Box}
-              label="Model detecție"
-              value="YOLO26n"
-              detail="ONNX servit din aplicație, rulat local"
-              tone="neutral"
-              themeStyles={themeStyles}
-            />
-            <Tile
-              icon={Video}
-              label="Camere"
-              value={sourceValue}
-              detail={sourceDetail}
-              tone="neutral"
-              themeStyles={themeStyles}
-            />
-          </>
-        ) : (
-          <>
-            <Tile
-              icon={Database}
-              label="Backend"
-              value={health?.db ? 'ONLINE' : 'OFFLINE'}
-              detail={health?.db ? 'Baza de date răspunde' : 'Backend-ul sau baza de date nu răspund'}
-              tone={health?.db ? 'ok' : 'bad'}
-              themeStyles={themeStyles}
-            />
-            <Tile
-              icon={Cpu}
-              label="Edge AI"
-              value={edgeValue}
-              detail={edgeSeen == null ? 'Niciun semnal de la edge' : `Ultimul semnal acum ${Math.round(edgeSeen)} s`}
-              tone={edgeTone}
-              themeStyles={themeStyles}
-            />
-            <Tile
-              icon={Server}
-              label="Model detecție"
-              value={latestModel || '—'}
-              detail="Din ultimul eveniment primit"
-              tone="neutral"
-              themeStyles={themeStyles}
-            />
-            <Tile
-              icon={Video}
-              label="Camere"
-              value={`${cameras.filter((c) => c.status === 'online').length} / ${cameras.length} online`}
-              detail={`${zones.length} zone configurate`}
-              tone={cameras.length && cameras.every((c) => c.status === 'online') ? 'ok' : 'warn'}
-              themeStyles={themeStyles}
-            />
-          </>
-        )}
-      </div>
-
-      <Panel icon={Video} title="Camere" themeStyles={themeStyles}>
-        {isMock && (
-          <p style={{ color: themeStyles.textMuted }}>
-            Lista e din fixture-urile demo: {demoCameras.length} clipuri demo
-            {localCameras.length > 0 ? ' plus camera locală din browser' : ''}; nicio cameră de rețea nu e conectată.
-          </p>
-        )}
-        {cameras.length === 0 ? (
-          <p style={{ color: themeStyles.textMuted }}>Nicio cameră înregistrată.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left font-mono text-[11px]">
-              <thead style={{ color: themeStyles.textMuted }}>
-                <tr className="border-b border-white/10">
-                  <th className="py-1.5 pr-3 font-semibold">Cameră</th>
-                  <th className="py-1.5 pr-3 font-semibold">Stare</th>
-                  <th className="py-1.5 pr-3 font-semibold">Motor</th>
-                  <th className="py-1.5 pr-3 font-semibold">Zone</th>
-                  <th className="py-1.5 font-semibold">Live</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cameras.map((camera) => {
-                  const fps = health?.live_fps?.[camera.id];
-                  // A fixture camera is not "online": say DEMO, same colour as before.
-                  const statusLabel = isMock ? 'DEMO' : camera.status === 'online' ? 'ONLINE' : 'OFFLINE';
-                  return (
-                    <tr key={camera.id} className="border-b border-white/5 last:border-0">
-                      <td className="py-1.5 pr-3">
-                        <span className="font-bold">{camera.code || camera.id}</span>{' '}
-                        <span style={{ color: themeStyles.textMuted }}>{camera.id}</span>
-                      </td>
-                      <td className={`py-1.5 pr-3 font-bold ${camera.status === 'online' ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {statusLabel}
-                      </td>
-                      <td className="py-1.5 pr-3">{camera.engine_on ? 'pornit' : 'oprit'}</td>
-                      <td className="py-1.5 pr-3">{zones.filter((z) => z.camera_id === camera.id).length}</td>
-                      <td className="py-1.5">{fps != null ? `${fps} fps` : '—'}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+    <div className="flex-1 h-full overflow-y-auto">
+      <div className="mx-auto max-w-5xl space-y-5 p-4 md:p-6">
+        <header className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <Settings size={20} aria-hidden="true" className="text-[#0284C7] dark:text-[#FFEB33]" />
+            <h2 className="text-lg font-black uppercase tracking-tight">Sistem &amp; Audit</h2>
+            <Chip tone={isMock ? 'demo' : 'neutral'}>{isMock ? 'BUILD STATIC · DATE DEMO' : 'BACKEND + EDGE'}</Chip>
           </div>
-        )}
-      </Panel>
+          <p className="max-w-3xl text-xs" style={muted}>
+            {isMock
+              ? 'Build static: fără backend, fără edge. Starea de mai jos vine din fixture-urile demo și din motorul local, când rulează; jurnalul e tot demo.'
+              : 'Starea backend-ului și a edge-ului, plus jurnalul acțiunilor din datele primite.'}
+          </p>
+        </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Panel icon={Lock} title={isMock ? 'Ce pleacă din browser' : 'Ce pleacă de pe edge'} themeStyles={themeStyles}>
-          <ul className="space-y-1.5" style={{ color: themeStyles.textMuted }}>
+        <section aria-label="Sumar sistem">
+          <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {tiles.map((tile) => (
+              <SummaryCell key={tile.id} tile={tile} themeStyles={themeStyles} />
+            ))}
+          </dl>
+        </section>
+
+        <section aria-labelledby="cameras-heading" style={surface} className="overflow-hidden rounded-xl border">
+          <div className="space-y-1 px-4 pb-3 pt-4">
+            <h3 id="cameras-heading" className="flex flex-wrap items-center gap-2 text-sm font-bold uppercase">
+              <Video size={16} aria-hidden="true" className="text-[#0284C7] dark:text-[#FFEB33]" />
+              Camere
+              <span className="rounded border px-1.5 py-0.5 font-mono text-[10px] font-normal" style={{ ...muted, borderColor: themeStyles.panelBorder }}>
+                {cameraRows.length}
+              </span>
+            </h3>
+            <p className="text-xs" style={muted}>
+              {isMock
+                ? `${clipPhrase}${sources.local > 0 ? ' plus camera locală din browser' : ''}; niciun feed de rețea nu e conectat. Camera locală cere permisiunea browserului când o deschizi în Live.`
+                : `${cameraRows.length} camere configurate; motorul fiecăreia se pornește din Live.`}
+            </p>
+          </div>
+
+          {cameraRows.length === 0 ? (
+            <p className="px-4 pb-4 text-xs" style={muted}>
+              Nicio cameră înregistrată.
+            </p>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left font-mono text-[11px]">
+                  <caption className="sr-only">Sursele video, starea lor din build și numărul de zone configurate</caption>
+                  <thead>
+                    <tr className="border-y" style={{ borderColor: themeStyles.panelBorder, ...muted }}>
+                      <th scope="col" className="py-2 pl-4 pr-3 font-semibold">
+                        Cameră
+                      </th>
+                      <th scope="col" className="py-2 pr-3 font-semibold">
+                        Sursă
+                      </th>
+                      <th scope="col" className="py-2 pr-3 font-semibold">
+                        Stare
+                      </th>
+                      <th scope="col" className="py-2 pr-3 font-semibold">
+                        Motor
+                      </th>
+                      <th scope="col" className="py-2 pr-4 text-right font-semibold">
+                        Zone
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cameraRows.map((row) => (
+                      <tr key={row.id} className="border-b last:border-b-0" style={{ borderColor: themeStyles.panelBorder }}>
+                        <td className="py-2 pl-4 pr-3">
+                          <span className="font-bold">{row.code}</span>
+                          <span className="block text-[10px]" style={muted}>
+                            {row.id}
+                          </span>
+                        </td>
+                        <td className="whitespace-nowrap py-2 pr-3">{row.sourceLabel}</td>
+                        <td className={`whitespace-nowrap py-2 pr-3 font-bold ${TONE_TEXT[row.statusTone]}`}>
+                          <span className="inline-flex items-center gap-1.5">
+                            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current" />
+                            {row.statusLabel}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-3">{row.engineLabel}</td>
+                        <td className="py-2 pr-4 text-right tabular-nums">{row.zoneCount}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="border-t px-4 py-2 text-[11px]" style={{ ...muted, borderColor: themeStyles.panelBorder }}>
+                {isMock
+                  ? 'Motorul arată starea din fixture-ul demo, nu o rulare reală: îl pornești din Live.'
+                  : 'Motorul fiecărei camere se pornește din Live; starea de aici vine din backend.'}
+              </p>
+            </>
+          )}
+        </section>
+
+        <section aria-labelledby="privacy-heading" style={surface} className="space-y-2 rounded-xl border p-4">
+          <h3 id="privacy-heading" className="flex flex-wrap items-center gap-2 text-sm font-bold uppercase">
+            <Lock size={16} aria-hidden="true" className="text-[#0284C7] dark:text-[#FFEB33]" />
+            {isMock ? 'Ce rămâne în browser' : 'Ce pleacă de pe edge'}
+            {isMock && <Chip tone="demo">NIMIC NU URCĂ</Chip>}
+          </h3>
+          <ul className="space-y-1.5 text-xs" style={muted}>
             {isMock ? (
               <>
-                <li>• Cadrele video nu părăsesc tabul: sunt desenate pe canvas și nu se încarcă nicăieri.</li>
-                <li>
-                  • Cu motorul pornit, fețele sunt <span className="font-bold text-amber-400">blurate cu YuNet în browser</span>, înainte
-                  de desenare; fluxul brut este ascuns cât timp motorul rulează.
+                <li className="flex gap-2">
+                  <ShieldCheck size={12} aria-hidden="true" className="mt-0.5 shrink-0 text-[#0284C7] dark:text-[#FFEB33]" />
+                  <span>Cadrele video trăiesc în memoria tabului: sunt desenate pe canvas și nu se încarcă nicăieri.</span>
                 </li>
-                <li>• Evenimentele sunt doar metadate: tip, cameră, zonă, oră, încredere. Snapshot-ul de incident nu e conectat.</li>
-                <li>• Modelele ONNX se descarcă o dată din aplicație; fără recunoaștere facială, fără nume, fără analiză de emoții.</li>
+                <li className="flex gap-2">
+                  <ShieldCheck size={12} aria-hidden="true" className="mt-0.5 shrink-0 text-[#0284C7] dark:text-[#FFEB33]" />
+                  <span>
+                    Cu motorul pornit, fețele sunt{' '}
+                    <strong className="font-bold text-amber-600 dark:text-amber-400">blurate cu YuNet în browser</strong> înainte
+                    de desenare; fluxul brut e ascuns cât timp motorul rulează.
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <ShieldCheck size={12} aria-hidden="true" className="mt-0.5 shrink-0 text-[#0284C7] dark:text-[#FFEB33]" />
+                  <span>
+                    Prin rețea trec doar fișierele aplicației (JS, yolo26n.onnx, yunet.onnx, clipul demo), în jos; nimic nu se
+                    încarcă în sus. Un tab închis nu lasă nimic pe server.
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <ShieldCheck size={12} aria-hidden="true" className="mt-0.5 shrink-0 text-[#0284C7] dark:text-[#FFEB33]" />
+                  <span>
+                    Evenimentele sunt metadate: tip, cameră, zonă, oră, încredere. Fără recunoaștere facială, fără nume, fără
+                    analiză de emoții.
+                  </span>
+                </li>
               </>
             ) : (
               <>
-                <li>• Video brut rămâne pe edge; nu se trimite nicăieri.</li>
-                <li>
-                  • Snapshot-urile și imaginea live au <span className="font-bold text-amber-400">fețele blurate pe edge</span>, înainte
-                  de salvare sau trimitere.
+                <li className="flex gap-2">
+                  <ShieldCheck size={12} aria-hidden="true" className="mt-0.5 shrink-0 text-[#0284C7] dark:text-[#FFEB33]" />
+                  <span>Video brut rămâne pe edge; nu se trimite nicăieri.</span>
                 </li>
-                <li>• Evenimentul conține doar metadate: tip, cameră, zonă, oră, încredere.</li>
-                <li>• Fără recunoaștere facială, fără nume, fără analiză de emoții.</li>
+                <li className="flex gap-2">
+                  <ShieldCheck size={12} aria-hidden="true" className="mt-0.5 shrink-0 text-[#0284C7] dark:text-[#FFEB33]" />
+                  <span>
+                    Snapshot-urile și imaginea live au{' '}
+                    <strong className="font-bold text-amber-600 dark:text-amber-400">fețele blurate pe edge</strong> înainte de
+                    salvare sau trimitere.
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <ShieldCheck size={12} aria-hidden="true" className="mt-0.5 shrink-0 text-[#0284C7] dark:text-[#FFEB33]" />
+                  <span>Evenimentul conține doar metadate: tip, cameră, zonă, oră, încredere.</span>
+                </li>
+                <li className="flex gap-2">
+                  <ShieldCheck size={12} aria-hidden="true" className="mt-0.5 shrink-0 text-[#0284C7] dark:text-[#FFEB33]" />
+                  <span>Fără recunoaștere facială, fără nume, fără analiză de emoții.</span>
+                </li>
               </>
             )}
           </ul>
-        </Panel>
+        </section>
 
-        <Panel icon={MessageSquare} title={isMock ? 'Notificări (demo)' : 'Notificări'} themeStyles={themeStyles}>
-          <ul className="space-y-1.5" style={{ color: themeStyles.textMuted }}>
-            <li>
-              {isMock ? (
-                <>
-                  • <span className="font-bold text-[#0284C7] dark:text-[#FFEB33]">Slack</span> nu este conectat în build-ul static:
-                  orele de notificare din fixture sunt istoric demo, nu trimiteri reale.
-                </>
-              ) : (
-                <>
-                  • <span className="font-bold text-[#0284C7] dark:text-[#FFEB33]">Slack</span>: mesaj text + link la incident, fără imagini.
-                </>
-              )}
-            </li>
-            <li>• Escaladare dacă incidentul nu e confirmat în timpul setat pe zonă.</li>
-            <li>• Confirmarea operatorului oprește escaladarea.</li>
-          </ul>
-        </Panel>
-      </div>
+        <section aria-labelledby="audit-heading" style={surface} className="overflow-hidden rounded-xl border">
+          <div className="space-y-1 px-4 pb-3 pt-4">
+            <h3 id="audit-heading" className="flex flex-wrap items-center gap-2 text-sm font-bold uppercase">
+              <Terminal size={16} aria-hidden="true" className="text-[#0284C7] dark:text-[#FFEB33]" />
+              {isMock ? 'Jurnal demo' : 'Jurnal de audit'}
+              {isMock && <Chip tone="demo">DEMO</Chip>}
+            </h3>
+            <p className="text-xs" style={muted}>
+              {isMock
+                ? 'Pașii din fixture-urile demo (detecție, notificare, escaladare, confirmare), cei mai recenți primii. Orele și trimiterile sunt istoric demo, nu un jurnal real.'
+                : 'Pașii prin care a trecut fiecare incident (detecție, notificare, escaladare, confirmare), cei mai recenți primii.'}
+            </p>
+          </div>
 
-      <Panel icon={Terminal} title={isMock ? 'Jurnal demo' : 'Jurnal de audit'} themeStyles={themeStyles}>
-        <p style={{ color: themeStyles.textMuted }}>
-          {isMock
-            ? 'Pașii din fixture-urile demo (detecție, notificare, escaladare, confirmare), cei mai recenți primii; orele vin din datele demo, nu dintr-un jurnal real.'
-            : 'Pașii prin care a trecut fiecare incident (detecție, notificare, escaladare, confirmare), cei mai recenți primii.'}
-        </p>
-        {audit.length === 0 ? (
-          <p className="py-4 text-center" style={{ color: themeStyles.textMuted }}>
-            Niciun eveniment încă.
+          {auditRows.length === 0 ? (
+            <p className="px-4 py-6 text-center text-xs" style={muted}>
+              Niciun eveniment încă.
+            </p>
+          ) : (
+            <ul className="text-[11px]">
+              {auditRows.map((row, index) => (
+                <li key={`${row.eventId}-${row.at}-${row.actor}`} style={{ borderTop: index === 0 ? 'none' : `1px solid ${themeStyles.panelBorder}` }}>
+                  <button
+                    type="button"
+                    onClick={() => showIncident(row.eventId)}
+                    aria-label={`Deschide incidentul: ${row.action}`}
+                    className="flex w-full flex-wrap items-baseline gap-x-3 gap-y-0.5 px-4 py-2 text-left hover:bg-white/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFEB33]"
+                  >
+                    <time dateTime={row.at} className="shrink-0 font-mono text-[10px] tabular-nums" style={muted}>
+                      [{formatAuditTime(row.at)}]
+                    </time>
+                    <span className="w-20 shrink-0 font-bold text-[#0284C7] dark:text-[#FFEB33]">{row.actor}</span>
+                    <span className="min-w-0 flex-1 basis-full truncate font-mono sm:basis-0">{row.action}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <p
+            className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t px-4 py-2 text-[11px]"
+            style={{ ...muted, borderColor: themeStyles.panelBorder }}
+          >
+            <ShieldCheck size={12} aria-hidden="true" />
+            <span>{isMock ? `Din cele ${events.length} incidente demo; doar citire.` : `Din ultimele ${events.length} incidente; doar citire.`}</span>
+            <span className="opacity-75">Deschide un rând pentru incident.</span>
           </p>
-        ) : (
-          <ul className="space-y-1 font-mono text-[11px]">
-            {audit.map((row, index) => (
-              <li key={`${row.eventId}-${index}`}>
-                <button
-                  onClick={() => openIncident(row.eventId)}
-                  className="w-full p-2 rounded bg-black/20 hover:bg-white/5 flex items-center gap-2 border border-white/5 text-left"
-                  title="Deschide incidentul"
-                >
-                  <span className="shrink-0" style={{ color: themeStyles.textMuted }}>
-                    [{formatDateTime(row.at)}]
-                  </span>
-                  <span className="text-[#0284C7] dark:text-[#FFEB33] font-bold shrink-0 w-20">{row.actor}</span>
-                  <span className="truncate">{row.action}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="text-[11px] flex items-center gap-1.5" style={{ color: themeStyles.textMuted }}>
-          <ShieldCheck size={12} />{' '}
-          {isMock ? `Din cele ${events.length} incidente demo; doar citire.` : `Din ultimele ${events.length} incidente; doar citire.`}
-        </p>
-      </Panel>
+        </section>
+      </div>
     </div>
   );
 }
