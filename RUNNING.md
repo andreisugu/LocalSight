@@ -67,6 +67,11 @@ de subpath (`check-base.mjs`).
 
 ### Bucla rapidă (canonic)
 
+> Pentru lucrul în paralel (un worktree per agent, porturi unice, ordinea de merge și
+> curățenia) vezi [`docs/ops/agent-workflow.md`](docs/ops/agent-workflow.md) și scripturile
+> `scripts/agent-preflight.sh`, `agent-worktree.sh`, `agent-status.sh`, `agent-cleanup.sh`.
+> Comenzile de mai jos rămân sursa canonică pentru build și teste.
+
 `npm run verify` este comanda pentru „am terminat o schimbare": unit, build-urile reale și
 ambele suite, cu tabel de timpi la final și cod de ieșire nenul la primul pas roșu.
 Serverele ascultă pe port 0, deci două worktree-uri nu se mai calcă pe 4173/4317.

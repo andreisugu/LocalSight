@@ -141,6 +141,29 @@ bash scripts/prepare-demo-media.sh           # scrie în frontend/public/media/
   camera locală; un clip demo scrie `CLIP DEMO · LOOP`. Starea de eroare a camerei nu păstrează
   cadrul vechi, HUD-ul sau footerul.
 
+## Fluxul agenților (worktree, porturi, curățenie)
+
+Un agent = un worktree = un branch `prep/<slug>`, pornit din `origin/main` proaspăt. Nu
+lucra în checkout-ul principal și nu împărți worktree-ul cu alt agent. SOP complet:
+[`docs/ops/agent-workflow.md`](docs/ops/agent-workflow.md); prompt reutilizabil:
+[`docs/agents/prompt-template.md`](docs/agents/prompt-template.md).
+
+```bash
+bash scripts/agent-worktree.sh <slug>   # fetch + ../LocalSight-prep/<slug> + symlink node_modules
+cd ../LocalSight-prep/<slug> && source .agent/env && bash scripts/agent-preflight.sh
+bash scripts/agent-status.sh            # tabel read-only, pentru ordinea de merge
+bash scripts/agent-cleanup.sh           # dry-run; --apply doar pe merged + clean + idle
+```
+
+- `agent-preflight.sh` doar fetchuiește; dacă ești dirty sau în urmă, te avertizează: curăță
+  arborele și fă rebase pe `origin/main` înainte să începi, nu trage orbește.
+- Nu rula `npm ci` într-un worktree legat: scrie prin symlink în checkout-ul principal.
+- Porturile din `.agent/env` sunt unice; nu refolosi un server pe care nu l-ai pornit.
+- Bucla rapidă: `npm run verify:fast` (~12 s), apoi `npm run verify` (~21 s) înainte de
+  raport. Pentru iterații e2e: `npm run e2e:serve` + `PW_BASE_URL`, fără rebuild.
+- Commit pe `prep/<slug>`, push când cere umanul; **nu face merge singur**. Curățenia se
+  face cu `agent-cleanup.sh --apply` numai după ce commitul e pe `origin/main`.
+
 ## Când ești blocat
 
 Citește documentul relevant și fișierele atinse; propune un plan de 3 linii; pune o singură
