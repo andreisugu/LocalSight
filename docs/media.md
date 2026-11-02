@@ -4,6 +4,11 @@ Demo-ul din browser rulează clipuri în buclă. Clipurile originale sunt 4K și
 cântăresc 4–42 MB fiecare, așa că **nu pot fi urcate în repo ca atare**. Aici e
 rețeta care le face mici, unde ajung fișierele și cum le publicăm.
 
+**Stare (2 nov 2026):** repo-ul conține deja cele trei clipuri web folosite de
+mock data — `stand12.mp4`, `taxiway-b.mp4`, `baggage-area.mp4`, 10,6 MB în total.
+Nu sunt sursele 4K, ci exact ieșirea `scripts/prepare-demo-media.sh` (vezi
+[Clipurile din repo](#clipurile-din-repo)).
+
 ## De ce nu urcăm sursele
 
 | Problemă | Efect |
@@ -61,17 +66,32 @@ ffmpeg -i sursa.mp4 -t 20 \
 
 ### Rezultate măsurate (2 nov 2026, ffmpeg 8.1.3)
 
-| Clip | Sursă | Dimensiuni | Web | Reducere |
-|---|---|---|---|---|
-| `2026-10-30_broll_cam01_marshaller-conuri-apron.mp4` | 4.1 MB | 1280x720 | 1.2 MB | 71% |
-| `2026-10-30_restricted-zone_cam01_persoana-langa-motor.mp4` | 5.0 MB | 1920x1080 | 3.4 MB | 33% |
+Rularea care a produs clipurile din repo, în ordinea din script:
 
-Total: 9.1 MB → 4.6 MB. Restul clipurilor sunt 4K (3840x2160 sau 2160x3840) și
-ies mai mici proporțional, dar se encodează mai lent.
+| Sursă (`data/videos`) | Sursă | Dimensiuni | Web | Reducere | Nume în repo |
+|---|---|---|---|---|---|
+| `2026-10-30_restricted-zone_cam01_persoana-langa-motor.mp4` | 5.0 MB | 1920x1080 | 3.4 MB | 33% | `stand12.mp4` |
+| `2026-10-30_broll_cam01_marshaller-conuri-apron.mp4` | 4.1 MB | 1280x720 | 1.2 MB | 71% | `taxiway-b.mp4` |
+| `2026-10-30_broll_cam02_avion-la-poarta-bagaje.mp4` | 41.4 MB | 3840x2160 → 1920x1080 | 6.0 MB | 86% | `baggage-area.mp4` |
+
+Total: 50,5 MB de sursă → **10,6 MB** de clipuri web, sub plafonul de ~15 MB.
+
+Scriptul scrie numele sursei, dar demo-ul cere `<camera-id>.mp4` (vezi
+`frontend/src/constants/mockData.js`). Redenumirea se face o singură dată, după
+encode:
+
+```bash
+mkdir -p /tmp/media-src && cp data/videos/<cele-trei-surse>.mp4 /tmp/media-src/
+bash scripts/prepare-demo-media.sh /tmp/media-src frontend/public/media
+cd frontend/public/media
+mv 2026-10-30_restricted-zone_cam01_persoana-langa-motor.mp4 stand12.mp4
+mv 2026-10-30_broll_cam01_marshaller-conuri-apron.mp4      taxiway-b.mp4
+mv 2026-10-30_broll_cam02_avion-la-poarta-bagaje.mp4       baggage-area.mp4
+```
 
 > `2026-10-30_broll_cam03_lucratori-cu-veste-apron.mp4` e filmat **vertical**
-> (2160x3840). Cu regula „lățime max 1920” ajunge la 1920x3414 — corect ca
-> orientare, dar înalt. Pentru el rulează `--max-width 1280`.
+> (2160x3840). Nu e printre clipurile livrate; dacă îl adaugi, rulează
+> `--max-width 1280`, altfel iese 1920x3414 — corect ca orientare, dar înalt.
 
 ### Verificare
 
@@ -89,16 +109,41 @@ python3 -c "import sys;d=open(sys.argv[1],'rb').read(2_000_000);print(d.find(b'm
 ## Unde stau fișierele
 
 `frontend/public/media/` este servit de Vite la `/media/<clip>.mp4` și copiat
-în `dist/` la build. Directorul **nu** e în git: regula `*.mp4` din `.gitignore`
-(linia 41) prinde și fișierele de aici.
+în `dist/` la build.
 
-```bash
-git check-ignore -v frontend/public/media/<clip>.mp4
-# .gitignore:41:*.mp4	frontend/public/media/<clip>.mp4
+## Clipurile din repo (2 nov 2026)
+
+Cele trei clipuri cerute de Live când nu există backend sunt **versionate în
+git**, prin excepția țintită din `.gitignore`:
+
+| Fișier | Cameră (`mockData.js`) | Dimensiune | Durată | Rezoluție |
+|---|---|---|---|---|
+| `frontend/public/media/stand12.mp4` | `stand12` — CAM-01 Stand 12 | 3.4 MB | 8.8 s | 1920x1080 |
+| `frontend/public/media/taxiway-b.mp4` | `taxiway-b` — CAM-02 Taxiway B | 1.2 MB | 12.2 s | 1280x720 |
+| `frontend/public/media/baggage-area.mp4` | `baggage-area` — CAM-03 Bagaje | 6.0 MB | 13.3 s | 1920x1080 |
+
+**Total: 10,6 MB** (11 084 055 bytes), H.264 `yuv420p`, fără audio, `+faststart`.
+Toate trei sunt generate de `scripts/prepare-demo-media.sh` și redenumite după
+ID-ul camerei; nu sunt surse 4K și nu trebuie înlocuite cu ele.
+
+Excepția din `.gitignore` (liniile 48–53):
+
+```gitignore
+# Excepție țintită: clipurile web din demo-ul static (Live fără backend le joacă
+# direct din frontend/public/media/<camera-id>.mp4). Sunt mici (~11 MB total, sub
+# 15 MB per fișier), fără audio, max 1920 px; se regenerează cu
+# scripts/prepare-demo-media.sh. Sursele 4K din data/videos rămân ignorate.
+!frontend/public/media/
+!frontend/public/media/*.mp4
 ```
 
-Deci un `npm run build` curat, pe o clonă nouă, **nu** are clipuri până nu rulează
-scriptul. Asta e intenționat: binarul nu se plimbă prin istoricul git.
+```bash
+git check-ignore -q frontend/public/media/stand12.mp4; echo $?   # 1 = nu e ignorat
+git check-ignore -v data/videos/orice.mp4                        # .gitignore:41:*.mp4
+```
+
+Deci un `git clone` + `npm run build` are clipurile fără niciun pas manual, iar
+sursele 4K continuă să stea doar pe Drive.
 
 ## Limitările GitHub Pages
 
@@ -113,25 +158,24 @@ Ambele variante de mai jos stau confortabil sub aceste limite.
 
 ## Varianta A — commit la fișierele re-encodate
 
-Potrivită când clipurile web rămân sub ~10 MB fiecare și vrei un `git clone` care
-merge direct, fără pași manuali.
+**Aplicată** (2 nov 2026): clipurile web sunt în repo, prin excepția din
+`.gitignore` descrisă mai sus. Potrivită când fiecare clip rămâne sub ~10 MB și
+vrei un `git clone` care merge direct, fără pași manuali.
 
-Se adaugă o excepție **după** regula `*.mp4` din `.gitignore`:
-
-```gitignore
-# Media demo: doar versiunile web re-encodate, mici (vezi docs/media.md)
-!frontend/public/media/
-!frontend/public/media/*.mp4
-```
-
-Apoi:
+Pașii, dacă vrei să adaugi sau să regenerezi un clip:
 
 ```bash
-bash scripts/prepare-demo-media.sh
+bash scripts/prepare-demo-media.sh /tmp/media-src frontend/public/media
 git add .gitignore frontend/public/media/*.mp4
 git status --short          # verifică: doar fișierele mici, nu 4K-urile
-git commit -m "chore(demo): add web-ready demo clips"
+git commit -m "chore(demo): refresh web-ready demo clips"
 ```
+
+Reguli:
+
+- **niciodată** sursele 4K, doar ieșirea scriptului (sub 15 MB per fișier);
+- dacă un clip depășește ~10 MB, scade `--max-width` sau urcă `-crf`, nu îl urca așa;
+- excepția e îngustă intenționat — nu adăuga `!data/videos/*.mp4`.
 
 Reguli:
 
@@ -186,7 +230,10 @@ Note pentru varianta B:
 
 ## Regula pentru agenți
 
-- Sursele 4K nu se commit niciodată; `*.mp4` rămâne ignorat în afara variantei A.
+- Sursele 4K nu se commit niciodată; `*.mp4` rămâne ignorat în afara celor trei
+  fișiere din `frontend/public/media/` (excepția de la Varianta A).
+- Clipurile deja livrate nu se înlocuiesc cu sursele 4K: se regenerează cu
+  `scripts/prepare-demo-media.sh` și se păstrează sub 15 MB per fișier / ~15 MB total.
 - Nu modifica `--crf`/`--max-width` ca să „încapă” un fișier fără să notezi aici.
 - Dacă schimbi lista de clipuri, actualizează și tabelul din
   `data/videos/README.md`.
