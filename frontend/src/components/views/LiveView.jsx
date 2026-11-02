@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { useEngine } from '../../engine/useEngine';
@@ -48,6 +48,7 @@ export default function LiveView() {
     addEngineEvents,
     health,
     searchQuery,
+    reportActiveCamera,
   } = useSecurity();
 
   // 'standard' | 'split' | 'fullscreen'
@@ -112,6 +113,18 @@ export default function LiveView() {
   // worker is stopped there instead of being left pointing at a <video> that no longer
   // exists.
   const engineEnabled = browserEngineOn && engineSource && displayMode !== 'fullscreen';
+
+  // The background manager must skip exactly the camera whose frames this view feeds to
+  // its worker. A selected-but-stopped camera is not owned: turning the engine off, leaving
+  // Live or entering fullscreen releases it, and the background run may process it.
+  // A layout effect, not a passive one: the ownership update must land before the provider's
+  // passive effect creates the manager, otherwise the manager could start a worker for the
+  // camera Live is about to claim.
+  useLayoutEffect(() => {
+    reportActiveCamera(engineEnabled ? activeCamera?.id ?? null : null);
+    return () => reportActiveCamera(null);
+  }, [engineEnabled, activeCamera?.id, reportActiveCamera]);
+
   const engine = useEngine({
     videoRef,
     canvasRef,
