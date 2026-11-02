@@ -63,8 +63,15 @@ function configureOrt(ort) {
  */
 export async function preferredProviders() {
   if (typeof navigator === 'undefined' || !navigator.gpu) return ['wasm'];
+  // Firefox exposes WebGPU to workers once `dom.webgpu.*` is on, but ONNX Runtime is not a
+  // useful path there yet: asking for both graphs at once made one session creation block
+  // the worker thread forever (no frame, no error, no timer possible), and built
+  // sequentially it runs at 0.4–0.7 fps versus 1.5 fps on wasm — measured on Firefox
+  // 157/159, Linux, stand12 at 1920×1080. Wasm is the path that works; /bench can still
+  // force `webgpu` for anyone testing a future build.
+  if (/Firefox\//.test(navigator.userAgent || '')) return ['wasm'];
   try {
-    const adapter = await navigator.gpu.requestAdapter();
+    const adapter = await withTimeout(navigator.gpu.requestAdapter(), 4000, 'requestAdapter');
     return adapter ? ['webgpu', 'wasm'] : ['wasm'];
   } catch {
     return ['wasm'];
@@ -139,21 +146,45 @@ async function fetchModelBytes(url) {
   return new Uint8Array(await response.arrayBuffer());
 }
 
+// Firefox exposes WebGPU to workers once the prefs are on, but ONNX Runtime's WebGPU
+// session can then sit in `InferenceSession.create` forever: no rejection, no frame, no
+// error in the console. A timeout is the only way to tell "still compiling shaders" from
+// "never going to answer"; past it we rebuild on wasm, which is the path the edge uses.
+const WEBGPU_SESSION_TIMEOUT_MS = 12_000;
+
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms} ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 async function createSession(ort, url, providers) {
   const bytes = await fetchModelBytes(url);
   const options = { executionProviders: providers, graphOptimizationLevel: 'all' };
-  try {
+  if (providers[0] !== 'webgpu') {
     const session = await ort.InferenceSession.create(bytes, options);
-    // The first requested provider is the one ORT picked; a silent internal fallback is
-    // not observable from the session object, so callers that need proof pass a single
-    // provider (`['webgpu']`) instead of a preference list.
     return { session, provider: providers[0], fallback: false };
+  }
+  // Ask for WebGPU alone so a hang is observable; the fallback below is explicit instead
+  // of ORT's silent internal one.
+  try {
+    const session = await withTimeout(
+      ort.InferenceSession.create(bytes, { ...options, executionProviders: ['webgpu'] }),
+      WEBGPU_SESSION_TIMEOUT_MS,
+      'webgpu session'
+    );
+    return { session, provider: 'webgpu', fallback: false };
   } catch (error) {
-    if (providers[0] !== 'webgpu') throw error;
-    // A GPU session can still be refused (driver blocklist, out of memory); wasm is the
-    // documented fallback and is what the Python edge uses anyway.
-    const session = await ort.InferenceSession.create(bytes, { ...options, executionProviders: ['wasm'] });
-    return { session, provider: 'wasm', fallback: true };
+    // A GPU session can be refused (driver blocklist, out of memory) or never settle
+    // (Firefox today). Wasm is the documented fallback and is what the Python edge uses.
+    const reason = error instanceof Error ? error.message : String(error);
+    const session = await ort.InferenceSession.create(bytes, {
+      ...options,
+      executionProviders: ['wasm']
+    });
+    return { session, provider: 'wasm', fallback: true, reason };
   }
 }
 
@@ -182,10 +213,18 @@ export async function loadModels(onProgress = () => {}, options = {}) {
     : await preferredProviders();
   onProgress(providers[0] === 'webgpu' ? 'loading (webgpu)' : 'loading (wasm)');
 
-  const [yolo, yunet] = await Promise.all([
-    createSession(ort, YOLO_MODEL_URL, providers),
-    createSession(ort, YUNET_MODEL_URL, providers),
-  ]);
+  const [yolo, yunet] = providers[0] === 'webgpu'
+    // ORT's WebGPU EP refuses a second concurrent session ("another WebGPU EP inference
+    // session is being created"), so build the graphs one after the other there. On wasm
+    // the two loads are independent and run in parallel.
+    ? [
+        await createSession(ort, YOLO_MODEL_URL, providers),
+        await createSession(ort, YUNET_MODEL_URL, providers),
+      ]
+    : await Promise.all([
+        createSession(ort, YOLO_MODEL_URL, providers),
+        createSession(ort, YUNET_MODEL_URL, providers),
+      ]);
 
   const yoloInput = inputShape(yolo.session);
   const yunetInput = inputShape(yunet.session);

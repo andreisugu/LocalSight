@@ -498,8 +498,10 @@ export default function LiveView() {
         ? `${liveFps} FPS • Live`
         : 'FPS necunoscut';
   const zoneLabel = activeZone?.name || activeCamera?.subtitle || activeCamera?.name || '—';
+  // The provider is the one ORT actually created, not the one we asked for: on a machine
+  // where WebGPU is refused, saying "browser" would hide which path is running.
   const modelLabel = browserEngineOn && engineSource
-    ? 'YOLO26n · browser'
+    ? `YOLO26n · ${engine.actualProviders?.length ? engine.actualProviders.join('+') : 'browser'}`
     : showStream
       ? 'edge · YOLO26'
       : 'oprit';

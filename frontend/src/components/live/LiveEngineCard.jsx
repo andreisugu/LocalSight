@@ -264,9 +264,8 @@ export default function LiveEngineCard({
               className="text-[10px] font-semibold text-amber-600 dark:text-[#FFEB33] flex items-start gap-1"
             >
               <AlertTriangle size={12} className="shrink-0 mt-px" />
-              rulează pe WASM single-thread; sub 2 fps — pentru GPU în Firefox:{' '}
-              <code>dom.webgpu.enabled</code> + <code>dom.webgpu.workers.enabled</code> (vezi /bench),
-              sau Chrome cu WebGPU
+              rulează pe WASM single-thread; sub 2 fps — Firefox nu are încă WebGPU stabil
+              pentru motor, încearcă Chrome/Edge (vezi /bench)
             </p>
           )}
           <p className="text-[10px] text-slate-500 dark:text-slate-400">

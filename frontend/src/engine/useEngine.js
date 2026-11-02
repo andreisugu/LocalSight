@@ -34,6 +34,9 @@ const LOOP_EVENTS = ['loadstart', 'loadedmetadata', 'loadeddata', 'canplay', 'pl
 // Some browsers stay quiet after a device swap or a track mute: one cheap check keeps the
 // loop alive without polling frames.
 const LOOP_WATCHDOG_MS = 1000;
+// A WebGPU session that is still "loading" after this long is treated as wedged, not slow:
+// the worker is terminated (it may be blocked synchronously) and rebuilt on wasm.
+const ENGINE_STALL_MS = 30_000;
 
 /**
  * @param {{ videoRef: import('react').RefObject<HTMLVideoElement>,
@@ -65,6 +68,11 @@ export function useEngine({
   cameraId,
 }) {
   const [stats, setStats] = useState(INITIAL_STATS);
+  // Set only by the stall watchdog: a provider that never produced a frame is abandoned
+  // for wasm, which is observable and safe. A deliberate `provider` prop still wins when
+  // the caller changes it (the bench page).
+  const [forcedProvider, setForcedProvider] = useState(null);
+  const effectiveProvider = forcedProvider || provider;
   const lastStatsRef = useRef(0);
   // The callback changes on every render; keeping it in a ref avoids restarting the worker
   // (and reloading the graphs) just because the caller re-rendered.
@@ -76,6 +84,10 @@ export function useEngine({
   const configRef = useRef({ zones, engineOn, cameraId });
   configRef.current = { zones, engineOn, cameraId };
   const workerRef = useRef(null);
+
+  useEffect(() => {
+    setForcedProvider(null);
+  }, [provider]);
 
   useEffect(() => {
     if (!enabled) {
@@ -108,6 +120,7 @@ export function useEngine({
 
     let disposed = false;
     let inFlight = false;
+    let receivedFrame = false;
     // The worker outlives a source swap on purpose: recreating it would reload the ONNX
     // graphs. Only the frame loop is torn down and restarted.
     let loopActive = false;
@@ -133,6 +146,7 @@ export function useEngine({
       const message = event.data || {};
       if (message.type === 'result') {
         inFlight = false;
+        receivedFrame = true;
         draw(message.bitmap);
         const at = performance.now();
         onSampleRef.current?.({
@@ -302,11 +316,20 @@ export function useEngine({
       if (video.videoWidth && video.readyState >= 2) startLoop();
     }, LOOP_WATCHDOG_MS);
 
+    // ONNX Runtime can block the worker thread inside WebGPU session creation, so a
+    // timeout *inside* the worker would never fire. The supervisor lives on the page: if
+    // no frame arrives, kill the worker and start a clean one on wasm.
+    const stallTimer = setTimeout(() => {
+      if (disposed || receivedFrame || effectiveProvider === 'wasm') return;
+      console.warn('[engine] no frame after 30 s; restarting on wasm');
+      setForcedProvider('wasm');
+    }, ENGINE_STALL_MS);
+
     const init = { type: 'init' };
-    if (provider) {
+    if (effectiveProvider) {
       // A single provider is a demand, not a preference: if ORT refuses it, the engine
       // falls back to wasm and says so through `actualProviders`.
-      init.providers = [provider];
+      init.providers = [effectiveProvider];
     }
     if (Number.isFinite(inputSize) && inputSize > 0) init.inputSize = inputSize;
     // Configurația Live, citită la momentul pornirii. `/lab` nu trimite niciuna dintre
@@ -322,6 +345,7 @@ export function useEngine({
       disposed = true;
       stopLoop();
       clearInterval(watchdog);
+      clearTimeout(stallTimer);
       LOOP_EVENTS.forEach((name) => video.removeEventListener(name, onLoopHint));
       video.removeEventListener('loadstart', resetCounters);
       video.removeEventListener('emptied', onSourceReset);
@@ -331,7 +355,7 @@ export function useEngine({
       // from the video that was just detached.
       setStats((previous) => ({ ...INITIAL_STATS, providers: previous.providers }));
     };
-  }, [enabled, provider, inputSize, videoRef, canvasRef]);
+  }, [enabled, effectiveProvider, inputSize, videoRef, canvasRef]);
 
   // Zonele editate ajung la worker fără restart. `zones` vine memoizat din LiveView, deci
   // efectul chiar pornește doar când configurația se schimbă; `/lab` nu trimite nimic.
