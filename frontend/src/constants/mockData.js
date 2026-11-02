@@ -103,6 +103,15 @@ export const DEMO_STILLS = {
   'baggage-area': `${SNAPSHOT_BASE}baggage-hall.jpg`,
 };
 
+// Primul cadru din fiecare clip demo, la aceeași scară cu fluxul. Editorul de zone îl
+// folosește ca fundal când nu există încă un `reference_frame` încărcat de edge; așa
+// poligonul se desenează peste imaginea reală, nu peste un dreptunghi negru.
+export const DEMO_REFERENCE_FRAMES = {
+  stand12: `${SNAPSHOT_BASE}zone-stand12.jpg`,
+  'taxiway-b': `${SNAPSHOT_BASE}zone-taxiway-b.jpg`,
+  'baggage-area': `${SNAPSHOT_BASE}zone-baggage-area.jpg`,
+};
+
 // Conformitatea PPE se măsoară pe toate detecțiile de persoane din tură, nu doar pe
 // incidentele din listă; 93,8% înseamnă 8 abateri la ~129 de verificări.
 const PPE_COMPLIANCE_PCT = 93.8;

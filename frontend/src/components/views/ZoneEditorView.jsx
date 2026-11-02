@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
+import { DEMO_REFERENCE_FRAMES } from '../../constants/mockData';
 import { crossingEdges, orderAroundCentroid } from '../../utils/polygon';
 
 // Un punct e ținut în coordonate normalizate 0-1, ca poligonul să urmeze orice rezoluție.
@@ -526,7 +527,13 @@ export default function ZoneEditorView() {
   }
 
   const canSave = Boolean(zoneId) && points.length >= 3 && closed && !hasCrossing && !saving;
-  const hasReference = Boolean(zone?.reference_frame_url);
+  // The static build has no edge to upload a reference frame, so the first frame of the
+  // camera's demo clip is the background. Same aspect as the clip, so the polygon keeps
+  // its coordinates; a real uploaded frame still wins.
+  const demoReferenceUrl = DEMO_REFERENCE_FRAMES[selectedCameraId] || null;
+  const referenceUrl = zone?.reference_frame_url || demoReferenceUrl || null;
+  const hasReference = Boolean(referenceUrl);
+  const usingDemoReference = !zone?.reference_frame_url && Boolean(demoReferenceUrl);
 
   return (
     <div className="flex-1 p-4 md:p-6 overflow-y-auto space-y-4 h-full max-w-7xl mx-auto">
@@ -642,8 +649,8 @@ export default function ZoneEditorView() {
           >
             {hasReference ? (
               <img
-                key={zone.reference_frame_url}
-                src={zone.reference_frame_url}
+                key={referenceUrl}
+                src={referenceUrl}
                 alt="Cadru de referință"
                 className="absolute inset-0 w-full h-full object-fill pointer-events-none"
                 draggable={false}
@@ -660,6 +667,12 @@ export default function ZoneEditorView() {
                   <br />
                   sau pornește edge-ul ca să apară imaginea camerei.
                 </p>
+              </div>
+            )}
+
+            {usingDemoReference && (
+              <div className="absolute top-2 right-2 px-2 py-0.5 rounded bg-black/75 text-[10px] font-mono text-slate-200 border border-white/20 pointer-events-none">
+                cadru demo • primul frame din clip
               </div>
             )}
 
@@ -986,8 +999,8 @@ export default function ZoneEditorView() {
             {hasReference ? (
               <div className="space-y-2">
                 <img
-                  key={zone.reference_frame_url}
-                  src={zone.reference_frame_url}
+                  key={referenceUrl}
+                  src={referenceUrl}
                   alt="Referință"
                   className="w-full rounded-lg border border-white/10"
                 />
