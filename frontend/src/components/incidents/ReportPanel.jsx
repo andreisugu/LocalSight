@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Info, RefreshCw } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
-import { reportFields, reportSourceLabel, shouldOfferReportRetry } from '../../utils/incidentDetail';
-
-const SOURCE_TITLES = {
-  'șablon': 'Raport scris din șablon; în browser nu rulează niciun LLM.',
-  'AI · demo': 'Fixture demo: raportul a fost scris de AI în backendul de referință.',
-  AI: 'Raport scris de AI la ingest.',
-};
+import { SourceChip } from './Chips';
+import {
+  reportFields,
+  reportSourceLabel,
+  reportSourceNote,
+  shouldOfferReportRetry,
+} from '../../utils/incidentDetail';
 
 function ReportSkeleton() {
   return (
@@ -19,11 +19,14 @@ function ReportSkeleton() {
   );
 }
 
-// Right column, top: the five contract fields and the honest label of who wrote them.
+// Right column, top: the five contract fields and the honest label of who wrote them. The
+// chip names the source and the line under it says when it was written, so `AI · demo`
+// cannot be read as "a model ran now" — and the browser never claims an LLM it does not run.
 export default function ReportPanel({ event, mock, onRetry }) {
   const { themeStyles, isDarkMode } = useTheme();
   const [retrying, setRetrying] = useState(false);
   const source = reportSourceLabel(event.report, { mock });
+  const note = reportSourceNote(event.report, { mock });
   const offerRetry = shouldOfferReportRetry(event, { mock });
   const fields = reportFields(event.report);
 
@@ -43,19 +46,22 @@ export default function ReportPanel({ event, mock, onRetry }) {
       className="rounded-xl border p-4 shadow-lg space-y-3"
     >
       <div className="flex flex-wrap items-start justify-between gap-2 pb-2 border-b border-white/10">
-        <h3 className="font-bold text-sm uppercase tracking-wider flex items-center gap-2 min-w-0">
-          <Info size={16} className="text-[#D73833] shrink-0" />
-          <span>
-            Raport incident (
-            <span title={SOURCE_TITLES[source]}>{source}</span>)
-          </span>
-        </h3>
+        <div className="min-w-0 space-y-1">
+          <h3 className="font-bold text-sm uppercase tracking-wider flex flex-wrap items-center gap-2 min-w-0">
+            <Info size={16} className="text-[#D73833] shrink-0" aria-hidden="true" />
+            <span>Raport incident</span>{' '}
+            <SourceChip title={note}>sursă: {source}</SourceChip>
+          </h3>
+          <p className="text-[11px] leading-snug" style={{ color: themeStyles.textMuted }}>
+            {note}
+          </p>
+        </div>
         {offerRetry && (
           <button
             type="button"
             onClick={retry}
             title="Raportul a fost scris din șablon (AI indisponibil); încearcă din nou cu AI"
-            className="no-print text-xs text-[#D73833] hover:underline flex items-center gap-1 font-semibold shrink-0"
+            className="no-print text-xs text-[#B91C1C] dark:text-[#FF8A80] hover:underline flex items-center gap-1 font-semibold shrink-0"
           >
             <RefreshCw size={12} className={retrying ? 'animate-spin' : ''} />
             Reîncearcă cu AI
@@ -78,9 +84,17 @@ export default function ReportPanel({ event, mock, onRetry }) {
             >
               <dt
                 className={`font-bold block text-[11px] ${
-                  field.key === 'severity_reason' ? 'text-red-500' : ''
+                  field.key === 'severity_reason'
+                    ? 'text-red-700 dark:text-red-300'
+                    : field.key === 'recommended_action'
+                      ? 'text-amber-800 dark:text-amber-200'
+                      : ''
                 }`}
-                style={field.key === 'severity_reason' ? undefined : { color: themeStyles.textMuted }}
+                style={
+                  field.key === 'severity_reason' || field.key === 'recommended_action'
+                    ? undefined
+                    : { color: themeStyles.textMuted }
+                }
               >
                 {field.label}
               </dt>

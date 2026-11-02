@@ -15,6 +15,7 @@ import { printAsPdf } from '../../utils/print';
 import { buildShiftReport } from '../../constants/shiftReport';
 import { OPERATIONAL_DATE, OPERATIONAL_SHIFT_ID } from '../../constants/mockData';
 import { Panel } from '../ui';
+import { ProvenanceChip, SourceChip } from '../incidents/Chips';
 import { formatDate, formatDuration } from '../../utils/time';
 import {
   REPORT_SOURCE,
@@ -45,13 +46,16 @@ const SHIFTS = [
 const VALUE_TONE = {
   neutral: 'text-[#1F1F1F] dark:text-[#F5F5F5]',
   critical: 'text-red-700 dark:text-[#FF8A80]',
-  accent: 'text-[#D73833]',
-  warning: 'text-amber-600 dark:text-[#FFEB33]',
+  accent: 'text-[#B91C1C] dark:text-[#FF8A80]',
+  warning: 'text-amber-700 dark:text-[#FFEB33]',
   safe: 'text-emerald-700 dark:text-emerald-400',
 };
 
+/** Section headings: scarlet darkened for AA on both surfaces, never a decorative red. */
+const HEADING_TONE = 'text-[#B91C1C] dark:text-[#FF8A80]';
+
 /** Panel title row: icon, uppercase label, optional right-hand slot. */
-function PanelTitle({ icon: Icon, children, aside = null, tone = 'text-[#D73833]' }) {
+function PanelTitle({ icon: Icon, children, aside = null, tone = HEADING_TONE }) {
   return (
     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
       <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
@@ -63,28 +67,26 @@ function PanelTitle({ icon: Icon, children, aside = null, tone = 'text-[#D73833]
   );
 }
 
-/** Small monospace marker; the report writer is always the template, never a model. */
-function SourceTag({ title, children }) {
-  return (
-    <span
-      title={title}
-      className="rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-600 dark:border-white/20 dark:bg-white/10 dark:text-slate-300"
-    >
-      {children}
-    </span>
-  );
-}
-
 function ExportButtons({ onCsv, onPdf }) {
+  // One primary action per screen: printing the report is the deliverable, the CSV is the
+  // secondary export. The old pair was two equal filled buttons (green + red).
   const button =
-    'no-print inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold text-white shadow transition-colors';
+    'no-print inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition-colors';
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <button type="button" onClick={onCsv} className={`${button} bg-emerald-700 hover:bg-emerald-600`}>
+      <button
+        type="button"
+        onClick={onCsv}
+        className={`${button} border border-[#E5E7EB] text-[#1F1F1F] hover:bg-slate-50 dark:border-white/15 dark:text-slate-200 dark:hover:bg-white/10`}
+      >
         <FileDown size={15} aria-hidden="true" /> Export CSV
       </button>
       {/* Export PDF is the browser print dialog; index.css carries the print rules. */}
-      <button type="button" onClick={onPdf} className={`${button} bg-[#D73833] hover:bg-[#b82e2a]`}>
+      <button
+        type="button"
+        onClick={onPdf}
+        className={`${button} bg-[#D73833] text-white shadow hover:bg-[#B91C1C]`}
+      >
         <FileDown size={15} aria-hidden="true" /> Export PDF
       </button>
     </div>
@@ -107,7 +109,7 @@ function ReportHeader({ report, hasEvents, onCsv, onPdf }) {
           Incidente, timpi de reacție și distribuția pe tipuri, pe tură
         </p>
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-0.5 font-mono text-[11px] font-bold">
-          <span className="truncate">{report.shift}</span>
+          <span className="break-words">{report.shift}</span>
           <span aria-hidden="true" style={{ color: themeStyles.textMuted }}>
             ·
           </span>
@@ -115,9 +117,9 @@ function ReportHeader({ report, hasEvents, onCsv, onPdf }) {
           <span aria-hidden="true" style={{ color: themeStyles.textMuted }}>
             ·
           </span>
-          <SourceTag title="Sumarul și cifrele sunt compuse din incidentele din listă; niciun model AI nu a scris acest raport.">
+          <SourceChip title="Sumarul și cifrele sunt compuse din incidentele din listă; niciun model AI nu a scris acest raport.">
             sursă: {REPORT_SOURCE}
-          </SourceTag>
+          </SourceChip>
         </p>
       </div>
       {hasEvents && <ExportButtons onCsv={onCsv} onPdf={onPdf} />}
@@ -171,12 +173,17 @@ function ShiftScope({ shiftValue, shiftOptions, report, onShiftChange }) {
       </div>
 
       {USE_MOCK && (
-        <span
-          title="Build-ul demo are un singur raport de tură; selectorii sunt dezactivați ca să nu promită altă dată sau altă tură."
-          className="ml-auto rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-800 dark:border-[#FFEB33]/40 dark:bg-[#FFEB33]/15 dark:text-[#FFEB33]"
-        >
-          demo: un singur raport disponibil
-        </span>
+        <div className="ml-auto flex flex-wrap items-center gap-x-2 gap-y-1">
+          <ProvenanceChip
+            tone="demo"
+            title="Build-ul demo are un singur raport de tură; selectorii sunt dezactivați ca să nu promită altă dată sau altă tură."
+          >
+            date demo
+          </ProvenanceChip>
+          <span className="text-[11px]" style={{ color: themeStyles.textMuted }}>
+            un singur raport de tură; selectorii sunt dezactivați.
+          </span>
+        </div>
       )}
     </Panel>
   );
@@ -266,33 +273,36 @@ function ReportKpis({ kpi }) {
 /** PPE and escalation states, plus the reason compliance is not on this page. */
 function StatusStrip({ report }) {
   const { themeStyles } = useTheme();
+  const cell = 'min-w-0 space-y-1';
+  const label = 'text-xs font-semibold';
+  const value = 'font-mono text-2xl font-black leading-none';
   return (
-    <Panel as="section" size="card" className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-      <div className="min-w-0">
-        <p className="text-xs font-semibold" style={{ color: themeStyles.textMuted }}>
+    <Panel as="section" size="card" className="grid grid-cols-3 gap-x-4 gap-y-3">
+      <div className={cell}>
+        <p className={label} style={{ color: themeStyles.textMuted }}>
           Incidente fără PPE (NO_PPE)
         </p>
-        <p className="mt-1 font-mono text-2xl font-black leading-none text-emerald-700 dark:text-emerald-400" data-testid="report-no-ppe">
+        <p className={`${value} text-emerald-700 dark:text-emerald-400`} data-testid="report-no-ppe">
           {report.ppe.no_ppe_incidents}
         </p>
       </div>
-      <div className="text-right">
-        <p className="text-xs font-semibold" style={{ color: themeStyles.textMuted }}>
+      <div className={cell}>
+        <p className={label} style={{ color: themeStyles.textMuted }}>
           Escalate
         </p>
-        <p className="mt-1 font-mono text-lg font-black leading-none text-amber-600 dark:text-[#FFEB33]" data-testid="report-escalated">
+        <p className={`${value} text-amber-700 dark:text-[#FFEB33]`} data-testid="report-escalated">
           {report.kpi.escalated_events}
         </p>
       </div>
-      <div className="text-right">
-        <p className="text-xs font-semibold" style={{ color: themeStyles.textMuted }}>
+      <div className={cell}>
+        <p className={label} style={{ color: themeStyles.textMuted }}>
           Cu confirmare
         </p>
-        <p className="mt-1 font-mono text-lg font-black leading-none text-emerald-700 dark:text-emerald-400" data-testid="report-acknowledged">
+        <p className={`${value} text-emerald-700 dark:text-emerald-400`} data-testid="report-acknowledged">
           {report.kpi.acked_events}
         </p>
       </div>
-      <p className="w-full text-[11px] leading-relaxed" style={{ color: themeStyles.textMuted }}>
+      <p className="col-span-3 text-[11px] leading-relaxed" style={{ color: themeStyles.textMuted }}>
         Conformitatea PPE nu este afișată: procentul se calculează pe toate detecțiile de
         persoane din tură, nu pe incidente, deci nu poate fi dedus din această listă.
       </p>
@@ -305,11 +315,16 @@ function ReportSummary({ report }) {
   return (
     <Panel as="section" size="card" className="space-y-1.5">
       <div className="flex flex-wrap items-center gap-2">
-        <ShieldCheck size={15} className="shrink-0 text-[#D73833]" aria-hidden="true" />
-        <h3 className="text-xs font-bold uppercase tracking-wider text-[#D73833]">Rezumat Executiv Tură:</h3>
-        <SourceTag title="Text compus din cifrele raportului; nu este generat de AI.">șablon</SourceTag>
+        <ShieldCheck size={15} className={`shrink-0 ${HEADING_TONE}`} aria-hidden="true" />
+        <h3 className={`text-xs font-bold uppercase tracking-wider ${HEADING_TONE}`}>
+          Rezumat Executiv Tură:
+        </h3>
+        <SourceChip title="Text compus din cifrele raportului; nu este generat de AI.">
+          sursă: șablon
+        </SourceChip>
       </div>
-      <p className="text-xs leading-relaxed" style={{ color: themeStyles.text }}>
+      {/* A readable measure: 68 characters per line instead of a 1070 px paragraph (M2). */}
+      <p className="max-w-[68ch] text-[13px] leading-relaxed" style={{ color: themeStyles.text }}>
         <span data-testid="report-summary">{report.summary}</span>
       </p>
       <p className="font-mono text-[10px]" style={{ color: themeStyles.textMuted }}>
@@ -320,30 +335,41 @@ function ReportSummary({ report }) {
 }
 
 function TypeDistribution({ report }) {
+  const { themeStyles } = useTheme();
   const total = report.kpi.total_events;
   return (
     <Panel as="section" size="card">
       <PanelTitle icon={BarChart3}>Distribuție pe Tipuri de Alertă (by_type)</PanelTitle>
       <ul className="space-y-2.5 text-xs">
-        {report.by_type.map((type) => (
-          <li key={type.type} className="space-y-1" data-testid={`report-type-${type.type}`}>
-            <div className="flex items-baseline justify-between gap-2 text-[11px] font-semibold">
-              <span className="min-w-0 truncate">
-                {type.label} ({type.type})
-              </span>
-              <span className="font-mono font-bold" data-testid={`report-type-count-${type.type}`}>
-                {type.count}
-              </span>
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
+        {report.by_type.map((type) => {
+          const share = Math.round(sharePercent(type.count, total));
+          return (
+            <li key={type.type} className="space-y-1" data-testid={`report-type-${type.type}`}>
+              <div className="flex items-baseline justify-between gap-2 text-[11px] font-semibold">
+                <span className="min-w-0 break-words">
+                  {type.label} ({type.type})
+                </span>
+                <span className="flex items-baseline gap-1 whitespace-nowrap font-mono font-bold">
+                  <span data-testid={`report-type-count-${type.type}`}>{type.count}</span>
+                  <span className="font-normal opacity-75">· {share}%</span>
+                </span>
+              </div>
               <div
-                className="h-full rounded-full bg-[#D73833]"
-                style={{ width: `${sharePercent(type.count, total)}%` }}
-              />
-            </div>
-          </li>
-        ))}
+                className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10"
+                aria-hidden="true"
+              >
+                <div
+                  className="h-full rounded-full bg-[#D73833]"
+                  style={{ width: `${sharePercent(type.count, total)}%` }}
+                />
+              </div>
+            </li>
+          );
+        })}
       </ul>
+      <p className="mt-3 font-mono text-[11px]" style={{ color: themeStyles.textMuted }}>
+        Bara arată cota din totalul de {total} incidente (axă 0–{total}).
+      </p>
     </Panel>
   );
 }
@@ -354,22 +380,24 @@ function HourDistribution({ report }) {
   return (
     <Panel as="section" size="card" className="flex flex-col">
       <PanelTitle icon={TrendingUp}>Grafic Incidente pe Ore (by_hour)</PanelTitle>
-      <div className="flex h-36 items-end justify-between gap-3 px-2 pt-4">
+      <div className="flex h-36 items-end justify-between gap-3 border-b border-slate-200 px-2 pb-1 pt-4 dark:border-white/10">
         {report.by_hour.map((hour) => (
-          <div key={hour.hour} className="group flex h-full flex-1 flex-col items-center justify-end gap-1.5">
-            <span className="font-mono text-[10px] font-bold text-[#D73833] opacity-80 group-hover:opacity-100 dark:text-[#FFEB33]">
+          <div key={hour.hour} className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
+            <span className="font-mono text-[11px] font-bold text-[#B91C1C] opacity-80 group-hover:opacity-100 dark:text-[#FFEB33]">
               {hour.events}
             </span>
             <div
-              className="w-full max-w-[28px] rounded-t-md bg-gradient-to-t from-[#D73833]/80 to-[#D73833] shadow transition-all group-hover:from-[#D73833] group-hover:to-[#FFEB33]"
+              className="w-full min-w-[24px] max-w-[64px] rounded-t-md bg-gradient-to-t from-[#D73833]/80 to-[#D73833] shadow transition-all group-hover:from-[#D73833] group-hover:to-[#FFEB33]"
               style={{ height: `${sharePercent(hour.events, peak)}%` }}
+              aria-hidden="true"
             />
-            <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">{hour.hour}</span>
+            <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{hour.hour}</span>
           </div>
         ))}
       </div>
-      <p className="mt-3 font-mono text-[10px]" style={{ color: themeStyles.textMuted }}>
-        Orele în care există evenimente, în ordine cronologică (Europe/Bucharest).
+      <p className="mt-3 font-mono text-[11px]" style={{ color: themeStyles.textMuted }}>
+        Maxim {peak} incidente într-o oră (axă 0–{peak}); orele cu evenimente, în ordine
+        cronologică (Europe/Bucharest).
       </p>
     </Panel>
   );
@@ -388,10 +416,10 @@ function ZoneTable({ rows }) {
               <th scope="col" className={head}>
                 Zonă / Sector
               </th>
-              <th scope="col" className={`${head} text-red-600 dark:text-[#FF8A80]`}>
+              <th scope="col" className={`${head} text-red-700 dark:text-[#FF8A80]`}>
                 Critice
               </th>
-              <th scope="col" className={`${head} text-amber-600 dark:text-[#FFEB33]`}>
+              <th scope="col" className={`${head} text-amber-700 dark:text-[#FFEB33]`}>
                 Warning
               </th>
               <th scope="col" className={`${head} text-right`}>
@@ -403,8 +431,8 @@ function ZoneTable({ rows }) {
             {rows.map((zone) => (
               <tr key={zone.zone}>
                 <td className="py-2 font-sans font-medium">{zone.zone}</td>
-                <td className="py-2 font-bold text-red-600 dark:text-[#FF8A80]">{zone.critical}</td>
-                <td className="py-2 font-bold text-amber-600 dark:text-[#FFEB33]">{zone.warning}</td>
+                <td className="py-2 font-bold text-red-700 dark:text-[#FF8A80]">{zone.critical}</td>
+                <td className="py-2 font-bold text-amber-700 dark:text-[#FFEB33]">{zone.warning}</td>
                 <td className="py-2 text-right font-bold text-emerald-700 dark:text-emerald-400">
                   {zone.avg_ack_s == null ? '—' : `${zone.avg_ack_s}s`}
                 </td>

@@ -1,40 +1,21 @@
 import { ArrowLeft, Link2, Video } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import ConfidenceBadge from '../common/ConfidenceBadge';
-import { detectionSummary, severityToken, sourceChips, statusToken } from '../../utils/incidentDetail';
+import { ProvenanceChip, StatusChip } from './Chips';
+import {
+  detectionSummary,
+  incidentTitle,
+  sourceChips,
+} from '../../utils/incidentDetail';
 
-// A chip is text first: the colour is a hint, the label is the fact. Both provenance chips
-// carry a title so a screenshot of the screen cannot be mistaken for a real detection.
-function ProvenanceChip({ children, tone, title }) {
-  const toneClass = tone === 'local'
-    ? 'border-[#33E1FF]/40 bg-[#33E1FF]/10 text-cyan-700 dark:text-[#33E1FF]'
-    : 'border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-[#FFEB33]';
-  return (
-    <span
-      title={title}
-      className={`text-[10px] font-bold px-2 py-0.5 rounded border whitespace-nowrap shrink-0 ${toneClass}`}
-    >
-      {children}
-    </span>
-  );
-}
-
-function TokenBadge({ token, bold }) {
-  return (
-    <span
-      style={{ backgroundColor: token.bg, color: token.text, borderColor: token.border }}
-      className={`text-[10px] ${bold ? 'font-black uppercase' : 'font-bold'} px-2 py-0.5 rounded border whitespace-nowrap shrink-0`}
-    >
-      {token.label}
-    </span>
-  );
-}
-
+// The header identifies the case in the operator's language (the incident type) and keeps
+// the synthetic id as a mono meta line: the id is the record key, not a headline. The
+// machine key is still a heading so a deep link, a screen reader and the smoke suite can
+// name the exact record they are looking at.
 export default function IncidentHeader({ event, mock, onBack, onCopyLink, onViewCamera }) {
   const { themeStyles } = useTheme();
-  const severity = severityToken(event.severity);
-  const status = statusToken(event.status);
   const chips = sourceChips(event, { mock });
+  const title = incidentTitle(event);
 
   return (
     <header className="border-b border-white/10 pb-3 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
@@ -49,18 +30,19 @@ export default function IncidentHeader({ event, mock, onBack, onCopyLink, onView
         </button>
 
         <div className="min-w-0 space-y-1">
+          <h2 className="sr-only">Incident: {event.event_id}</h2>
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="font-black text-base md:text-lg uppercase tracking-tight break-words min-w-0">
-              Incident: {event.event_id}
+            <h2 className="font-black text-lg uppercase tracking-tight break-words min-w-0">
+              {title}
             </h2>
-            <TokenBadge token={severity} bold />
-            <TokenBadge token={status} />
+            <StatusChip value={event.severity} strong />
+            <StatusChip value={event.status} />
             {chips.local && (
               <ProvenanceChip
                 tone="local"
                 title="Produs de motorul din browser în această sesiune; nu e un fixture demo."
               >
-                detecție locală
+                local
               </ProvenanceChip>
             )}
             {chips.demo && (
@@ -72,9 +54,22 @@ export default function IncidentHeader({ event, mock, onBack, onCopyLink, onView
               </ProvenanceChip>
             )}
           </div>
-          <p style={{ color: themeStyles.textMuted }} className="text-xs font-mono truncate">
+          <p
+            style={{ color: themeStyles.textMuted }}
+            className="text-[11px] font-mono break-words"
+          >
+            <span className="break-all">{event.event_id}</span>
+            <span aria-hidden="true"> · </span>
             {detectionSummary(event)}
           </p>
+          {/* Provenance used to live only in a title tooltip, unreachable on a phone. */}
+          {(chips.local || chips.demo) && (
+            <p style={{ color: themeStyles.textMuted }} className="text-[11px] leading-snug">
+              {chips.local
+                ? 'Detecție a motorului din browser, în această sesiune.'
+                : 'Fixture demo, scris în avans; nu e o detecție live.'}
+            </p>
+          )}
         </div>
       </div>
 

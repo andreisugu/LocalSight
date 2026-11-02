@@ -48,7 +48,7 @@ export default function ZoneParameters({
           spellCheck={false}
         />
         {idLocked && (
-          <p className="text-[10px] font-mono opacity-60 mt-1">
+          <p className="text-[10px] font-mono mt-1" style={{ color: themeStyles.textMuted }}>
             ID-ul e cheia zonei; pentru alt nume folosește câmpul „Nume".
           </p>
         )}

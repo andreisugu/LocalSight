@@ -7,6 +7,7 @@
 // `.js` extensions keep this file loadable by Node's test runner as well as Vite.
 import { STATUS_TOKENS } from '../constants/theme.js';
 import { canDo } from '../constants/eventActions.js';
+import { TYPE_LABELS } from '../data/labels.js';
 import { formatTime } from './time.js';
 
 // The snapshot URL the in-browser engine writes when it has no frame yet. It is a marker,
@@ -93,6 +94,24 @@ export function actionState(event) {
 export function reportSourceLabel(report, { mock = false } = {}) {
   if (report?.source !== 'llm') return 'șablon';
   return mock ? 'AI · demo' : 'AI';
+}
+
+/**
+ * The one visible sentence under the report heading. The chip says who wrote the text; this
+ * line says when, so `AI · demo` cannot be read as "a model ran just now". The static build
+ * has no LLM at all, so a template report says so.
+ *
+ * @param {{source?: string}|null|undefined} report
+ * @param {{mock?: boolean}} [options]
+ * @returns {string}
+ */
+export function reportSourceNote(report, { mock = false } = {}) {
+  const label = reportSourceLabel(report, { mock });
+  if (label === 'AI · demo') {
+    return 'Scris în avans pentru demo, în backendul de referință; nu a fost generat acum și niciun LLM nu rulează în browser.';
+  }
+  if (label === 'AI') return 'Raport scris de un model AI la ingest.';
+  return 'Text compus din șablonul incidentului; în browser nu rulează niciun LLM.';
 }
 
 /**
@@ -185,6 +204,30 @@ export function detectionSummary(event) {
   const model = event?.model || '—';
   const track = event?.track_id ?? '—';
   return `Model detecție: ${model} • Track ID: #${track}`;
+}
+
+/**
+ * The human title of the detail screen: the incident type the contract defines, never the
+ * synthetic event id (that stays visible as the mono meta line).
+ *
+ * @param {object|null|undefined} event
+ * @returns {string}
+ */
+export function incidentTitle(event) {
+  return TYPE_LABELS[event?.type] || event?.type || 'Incident';
+}
+
+/**
+ * Text alternative for the evidence frame (A20): what the picture is, which camera and zone
+ * it belongs to, and that the faces were blurred.
+ *
+ * @param {object|null|undefined} event
+ * @returns {string}
+ */
+export function snapshotAlt(event) {
+  const camera = event?.camera_id || 'camera necunoscută';
+  const zone = event?.zone_id || 'zonă necunoscută';
+  return `Cadru din momentul incidentului: camera ${camera}, zona ${zone}; fețele sunt blurate.`;
 }
 
 /** Caption on the evidence frame; the blur happened in the tab only for engine incidents. */

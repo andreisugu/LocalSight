@@ -5,10 +5,13 @@ import {
   buildTimeline,
   copyIncidentLink,
   detectionSummary,
+  incidentTitle,
   reportFields,
   reportSourceLabel,
+  reportSourceNote,
   severityToken,
   shouldOfferReportRetry,
+  snapshotAlt,
   snapshotCaption,
   snapshotDownload,
   sourceChips,
@@ -218,6 +221,30 @@ test('a missing report field is shown as unknown, not invented', () => {
 test('the detection summary keeps model and track, with an honest fallback', () => {
   assert.equal(detectionSummary(event), 'Model detecție: person-ppe-v1 • Track ID: #14');
   assert.equal(detectionSummary({}), 'Model detecție: — • Track ID: #—');
+});
+
+test('the detail title is the human incident type, never the synthetic id', () => {
+  assert.equal(incidentTitle({ type: 'RESTRICTED_ZONE', event_id: 'evt_1' }), 'Zonă restricționată');
+  assert.equal(incidentTitle({ type: 'PPE_VIOLATION' }), 'Echipament lipsă');
+  assert.equal(incidentTitle({ type: 'NEW_RULE' }), 'NEW_RULE');
+  assert.equal(incidentTitle(null), 'Incident');
+});
+
+test('the report note never claims a model ran in the browser', () => {
+  const demo = reportSourceNote({ source: 'llm' }, { mock: true });
+  assert.match(demo, /în avans pentru demo/);
+  assert.match(demo, /nu a fost generat acum/);
+  assert.match(reportSourceNote({ source: 'template' }, { mock: true }), /șablon/);
+  assert.match(reportSourceNote({ source: 'template' }), /șablon/);
+  assert.match(reportSourceNote({ source: 'llm' }), /model AI la ingest/);
+});
+
+test('the evidence frame has a text alternative with camera, zone and blur', () => {
+  assert.equal(
+    snapshotAlt({ camera_id: 'stand12', zone_id: 'engine-left' }),
+    'Cadru din momentul incidentului: camera stand12, zona engine-left; fețele sunt blurate.'
+  );
+  assert.match(snapshotAlt({}), /camera necunoscută/);
 });
 
 test('the snapshot caption differs only for a local detection', () => {
