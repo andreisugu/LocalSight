@@ -43,14 +43,35 @@ const LOOP_WATCHDOG_MS = 1000;
  * `provider`/`inputSize` are bench-only knobs. Omitting both sends the same init message
  * the spike always sent, so `/lab` is untouched. `onSample` sees every result frame; the
  * 250 ms state throttle above is for overlays, not for measurement.
+ *
+ * `zones`, `engineOn` and `cameraId` sunt configurația Live: zonele vin deja în forma din
+ * contract (poligon `[[x, y], ...]`), iar worker-ul le folosește la construirea pipeline-ului.
+ * `/lab` și `/bench` nu le trimit, deci rămân pe fixture-ul lor. Modificările de zone nu
+ * repornesc worker-ul: ajung ca mesaj `config` și se aplică pe loc.
  */
-export function useEngine({ videoRef, canvasRef, enabled = true, provider, inputSize, onSample }) {
+export function useEngine({
+  videoRef,
+  canvasRef,
+  enabled = true,
+  provider,
+  inputSize,
+  onSample,
+  zones,
+  engineOn,
+  cameraId,
+}) {
   const [stats, setStats] = useState(INITIAL_STATS);
   const lastStatsRef = useRef(0);
   // The callback changes on every render; keeping it in a ref avoids restarting the worker
   // (and reloading the graphs) just because the caller re-rendered.
   const onSampleRef = useRef(onSample);
   onSampleRef.current = onSample;
+
+  // Configurația se citește din ref la init, ca efectul principal să nu depindă de ea.
+  // Așa o schimbare de zone nu mai repornește worker-ul (și nu reîncarcă graficele ONNX).
+  const configRef = useRef({ zones, engineOn, cameraId });
+  configRef.current = { zones, engineOn, cameraId };
+  const workerRef = useRef(null);
 
   useEffect(() => {
     if (!enabled) {
@@ -79,6 +100,7 @@ export function useEngine({ videoRef, canvasRef, enabled = true, provider, input
       setStats({ ...INITIAL_STATS, status: 'error', message: error.message });
       return undefined;
     }
+    workerRef.current = worker;
 
     let disposed = false;
     let inFlight = false;
@@ -279,6 +301,12 @@ export function useEngine({ videoRef, canvasRef, enabled = true, provider, input
       init.providers = [provider];
     }
     if (Number.isFinite(inputSize) && inputSize > 0) init.inputSize = inputSize;
+    // Configurația Live, citită la momentul pornirii. `/lab` nu trimite niciuna dintre
+    // ele, deci worker-ul păstrează zona de laborator.
+    const config = configRef.current;
+    if (Array.isArray(config.zones)) init.zones = config.zones;
+    if (typeof config.engineOn === 'boolean') init.engineOn = config.engineOn;
+    if (typeof config.cameraId === 'string' && config.cameraId) init.cameraId = config.cameraId;
     worker.postMessage(init);
     startLoop();
 
@@ -289,12 +317,35 @@ export function useEngine({ videoRef, canvasRef, enabled = true, provider, input
       LOOP_EVENTS.forEach((name) => video.removeEventListener(name, onLoopHint));
       video.removeEventListener('loadstart', resetCounters);
       video.removeEventListener('emptied', onSourceReset);
+      workerRef.current = null;
       worker.terminate();
       // Do not let a remount (or a source switch that disables the engine) inherit numbers
       // from the video that was just detached.
       setStats((previous) => ({ ...INITIAL_STATS, providers: previous.providers }));
     };
   }, [enabled, provider, inputSize, videoRef, canvasRef]);
+
+  // Zonele editate ajung la worker fără restart. `zones` vine memoizat din LiveView, deci
+  // efectul chiar pornește doar când configurația se schimbă; `/lab` nu trimite nimic.
+  useEffect(() => {
+    const worker = workerRef.current;
+    if (!worker) return;
+    const update = { type: 'config' };
+    let hasConfig = false;
+    if (Array.isArray(zones)) {
+      update.zones = zones;
+      hasConfig = true;
+    }
+    if (typeof engineOn === 'boolean') {
+      update.engineOn = engineOn;
+      hasConfig = true;
+    }
+    if (typeof cameraId === 'string' && cameraId) {
+      update.cameraId = cameraId;
+      hasConfig = true;
+    }
+    if (hasConfig) worker.postMessage(update);
+  }, [zones, engineOn, cameraId]);
 
   return stats;
 }
