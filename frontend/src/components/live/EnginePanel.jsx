@@ -71,17 +71,24 @@ export default function EnginePanel({ engine }) {
           <Cpu size={13} className="text-[#33E1FF]" />
           Motor în browser
         </h2>
-        <span
-          className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded border ${
-            engine.status === 'running'
-              ? 'text-emerald-600 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10'
-              : broken
-                ? 'text-[#D73833] border-[#D73833]/40 bg-[#D73833]/10'
-                : 'text-amber-600 dark:text-[#FFEB33] border-[#FFEB33]/40 bg-[#FFEB33]/10'
-          }`}
-        >
-          {statusLabel}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {/* The canvas above is the worker's output, never the raw clip: say it here so the
+              panel and the badge on the canvas tell the same story. */}
+          <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded border text-[#33E1FF] border-[#33E1FF]/40 bg-[#33E1FF]/10">
+            procesat local · {engine.fps ? engine.fps.toFixed(1) : '—'} fps
+          </span>
+          <span
+            className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+              engine.status === 'running'
+                ? 'text-emerald-600 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10'
+                : broken
+                  ? 'text-[#D73833] border-[#D73833]/40 bg-[#D73833]/10'
+                  : 'text-amber-600 dark:text-[#FFEB33] border-[#FFEB33]/40 bg-[#FFEB33]/10'
+            }`}
+          >
+            {statusLabel}
+          </span>
+        </div>
       </div>
 
       <div className="grid grid-cols-4 gap-2 text-slate-800 dark:text-slate-100">
@@ -90,6 +97,9 @@ export default function EnginePanel({ engine }) {
         <Metric label="fețe" value={engine.faces} />
         <Metric label="incidente" value={engine.totalEvents} />
       </div>
+      <p className="text-[10px] text-slate-500 dark:text-slate-400">
+        canvasul arată cadrul procesat local (blur + detecții), nu clipul brut.
+      </p>
 
       <div className="pt-1.5 border-t border-slate-500/15">
         <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-400">
