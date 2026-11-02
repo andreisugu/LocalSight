@@ -80,6 +80,7 @@ tracker, vest, blur, report, webgpu, decode), `LiveEngineCard`, `SafeImage`, `Er
 | `009fdaf` | `ConfidenceBadge.jsx` + `utils/confidence.js` | +21/−11, +54 nou | formatter testat, fără valori inventate | 11 — importuri/semnătură |
 | `ab3bac5` | `IncidentDetailView.jsx` | +42 / −3 | copiază link, descarcă dovada | 342 — layout moștenit |
 | `e303dbc` | `IncidentDetailView.jsx` + 7 componente + `utils/incidentDetail.js` | +460/−406, +469 nou | ecran rescris, helper cu 18 teste, light mode reparat | 25 — importuri/JSX (0 logică) |
+| `990028f` | `ZoneEditorView.jsx` + 3 componente + `utils/zoneDraft.js` | +2048/−944 | editor rescris, state machine cu 39 teste | 74 — importuri/JSX (0 logică) |
 | `5b05796` | `IncidentsListView.jsx` + `utils/incidentList.js` | +181/−143, +77 nou | listă rescrisă, filtre testate | 66 — TokenBadge/importuri |
 | `1381d99` | `App.jsx` | +35 / −30 | hartă de rute, scroll/focus | 43 — importuri/layout |
 | `f0b0eae` | `worker.js` / `useEngine.js` | +12/−12, +12/−1 | snapshot-ul e deținut de pagină | nu se aplică (engine al nostru) |
