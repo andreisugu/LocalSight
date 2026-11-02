@@ -40,6 +40,11 @@ data/**
 *.mp3
 *.mp4
 
+# Excepție țintită: cele două ONNX pe care build-ul static le încarcă în browser
+# (inferență în pagină, fără server). Restul modelelor rămân ignorate.
+!frontend/public/models/
+!frontend/public/models/*.onnx
+
 # Date generate la rulare; păstrează folderul pentru volumul Docker
 backend/data/*
 !backend/data/.gitkeep
