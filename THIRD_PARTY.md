@@ -89,7 +89,7 @@ needs a notice, an EULA check or a legal read, but does not force you to open-so
 | **Assets** | | | |
 | `data/videos/*.mp4` (6 demo clips) | — | unknown — **not stated anywhere** | **requires action** — unresolved before any public or commercial release |
 | `data/reference_frames/*.jpeg` (2 frames) | — | unknown | **requires action** — same provenance gap |
-| `docs/assets/*.webp` (2 UI screenshots) | — | project-produced | OK — re-check that no unblurred face or third-party footage is visible |
+| `docs/assets/*.png` (3 UI screenshots) | — | project-produced | OK — re-check that no unblurred face or third-party footage is visible |
 
 ## Ultralytics YOLO — AGPL-3.0
 
@@ -164,9 +164,8 @@ sale or hosted deployment:
 - blur faces before publication — which the pipeline does, but re-check the exported cuts by hand.
 
 `data/reference_frames/` has the same gap: the README says provenance belongs "in the video
-README or here", and it is in neither. `docs/assets/demo-app.webp` and `demo-apron.webp` are
-project-produced screenshots, but they contain frames of that footage — treat them as covered by
-the same unresolved question.
+README or here", and it is in neither. The `docs/assets/*.png` screenshots are project-produced,
+but they contain frames of that footage — treat them as covered by the same unresolved question.
 
 Two smaller asset notes: the clip `2026-10-30_restricted-zone_cam02_lucratori-pushback-motor..mp4`
 has a double dot in its name that the README already flags, and the PPE clip promised in the
