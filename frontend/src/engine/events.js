@@ -77,6 +77,10 @@ function cooldownKey(eventType, zoneId) {
  * (`^evt_[a-z0-9-]+_\d{13}_\d+$`), so a typo fails here instead of producing an id the
  * API would reject with 422.
  *
+ * The middle number is an identifier, not the detection time: the fixtures already use it
+ * that way (`data/eventIds.js`), and `buildEvent` lets a caller pass a distinct `idMs`
+ * while `detected_at` keeps the real frame time.
+ *
  * @param {string} cameraId Seeded camera id, lowercase letters/digits/hyphens (`stand12`).
  * @param {number|Date} epochMs Detection time in Unix epoch milliseconds (13 digits).
  * @param {number} trackId Tracker id, integer >= 0.
@@ -180,6 +184,11 @@ export class IncidentCooldown {
  * @param {string} input.model Detector name and version, e.g. `yolo26n`.
  * @param {number|Date} [input.detectedAt=Date.now()] Detection time, epoch ms.
  * @param {number|Date} [input.receivedAt=input.detectedAt] Local ingest time, epoch ms.
+ * @param {number|Date} [input.idMs=input.detectedAt] Millisecond used in the event **id**
+ *   only, never in `detected_at`. Two zones confirming the same track in one frame would
+ *   otherwise build the same `evt_<camera>_<ms>_<track>`, so the pipeline passes
+ *   `detectedAt + index inside the frame`. The id stays opaque: `detected_at` is the field
+ *   that follows the clock, exactly like the fixtures (`data/eventIds.js`).
  * @returns {object} Event with the `EventOut` shape (`status`, timestamps, `report`).
  * @throws {TypeError|RangeError} Any field is missing or outside the contract.
  */
@@ -196,6 +205,7 @@ export function buildEvent({
   model,
   detectedAt = Date.now(),
   receivedAt,
+  idMs,
 } = {}) {
   requireNonEmptyString(cameraId, 'cameraId');
   if (!EVENT_ID_CAMERA.test(cameraId)) throw new RangeError('cameraId must match [a-z0-9-]+');
@@ -221,9 +231,11 @@ export function buildEvent({
 
   const detectedMs = toEpochMs(detectedAt, 'detectedAt');
   const receivedMs = receivedAt === undefined ? detectedMs : toEpochMs(receivedAt, 'receivedAt');
+  // Identifier namespace only (see `eventId`): `detected_at` keeps `detectedMs`.
+  const idMilliseconds = idMs === undefined ? detectedMs : toEpochMs(idMs, 'idMs');
 
   return {
-    event_id: eventId(cameraId, detectedMs, trackId),
+    event_id: eventId(cameraId, idMilliseconds, trackId),
     type,
     severity,
     status: 'open',

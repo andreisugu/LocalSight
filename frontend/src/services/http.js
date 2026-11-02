@@ -34,6 +34,11 @@ export function resolveAsset(url, base = API_BASE_URL) {
  * The error message is `${status} ${detail}` because the context reads the 409 prefix to
  * tell "someone else changed this incident" apart from a network failure. A 204 (DELETE
  * `/zones/{id}`) has no body to parse.
+ *
+ * The error body is read exactly once, as text: a `Response` body can only be consumed
+ * once, so `json()` with a `text()` fallback throws `Body is unusable` on the same
+ * response and loses both the status and the detail. Parsing the text afterwards keeps a
+ * proxy's HTML page, an empty 502 and the API's JSON `detail` on the same path.
  */
 export async function request(path, options = {}) {
   const isForm = options.body instanceof FormData;
@@ -44,12 +49,21 @@ export async function request(path, options = {}) {
 
   const response = await fetch(apiUrl(path), { ...options, headers });
   if (!response.ok) {
-    let detail = '';
+    let raw = '';
     try {
-      const payload = await response.json();
-      detail = payload.detail || JSON.stringify(payload);
+      raw = await response.text();
     } catch {
-      detail = await response.text();
+      // A body that is already gone still leaves the status and the status text.
+      raw = '';
+    }
+    let detail = raw;
+    if (raw) {
+      try {
+        const payload = JSON.parse(raw);
+        detail = payload?.detail || JSON.stringify(payload);
+      } catch {
+        // Not JSON (proxy HTML, plain-text gateway error): keep the raw body.
+      }
     }
     throw new Error(`${response.status} ${detail || response.statusText}`);
   }
