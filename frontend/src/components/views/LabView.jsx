@@ -1,13 +1,63 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, AlertTriangle, Camera, CameraOff, Cpu, RotateCcw, Upload, Video } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Activity,
+  AlertTriangle,
+  Camera,
+  CameraOff,
+  Cpu,
+  Crosshair,
+  Ruler,
+  RotateCcw,
+  Upload,
+  Video,
+} from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useEngine } from '../../engine/useEngine';
 import { DEFAULT_LAB_ZONE } from '../../engine/zones.default';
+import {
+  footPointFromBox,
+  groundMetrics,
+  homographyFromPoints,
+  projectPoint,
+  smoothSpeed,
+} from '../../engine/groundPlane.js';
 
 const MODEL_HINT = `${import.meta.env.BASE_URL}models/yolo26n.onnx + ${import.meta.env.BASE_URL}models/yunet.onnx`;
 
 const SOURCE_CLIP = 'clip';
 const SOURCE_CAMERA = 'camera';
+
+// Ground-plane prototype (docs/product/innovation-engine.md §2.1). The four clicked points
+// are stored frame-normalized so they survive a resize, and mapped in click order onto a
+// rectangle that starts at the origin. The dimensions are the operator's tape measure, not
+// a number this page can check.
+const DEFAULT_RECT_WIDTH_M = 10;
+const DEFAULT_RECT_HEIGHT_M = 10;
+// A box whose bottom sits on the frame edge has no visible foot: the tracker's own gate
+// (`TRUNCATED_BOTTOM` in pipeline.js) uses the same idea, and a truncated person would
+// otherwise report a metre value for a point that is off-frame.
+const TRUNCATED_BOTTOM = 0.985;
+// Weight of the newest speed sample. At ~5 fps this is about four frames of memory.
+const SPEED_SMOOTHING_ALPHA = 0.35;
+// Longest gap a speed reading may bridge. A track that vanishes and comes back with the same
+// id would otherwise average over the occlusion. The headless single-thread run processes at
+// ~0.7 fps, so two consecutive frames already take ~1.4 s: anything below that would discard
+// real samples on slow hardware.
+const MAX_SAMPLE_GAP_S = 2.5;
+
+/** Romanian decimal formatting for metres; `—` when there is no number. */
+function formatMetres(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
+  return value.toLocaleString('ro-RO', { maximumFractionDigits: 2 });
+}
+
+/** Two decimals for a speed, or `null` when the reading is not usable. */
+function formatSpeed(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  return value.toLocaleString('ro-RO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+
 
 // One block per failure the browser can report. The copy says what the operator can do;
 // the raw error name is appended below it so the message stays specific, never generic.
@@ -93,7 +143,56 @@ export default function LabView() {
     videoRef,
     canvasRef,
     enabled: engineEnabled,
+    // Prototype only: ask the worker for the tracker's boxes so foot points can be turned
+    // into metres here. Without this the engine's numbers reach the page as counts only.
+    trackFeed: true,
   });
+
+  // --- Ground plane calibration (prototype) -------------------------------------
+  // Four clicks on the current frame, in order around the rectangle; `widthM`/`heightM` are
+  // the real dimensions the operator measured. `/lab` only: Live and the rules never see it.
+  const [calibration, setCalibration] = useState({
+    points: [],
+    widthM: DEFAULT_RECT_WIDTH_M,
+    heightM: DEFAULT_RECT_HEIGHT_M,
+  });
+  const [picking, setPicking] = useState(false);
+  const [frameSize, setFrameSize] = useState({ width: 0, height: 0 });
+  const [trackRows, setTrackRows] = useState([]);
+  const overlayRef = useRef(null);
+  // `H` is kept next to the samples so a recalibration throws the old metres away instead of
+  // smoothing a new map into an old speed.
+  const trackStateRef = useRef({ H: null, entries: new Map() });
+
+  const groundH = useMemo(() => {
+    const { points, widthM, heightM } = calibration;
+    if (points.length !== 4) return null;
+    if (!Number.isFinite(widthM) || !Number.isFinite(heightM)) return null;
+    if (!(widthM > 0) || !(heightM > 0)) return null;
+    return homographyFromPoints(points, [
+      { x: 0, y: 0 },
+      { x: widthM, y: 0 },
+      { x: widthM, y: heightM },
+      { x: 0, y: heightM },
+    ]);
+  }, [calibration]);
+
+  /** Where the processed frame actually sits inside its CSS box (`object-contain`). */
+  const contentRect = useCallback((canvas) => {
+    const boxWidth = canvas.clientWidth;
+    const boxHeight = canvas.clientHeight;
+    const frameWidth = canvas.width || boxWidth;
+    const frameHeight = canvas.height || boxHeight;
+    if (!boxWidth || !boxHeight || !frameWidth || !frameHeight) return null;
+    const scale = Math.min(boxWidth / frameWidth, boxHeight / frameHeight);
+    return {
+      scale,
+      offsetX: (boxWidth - frameWidth * scale) / 2,
+      offsetY: (boxHeight - frameHeight * scale) / 2,
+      frameWidth,
+      frameHeight,
+    };
+  }, []);
 
   const releaseStream = useCallback(() => {
     const current = streamRef.current;
@@ -247,6 +346,185 @@ export default function LabView() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }, [source, deviceId]);
 
+  // Draw the calibration quad on its own canvas, positioned exactly like the processed
+  // frame. A separate canvas is what keeps this overlay from touching the engine's pixels
+  // or its blur: the worker's frame is drawn by `useEngine`, this one only by us.
+  const drawCalibration = useCallback(() => {
+    const overlay = overlayRef.current;
+    const base = canvasRef.current;
+    if (!overlay || !base) return;
+    const content = contentRect(base);
+    if (!content || !overlay.clientWidth || !overlay.clientHeight) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const pixelWidth = Math.round(overlay.clientWidth * dpr);
+    const pixelHeight = Math.round(overlay.clientHeight * dpr);
+    if (overlay.width !== pixelWidth || overlay.height !== pixelHeight) {
+      overlay.width = pixelWidth;
+      overlay.height = pixelHeight;
+    }
+    const ctx = overlay.getContext('2d');
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, overlay.clientWidth, overlay.clientHeight);
+
+    const toPixel = (point) => ({
+      x: content.offsetX + point.x * content.frameWidth * content.scale,
+      y: content.offsetY + point.y * content.frameHeight * content.scale,
+    });
+    const { points } = calibration;
+    if (points.length === 0) return;
+
+    const pixels = points.map(toPixel);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#33E1FF';
+    ctx.fillStyle = 'rgba(51, 225, 255, 0.12)';
+    ctx.beginPath();
+    ctx.moveTo(pixels[0].x, pixels[0].y);
+    for (const pixel of pixels.slice(1)) ctx.lineTo(pixel.x, pixel.y);
+    if (pixels.length === 4) {
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.stroke();
+
+    ctx.font = '600 12px ui-monospace, SFMono-Regular, Menlo, monospace';
+    pixels.forEach((pixel, index) => {
+      ctx.fillStyle = '#0B0B0B';
+      ctx.beginPath();
+      ctx.arc(pixel.x, pixel.y, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#33E1FF';
+      ctx.stroke();
+      ctx.fillStyle = '#33E1FF';
+      ctx.fillText(String(index + 1), pixel.x + 10, pixel.y - 8);
+    });
+
+    if (pixels.length === 4) {
+      const centre = pixels.reduce(
+        (sum, pixel) => ({ x: sum.x + pixel.x / 4, y: sum.y + pixel.y / 4 }),
+        { x: 0, y: 0 },
+      );
+      const label = groundH
+        ? `${formatMetres(calibration.widthM)} × ${formatMetres(calibration.heightM)} m`
+        : 'puncte invalide';
+      ctx.font = '600 12px ui-monospace, SFMono-Regular, Menlo, monospace';
+      const width = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(11, 11, 11, 0.75)';
+      ctx.fillRect(centre.x - width / 2 - 6, centre.y - 10, width + 12, 20);
+      ctx.fillStyle = groundH ? '#33E1FF' : '#FF5C5C';
+      ctx.fillText(label, centre.x - width / 2, centre.y + 4);
+    }
+  }, [calibration, contentRect, groundH]);
+
+  useEffect(() => {
+    drawCalibration();
+  }, [drawCalibration, frameSize, clipUrl, source, deviceId]);
+
+  // The processed frame changes size on a new source, and the canvas box changes with the
+  // window; both move the quad, so both redraw it.
+  useEffect(() => {
+    const base = canvasRef.current;
+    if (!base || typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(() => {
+      const next = { width: base.width, height: base.height };
+      setFrameSize((previous) => (
+        previous.width === next.width && previous.height === next.height ? previous : next
+      ));
+      drawCalibration();
+    });
+    observer.observe(base);
+    return () => observer.disconnect();
+  }, [drawCalibration]);
+
+  const startCalibration = () => {
+    setCalibration((previous) => ({ ...previous, points: [] }));
+    setTrackRows([]);
+    trackStateRef.current = { H: null, entries: new Map() };
+    setPicking(true);
+  };
+
+  const resetCalibration = () => {
+    setCalibration({ points: [], widthM: DEFAULT_RECT_WIDTH_M, heightM: DEFAULT_RECT_HEIGHT_M });
+    setTrackRows([]);
+    trackStateRef.current = { H: null, entries: new Map() };
+    setPicking(false);
+  };
+
+  const onCalibrationClick = (event) => {
+    if (!picking) return;
+    const base = canvasRef.current;
+    if (!base) return;
+    const content = contentRect(base);
+    if (!content) return;
+    const box = base.getBoundingClientRect();
+    const x = (event.clientX - box.left - content.offsetX) / (content.frameWidth * content.scale);
+    const y = (event.clientY - box.top - content.offsetY) / (content.frameHeight * content.scale);
+    if (!(x >= 0 && x <= 1 && y >= 0 && y <= 1)) return;
+    const points = [...calibration.points, { x, y }].slice(0, 4);
+    setCalibration({ ...calibration, points });
+    if (points.length === 4) setPicking(false);
+  };
+
+  // One row per tracked person, from the tracker's own foot point. No calibration, a
+  // truncated box, a missing previous sample or a non-positive dt all report `null`, which
+  // the panel prints as „necalibrat” / „fără eșantion” instead of a number.
+  useEffect(() => {
+    const feed = engine.tracks;
+    if (!feed || !Array.isArray(feed.boxes)) return;
+    const state = trackStateRef.current;
+    if (state.H !== groundH) {
+      state.H = groundH;
+      state.entries.clear();
+    }
+    const rows = [];
+    const seen = new Set();
+    for (const box of feed.boxes) {
+      const foot = footPointFromBox(box.bbox);
+      if (!foot) continue;
+      seen.add(box.id);
+      const previous = state.entries.get(box.id);
+      const truncated = box.bbox[3] >= TRUNCATED_BOTTOM;
+      let speedMps = null;
+      let distanceM = null;
+      let entry = { time: feed.time, foot, smoothed: previous?.smoothed ?? null };
+      const dt = previous ? feed.time - previous.time : 0;
+      if (previous && !truncated && dt > 0 && dt <= MAX_SAMPLE_GAP_S) {
+        const metrics = groundMetrics({
+          foot,
+          previousFoot: previous.foot,
+          dt,
+          H: groundH,
+        });
+        if (metrics.valid) {
+          const smoothed = smoothSpeed(previous.smoothed, metrics.speedMps, SPEED_SMOOTHING_ALPHA);
+          speedMps = smoothed;
+          distanceM = metrics.distanceM;
+          entry = { ...entry, smoothed };
+        }
+      }
+      state.entries.set(box.id, entry);
+      rows.push({ id: box.id, truncated, speedMps, distanceM });
+    }
+    // Keep a missed frame's foot point for a moment (the tracker itself survives 30), but
+    // forget it once the gap is longer than a reading may bridge, or after a loop rewind.
+    for (const [id, entry] of [...state.entries]) {
+      if (seen.has(id)) continue;
+      const age = feed.time - entry.time;
+      if (!Number.isFinite(age) || age < 0 || age > MAX_SAMPLE_GAP_S * 2) {
+        state.entries.delete(id);
+      }
+    }
+    rows.sort((left, right) => left.id - right.id);
+    setTrackRows(rows);
+  }, [engine.tracks, groundH]);
+
+  // A new source brings new track ids, and the sampled speeds belong to the old footage.
+  useEffect(() => {
+    trackStateRef.current = { H: null, entries: new Map() };
+    setTrackRows([]);
+  }, [source, clipUrl, deviceId]);
+
   // Revoke the blob URL of a picked file when it is replaced or the page unmounts.
   useEffect(() => () => {
     if (objectUrl) URL.revokeObjectURL(objectUrl);
@@ -309,6 +587,42 @@ export default function LabView() {
   // id and label; those cannot be picked individually, so they collapse into "default".
   const selectableDevices = devices.filter((device) => device.deviceId);
   const labelsHidden = selectableDevices.some((device) => !device.label);
+
+  // Local scale at the centre of the rectangle: how many metres one frame pixel covers
+  // there. It is the honest number to show, because a single "m/px" does not exist on an
+  // oblique view.
+  const calibrationScale = useMemo(() => {
+    if (!groundH || !frameSize.width || calibration.points.length !== 4) return null;
+    const centre = calibration.points.reduce(
+      (sum, point) => ({ x: sum.x + point.x / 4, y: sum.y + point.y / 4 }),
+      { x: 0, y: 0 },
+    );
+    const step = 100 / frameSize.width;
+    const from = projectPoint(groundH, centre);
+    const to = projectPoint(groundH, { x: centre.x + step, y: centre.y });
+    if (!from || !to) return null;
+    const metres = Math.hypot(to.x - from.x, to.y - from.y) / 100;
+    return Number.isFinite(metres) && metres > 0 ? metres : null;
+  }, [groundH, frameSize.width, calibration.points]);
+
+  const calibrationStatus = (() => {
+    const count = calibration.points.length;
+    if (count < 4) {
+      return { text: `necalibrat · ${count}/4 puncte`, colour: themeStyles.textColor, muted: true };
+    }
+    if (!groundH) {
+      return {
+        text: 'necalibrat · punctele sunt degenere (coliniare, duplicate sau dimensiuni invalide)',
+        colour: '#FF5C5C',
+        muted: false,
+      };
+    }
+    return {
+      text: `calibrat · ${formatMetres(calibration.widthM)} × ${formatMetres(calibration.heightM)} m`,
+      colour: '#33E1FF',
+      muted: false,
+    };
+  })();
 
   return (
     <div className="p-6 space-y-4">
@@ -482,10 +796,173 @@ export default function LabView() {
         </div>
       )}
 
+      {/* Ground-plane prototype. Calibration only: it changes no detector, no rule and no
+          event. The numbers appear for the operator to judge, not to trust. */}
+      <section
+        className="rounded border px-4 py-3 text-sm"
+        style={{
+          borderColor: themeStyles.panelBorder,
+          backgroundColor: themeStyles.cardBg,
+          color: themeStyles.textColor,
+        }}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div className="space-y-2 max-w-[560px]">
+            <div className="font-semibold flex items-center gap-2">
+              <Ruler size={14} />
+              Calibrare sol (prototip)
+            </div>
+            <p className="text-xs opacity-70">
+              Patru puncte pe sol, în ordinea colțurilor dreptunghiului măsurat (sus-stânga,
+              sus-dreapta, jos-dreapta, jos-stânga). Prototip: Live și regulile nu folosesc încă
+              această calibrare, iar numerele nu sunt o referință de teren.
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <label className="flex items-center gap-1">
+                Lățime
+                <input
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  aria-label="Lățimea dreptunghiului, în metri"
+                  value={Number.isFinite(calibration.widthM) ? calibration.widthM : ''}
+                  onChange={(event) => {
+                    const widthM = event.target.valueAsNumber;
+                    setCalibration((previous) => ({ ...previous, widthM }));
+                  }}
+                  className="w-20 px-2 py-1 rounded"
+                  style={{
+                    backgroundColor: themeStyles.inputBg,
+                    color: themeStyles.textColor,
+                    border: `1px solid ${themeStyles.panelBorder}`,
+                  }}
+                />
+                m
+              </label>
+              <label className="flex items-center gap-1">
+                Lungime
+                <input
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  aria-label="Lungimea dreptunghiului, în metri"
+                  value={Number.isFinite(calibration.heightM) ? calibration.heightM : ''}
+                  onChange={(event) => {
+                    const heightM = event.target.valueAsNumber;
+                    setCalibration((previous) => ({ ...previous, heightM }));
+                  }}
+                  className="w-20 px-2 py-1 rounded"
+                  style={{
+                    backgroundColor: themeStyles.inputBg,
+                    color: themeStyles.textColor,
+                    border: `1px solid ${themeStyles.panelBorder}`,
+                  }}
+                />
+                m
+              </label>
+
+              <button
+                type="button"
+                onClick={picking ? () => setPicking(false) : startCalibration}
+                className="px-3 py-1 rounded flex items-center gap-2"
+                style={{
+                  backgroundColor: picking ? '#FFEB33' : themeStyles.inputBg,
+                  color: picking ? '#1F1F1F' : themeStyles.textColor,
+                  border: `1px solid ${picking ? '#FFEB33' : themeStyles.panelBorder}`,
+                  fontWeight: picking ? 600 : 400,
+                }}
+              >
+                <Crosshair size={14} />
+                {picking
+                  ? 'Anulează'
+                  : calibration.points.length > 0
+                    ? 'Calibrează din nou'
+                    : 'Începe calibrarea'}
+              </button>
+
+              <button
+                type="button"
+                onClick={resetCalibration}
+                disabled={calibration.points.length === 0 && !picking}
+                className="px-3 py-1 rounded flex items-center gap-2 disabled:opacity-40"
+                style={{ backgroundColor: themeStyles.inputBg, color: themeStyles.textColor }}
+              >
+                <RotateCcw size={14} />
+                Resetează
+              </button>
+            </div>
+
+            <div className="text-xs">
+              stare:{' '}
+              <strong style={{ color: calibrationStatus.colour, opacity: calibrationStatus.muted ? 0.7 : 1 }}>
+                {calibrationStatus.text}
+              </strong>
+              {calibrationScale !== null && (
+                <> · scară ~ {calibrationScale.toLocaleString('ro-RO', { maximumFractionDigits: 3 })} m/px la centru</>
+              )}
+              {picking && (
+                <> · apasă colțul {calibration.points.length + 1} din 4 pe sol</>
+              )}
+            </div>
+          </div>
+
+          <div className="min-w-[280px] flex-1 max-w-[360px]">
+            <div className="font-semibold text-xs mb-1">Persoane urmărite</div>
+            {trackRows.length === 0 ? (
+              <p className="text-xs opacity-60">
+                Nicio pistă încă. Pornește motorul și așteaptă o persoană în cadru.
+              </p>
+            ) : (
+              <ul className="font-mono text-xs space-y-1">
+                {trackRows.slice(0, 6).map((row) => {
+                  const speed = formatSpeed(row.speedMps);
+                  const state = row.truncated
+                    ? 'trunchiat'
+                    : speed !== null
+                      ? `${speed} m/s`
+                      : groundH
+                        ? 'fără eșantion'
+                        : 'necalibrat';
+                  return (
+                    <li key={row.id} className="flex items-center justify-between gap-3">
+                      <span className="opacity-70">#{row.id}</span>
+                      <span style={{ color: speed !== null ? '#33E1FF' : themeStyles.textColor }}>
+                        {state}
+                      </span>
+                      <span className="opacity-70">
+                        {row.distanceM === null ? '—' : `+${formatMetres(row.distanceM)} m`}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <p className="mt-1 text-[11px] opacity-50">
+              Viteza e media celor două cadre consecutive, netezită; distanța e față de poziția
+              anterioară a piciorului.
+            </p>
+          </div>
+        </div>
+      </section>
+
       <div className="relative rounded overflow-hidden" style={{ backgroundColor: '#000' }}>
         <canvas
           ref={canvasRef}
           className="block w-full h-auto max-h-[70vh] object-contain"
+        />
+
+        {/* Calibration quad. Sits above the processed frame but never draws into it, and
+            only takes pointer events while the operator is picking corners. */}
+        <canvas
+          ref={overlayRef}
+          className="absolute inset-0 w-full h-full"
+          style={{
+            pointerEvents: picking ? 'auto' : 'none',
+            cursor: picking ? 'crosshair' : 'default',
+          }}
+          onPointerDown={onCalibrationClick}
+          aria-hidden="true"
         />
 
         {source === SOURCE_CLIP && !clipUrl && (

@@ -18,6 +18,9 @@ const INITIAL_STATS = {
   actualProviders: [],
   events: [],
   totalEvents: 0,
+  // `/lab` ground-plane prototype only: `{ time, boxes }` from the worker when the caller
+  // asked for `trackFeed`; `null` everywhere else, including Live.
+  tracks: null,
 };
 
 // The overlay shows the last few incidents; the hook keeps a short history so the panel
@@ -50,12 +53,17 @@ const ENGINE_READY_TIMEOUT_MS = 180_000;
  *           enabled?: boolean,
  *           provider?: 'webgpu'|'wasm',
  *           inputSize?: number,
+ *           trackFeed?: boolean,
  *           onSample?: (sample: {ms: number, fps: number, persons: number, faces: number,
  *                               error?: string|null, at: number}) => void }} options
  *
  * `provider`/`inputSize` are bench-only knobs. Omitting both sends the same init message
  * the spike always sent, so `/lab` is untouched. `onSample` sees every result frame; the
  * 250 ms state throttle above is for overlays, not for measurement.
+ *
+ * `trackFeed` is the `/lab` ground-plane prototype's opt-in: the worker then attaches the
+ * tracker's boxes and the frame time to every result, and the state throttle is bypassed so
+ * consecutive samples really are consecutive. Nobody else sets it.
  *
  * `zones`, `engineOn` and `cameraId` sunt configurația Live: zonele vin deja în forma din
  * contract (poligon `[[x, y], ...]`), iar worker-ul le folosește la construirea pipeline-ului.
@@ -68,6 +76,7 @@ export function useEngine({
   enabled = true,
   provider,
   inputSize,
+  trackFeed = false,
   onSample,
   zones,
   engineOn,
@@ -200,7 +209,15 @@ export function useEngine({
           }
         });
         const now = performance.now();
-        if (incoming.length === 0 && now - lastStatsRef.current < STATS_INTERVAL_MS) return;
+        // The track feed is a measurement, not an overlay: the 250 ms throttle would keep
+        // one sample in five and speed is a difference between consecutive ones.
+        if (
+          incoming.length === 0 &&
+          !message.tracks &&
+          now - lastStatsRef.current < STATS_INTERVAL_MS
+        ) {
+          return;
+        }
         lastStatsRef.current = now;
         setStats((previous) => ({
           ...previous,
@@ -211,6 +228,7 @@ export function useEngine({
           // A frame without the key (an older worker) keeps the last counts instead of
           // flashing zeros; the worker always sends the three numbers today.
           vest: message.vest || previous.vest,
+          tracks: message.tracks || previous.tracks,
           // Newest first. The worker sends the events of one frame in rule order; a
           // functional update keeps a re-render from appending the same batch twice.
           events: incoming.length
@@ -343,6 +361,8 @@ export function useEngine({
           // events to the next one.
           events: [],
           totalEvents: 0,
+          // Track history belongs to the source that produced it; a new source gets none.
+          tracks: null,
           status: broken ? previous.status : 'loading',
           message: broken ? previous.message : 'se așteaptă primele cadre',
         };
@@ -388,6 +408,8 @@ export function useEngine({
     // dependencies below rather than being applied to a running session.
     init.wasmThreads = wasmThreads;
     init.safetyBlur = safetyBlur;
+    // `/lab` ground-plane prototype: ask the worker for the tracker's boxes per frame.
+    if (trackFeed) init.trackFeed = true;
     // Configurația Live, citită la momentul pornirii. `/lab` nu trimite niciuna dintre
     // ele, deci worker-ul păstrează zona de laborator.
     const config = configRef.current;
@@ -412,7 +434,7 @@ export function useEngine({
       // from the video that was just detached.
       setStats((previous) => ({ ...INITIAL_STATS, providers: previous.providers }));
     };
-  }, [enabled, effectiveProvider, inputSize, videoRef, canvasRef, wasmThreads, safetyBlur]);
+  }, [enabled, effectiveProvider, inputSize, videoRef, canvasRef, wasmThreads, safetyBlur, trackFeed]);
 
   // Zonele editate ajung la worker fără restart. `zones` vine memoizat din LiveView, deci
   // efectul chiar pornește doar când configurația se schimbă; `/lab` nu trimite nimic.
