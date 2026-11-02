@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-labelledby="localsight-favicon-title">
+  <title id="localsight-favicon-title">LocalSight</title>
+  <rect width="32" height="32" rx="7" fill="#1F1F1F"/>
+  <g fill="none" stroke="#7EDEED" stroke-width="2.5" stroke-linecap="square">
+    <path d="M5.5 9.5V5.5h4"/>
+    <path d="M22.5 5.5h4v4"/>
+    <path d="M26.5 22.5v4h-4"/>
+  </g>
+  <path d="M12.5 10.5v11h8.5" fill="none" stroke="#7EDEED" stroke-width="4"/>
+</svg>
