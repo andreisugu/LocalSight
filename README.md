@@ -24,7 +24,8 @@ Demo static: <https://andreisugu.github.io/LocalSight/>
 |---|---|---|
 | UI React + Vite pe date mock | funcționează | [`frontend/`](frontend/), linkul de sus |
 | Showcase static cu clipurile demo | funcționează, fără backend | linkul de sus |
-| Build și deploy static (GitHub Pages) | funcționează, la fiecare push pe `main` | [`.github/workflows/pages.yml`](.github/workflows/pages.yml) |
+| Build și deploy static (GitHub Pages) | funcționează, doar după un CI verde pe `main` (`workflow_run`) | [`.github/workflows/pages.yml`](.github/workflows/pages.yml) |
+| Identificarea build-ului live | footer-ul sidebar-ului: `build <sha>` (sau `build dev` local) | [`Sidebar.jsx`](frontend/src/components/layout/Sidebar.jsx) |
 | Modele ONNX servite din repo | funcționează | [`frontend/public/models/`](frontend/public/models/) (9,9 MB + 232 KB) |
 | Motor browser: YOLO + YuNet + tracker + zone + evenimente | funcționează în Live, `/lab` și `/bench` | [`frontend/src/engine/`](frontend/src/engine/) |
 | WASM pe 4 fire pe Pages | funcționează prin service worker COOP/COEP, fără cache | [`frontend/public/coi-serviceworker.js`](frontend/public/coi-serviceworker.js) |
@@ -45,8 +46,9 @@ COOP/COEP (GitHub Pages nu poate trimite antete custom), fără să cacheze nimi
 Runtime. Chrome/Edge folosesc WebGPU când există adapter; cifra depinde de GPU. Sub 2 fps,
 panoul din Live avertizează după 10 s de rulare.
 
-Teste: 399 Node (`node --test`, motor + utilitare + raport) și 5 E2E Playwright; CI
-rulează unit, build-ul de frontend, e2e și o gardă pentru subpath-ul de Pages.
+Teste: 406 Node (`node --test`, motor + utilitare + raport), 5 E2E Playwright la baza
+`/` și 5 E2E pe forma de deploy (`/LocalSight/`, COI + motor pornit); CI rulează unit,
+build-ul de frontend, ambele suite e2e și o gardă pentru subpath-ul de Pages.
 
 ## Pagini
 
@@ -165,7 +167,11 @@ Scenariul de prezentare, pas cu pas: [`demo/run_sheet_browser.md`](demo/run_shee
   `frontend/public/media/` sunt comise (excepție țintită în `.gitignore`) și nu fac parte
   din opera licențiată.
 - **Capturile demo** din `frontend/public/media/stills/`: Unsplash (apron), CC BY-SA 2.0
-  © Derek Harper (taxiway), CC0 (bagaj). Detalii în [`THIRD_PARTY.md`](THIRD_PARTY.md).
+  © Derek Harper (taxiway), CC0 (bagaj); cele trei `zone-*.jpg` sunt cadre din clipurile
+  demo, cu aceeași proveniență necompletată. Detalii în [`THIRD_PARTY.md`](THIRD_PARTY.md).
+- **Notificări în artefact:** build-ul publică [`frontend/public/NOTICE`](frontend/public/NOTICE)
+  ca `dist/NOTICE`, linkat din footer-ul sidebar-ului („Licențe”); conține nota AGPL-3.0
+  Ultralytics, copyright-ul MIT YuNet și trimiterea la `THIRD_PARTY.md`.
 
 ## Proveniență
 

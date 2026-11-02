@@ -11,6 +11,9 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
   testDir: './e2e',
+  // The Pages-shape suite lives under e2e/pages and has its own config + server: this
+  // run keeps the default base `/` and must stay exactly the five smoke tests.
+  testIgnore: '**/pages/**',
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   // A smoke test that flakes is worse than no smoke test: no retries, so a real

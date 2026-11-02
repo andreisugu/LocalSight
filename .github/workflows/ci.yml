@@ -1,8 +1,9 @@
 # CI for LocalSight: the browser-engine logic, the static frontend build, the
-# browser smoke test of that build, and the GitHub Pages subpath (base) check.
+# browser smoke test of that build, the GitHub Pages subpath (base) check, and the
+# second e2e run that serves the real Pages shape and starts the engine.
 #
-# The four jobs are independent on purpose: a red frontend build does not cancel
-# or hide the unit, e2e and pages-base results.
+# The five jobs are independent on purpose: a red frontend build does not cancel
+# or hide the unit, e2e, pages-base and pages-e2e results.
 #
 # There is no Python job: the SafeSight reference stack (backend/, ml/,
 # automation/) was removed from this fork. The product is the static app in
@@ -94,6 +95,42 @@ jobs:
       # dist with `vite preview`, so what is tested is what Pages would deploy.
       - name: Run e2e smoke tests
         run: npm run test:e2e
+
+  pages-e2e:
+    name: frontend / Pages e2e
+    runs-on: ubuntu-latest
+    # Real model download + WASM warm-up in Chromium takes longer than the smoke suite;
+    # 25 minutes still turns a wedged runner into a red job, not a 6-hour default.
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # playwright.pages.config.js builds with VITE_USE_MOCK=true VITE_BASE=/LocalSight/,
+      # serves dist/ under the subpath with a Pages-like 404 fallback, then asserts the
+      # COOP/COEP worker really isolates the page and starts the engine on the clip.
+      # The suite uses its own port, so it never shares the smoke suite's preview.
+      - name: Run e2e against the Pages shape
+        run: npx playwright test --config=playwright.pages.config.js
+        env:
+          # The suite asserts the footer shows this exact short SHA, so a broken
+          # build-stamp injection fails CI instead of reaching Pages.
+          VITE_BUILD_SHA: ${{ github.sha }}
 
   pages-base:
     name: frontend / Pages base

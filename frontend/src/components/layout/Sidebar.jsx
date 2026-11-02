@@ -25,6 +25,11 @@ const COLLAPSE_PREFERENCE_KEY = 'localsight.sidebarCollapsed';
 const FOOTER_BUTTON =
   'w-full rounded-xl bg-slate-100 px-2 py-2 text-slate-700 shadow-sm transition-all hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10';
 
+// The commit this bundle was built from. The workflows pass the full SHA at build time;
+// a plain local build has no SHA and says `dev` instead of inventing one. Short form only:
+// the footer is 240 px wide and the point is comparing it with `git rev-parse --short HEAD`.
+const BUILD_SHA = String(import.meta.env.VITE_BUILD_SHA || 'dev').slice(0, 7);
+
 const NAV_ITEMS = [
   {
     id: 'live',
@@ -283,6 +288,24 @@ function SidebarFooter({ collapsed, health, edgeLabel, edgeActive, edgeSuffix, o
             </p>
           </StatusCard>
         ))}
+
+      {/* Truth about what is deployed plus the notices the artifact actually ships. The
+          footer is the one place every demo visitor sees, so the build stamp is here and
+          not only on an admin screen. */}
+      {!collapsed && (
+        <p className="flex flex-wrap items-center justify-between gap-x-2 px-1 font-mono text-[10px] text-slate-500 dark:text-slate-400">
+          <span title="Commitul din care a fost construit acest bundle">build {BUILD_SHA}</span>
+          <a
+            href={`${import.meta.env.BASE_URL}NOTICE`}
+            target="_blank"
+            rel="noreferrer"
+            title="YOLO26n AGPL-3.0 · YuNet MIT · THIRD_PARTY.md"
+            className="underline decoration-dotted underline-offset-2 hover:text-slate-700 dark:hover:text-slate-200"
+          >
+            Licențe
+          </a>
+        </p>
+      )}
 
       {collapsed ? (
         <IconButton
