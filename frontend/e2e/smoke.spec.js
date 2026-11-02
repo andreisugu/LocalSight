@@ -1,7 +1,11 @@
 import { expect, test } from '@playwright/test';
 import {
   expectNoPageErrors,
+  fixtureRows,
   incidentIdFromUrl,
+  incidentRows,
+  openView,
+  setDemoData,
   watchPageErrors,
 } from './helpers.mjs';
 
@@ -33,16 +37,56 @@ test('app boots with zero console errors and shows the sidebar', async ({ page }
   expectNoPageErrors(problems);
 });
 
-test('incidents view lists at least one mock incident', async ({ page }) => {
+test('the incident surfaces show no fixtures until demo data is turned on', async ({ page }) => {
   const problems = watchPageErrors(page);
 
+  // Default: real detections only. The eight SafeSight fixtures are demo data, so the list
+  // is empty and says why instead of showing a shift that never happened.
   await page.goto('/incidents');
+  await expect(page.getByTestId('incidents-empty')).toBeVisible();
+  await expect(incidentRows(page)).toHaveCount(0);
+  await expect(fixtureRows(page)).toHaveCount(0);
 
-  const rows = page.getByTestId('incident-row');
-  await expect(rows.first()).toBeVisible();
-  expect(await rows.count()).toBeGreaterThanOrEqual(1);
+  // The Live feed and the KPI strip agree: no fixture number is dressed as telemetry.
+  await openView(page, 'live');
+  await expect(page.getByTestId('feed-empty')).toBeVisible();
+  await expect(page.getByTestId('kpi-ppe')).toHaveAttribute('data-source', 'no-demo');
+  await expect(page.getByTestId('kpi-ppe')).toContainText('—');
+  await expect(page.getByTestId('kpi-latency')).toHaveAttribute('data-source', 'no-demo');
+  await expect(page.getByTestId('kpi-open')).toContainText('0');
+
+  // The explicit Simulare action still works with the fixtures off, and says so.
+  await page.getByRole('button', { name: /Simulare/ }).click();
+  await page.getByRole('menuitem', { name: /Persoană în Zonă Motor/ }).click();
+  await expect(page.getByTestId('incident-card')).toHaveCount(1);
+  await expect(page.getByTestId('incident-simulated-chip')).toBeVisible();
+  await openView(page, 'incidents');
+  await expect(page.locator('[data-testid="incident-row"][data-source="simulated"]')).toHaveCount(1);
+
+  // Asking for the fixtures is one persisted toggle: eight labelled rows join the list.
+  await setDemoData(page, true);
+  await openView(page, 'incidents');
+  await expect(fixtureRows(page)).toHaveCount(8);
+  await expect(incidentRows(page)).toHaveCount(9);
   // Severity is part of the contract: CRITICAL or WARNING, never anything else.
-  await expect(rows.first()).toHaveAttribute('data-severity', /^(CRITICAL|WARNING)$/);
+  await expect(fixtureRows(page).first()).toHaveAttribute('data-severity', /^(CRITICAL|WARNING)$/);
+
+  // With the fixtures on, the supplied demo numbers are back and labelled as demo.
+  await openView(page, 'live');
+  await expect(page.getByTestId('kpi-demo-note')).toBeVisible();
+  await expect(page.getByTestId('kpi-ppe')).toContainText('93.8%');
+  await expect(page.getByTestId('kpi-latency')).toContainText('1.3s');
+  // The report counts the visible list too: eight fixtures plus the simulated event.
+  await openView(page, 'reports');
+  await expect(page.getByTestId('report-total')).toHaveText('9');
+
+  // The choice survives a reload; the simulated event does not (it was never stored).
+  await page.reload();
+  await openView(page, 'incidents');
+  await expect(fixtureRows(page)).toHaveCount(8);
+  await expect(incidentRows(page)).toHaveCount(8);
+  await openView(page, 'reports');
+  await expect(page.getByTestId('report-total')).toHaveText('8');
 
   expectNoPageErrors(problems);
 });
@@ -51,7 +95,10 @@ test('opening an incident from the list shows the report section', async ({ page
   const problems = watchPageErrors(page);
 
   await page.goto('/incidents');
-  const row = page.getByTestId('incident-row').first();
+  // The fixtures are the demo list; ask for them before opening one.
+  await setDemoData(page, true);
+  await openView(page, 'incidents');
+  const row = incidentRows(page).first();
   await expect(row).toBeVisible();
   const incidentId = await row.getAttribute('data-event-id');
   await row.click();
@@ -93,24 +140,29 @@ test('zone editor renders the drawing canvas', async ({ page }) => {
   expectNoPageErrors(problems);
 });
 
-test('a deep link to an incident loads the detail view directly', async ({ page }) => {
+test('a deep link to a hidden fixture still opens, labelled as demo', async ({ page }) => {
   const problems = watchPageErrors(page);
 
   // No clock freeze is needed: fixture ids come from EVENT_ID_ANCHOR_MS, not from
   // Date.now(), so a second document load resolves the same incident. That is the
   // property the deep-link contract depends on, so the test exercises it directly.
   await page.goto('/incidents');
-  const row = page.getByTestId('incident-row').first();
+  await setDemoData(page, true);
+  await openView(page, 'incidents');
+  const row = incidentRows(page).first();
   await expect(row).toBeVisible();
   await row.click();
   const deepLink = new URL(page.url()).pathname;
   expect(deepLink).toMatch(/^\/incidents\/[^/]+$/);
   const incidentId = incidentIdFromUrl(page);
 
-  // A full page load, exactly like a link opened from Slack after the Pages deploy.
+  // Hide the fixtures again, then open the link the way a Slack message would. A row that
+  // is not listed must still render, with the chip that says it is demo data.
+  await setDemoData(page, false);
   await page.goto(deepLink);
 
   await expect(page.getByTestId('incident-id')).toHaveText(incidentId);
+  await expect(page.getByTestId('incident-demo-chip')).toBeVisible();
   await expect(page.getByTestId('incident-report')).toBeVisible();
   await expect(page.getByTestId('decision-ack')).toBeVisible();
   expect(new URL(page.url()).pathname).toBe(deepLink);

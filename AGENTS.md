@@ -115,6 +115,12 @@ bash scripts/prepare-demo-media.sh           # scrie în frontend/public/media/
   (fail-closed).
 - Fără nume, fără recunoaștere de emoții, fără upload de cadre. Afirmația „nimic nu
   părăsește tab-ul" trebuie să rămână literală.
+- **Fixture-urile demo sunt ascunse implicit.** Lista, feed-ul Live, raportul de tură,
+  jurnalul și cifrele KPI citesc aceeași listă vizibilă: detecțiile motorului din browser
+  (mereu), evenimentele din meniul Simulare (marcate `simulat`) și fixture-urile doar când
+  `showDemoData` e pornit din Setări → Date demo. Preferința stă în localStorage
+  (`localsight.showDemoData`, implicit `false`); un deep link către un fixture rămâne
+  deschis, cu eticheta `date demo`. Nu adăuga un al doilea comutator sau o listă paralelă.
 
 ## Accesibilitate — reguli pe care UI-ul le respectă azi
 

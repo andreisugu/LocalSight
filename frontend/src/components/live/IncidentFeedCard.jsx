@@ -37,6 +37,7 @@ export default function IncidentFeedCard({ event, isDarkMode, onOpen, onAck, onA
       data-severity={event.severity}
       data-status={event.status}
       data-local={event.local ? 'true' : undefined}
+      data-simulated={event.simulated ? 'true' : undefined}
       style={{ backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF' }}
       className={`rounded-xl border p-2.5 shadow-sm transition-all ${
         escalated
@@ -86,6 +87,16 @@ export default function IncidentFeedCard({ event, isDarkMode, onOpen, onAck, onA
                 title="Produs de motorul din browser în această sesiune; nu e un fixture demo."
               >
                 local
+              </span>
+            )}
+
+            {event.simulated && (
+              <span
+                data-testid="incident-simulated-chip"
+                className="rounded border border-[#FFEB33]/60 bg-[#FFEB33]/15 px-1.5 py-0.5 text-[9px] font-bold text-amber-800 dark:text-[#FFEB33]"
+                title="Creat din meniul Simulare, la cerere; nu e o detecție a unei camere reale."
+              >
+                simulat
               </span>
             )}
           </span>

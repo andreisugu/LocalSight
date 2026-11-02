@@ -182,10 +182,36 @@ test('a blob snapshot downloads, the pending marker does not', () => {
   assert.equal(snapshotDownload({ snapshot_url: '/media/stills/stand12.jpg' }).downloadable, true);
 });
 
-test('local and demo chips are exclusive', () => {
-  assert.deepEqual(sourceChips({ local: true }, { mock: true }), { local: true, demo: false });
-  assert.deepEqual(sourceChips({}, { mock: true }), { local: false, demo: true });
-  assert.deepEqual(sourceChips({}, { mock: false }), { local: false, demo: false });
+test('local, simulated and demo chips are exclusive', () => {
+  assert.deepEqual(sourceChips({ local: true }, { mock: true }), {
+    local: true,
+    simulated: false,
+    demo: false,
+  });
+  assert.deepEqual(sourceChips({}, { mock: true }), {
+    local: false,
+    simulated: false,
+    demo: true,
+  });
+  assert.deepEqual(sourceChips({}, { mock: false }), {
+    local: false,
+    simulated: false,
+    demo: false,
+  });
+});
+
+test('a simulated event is not labelled as a fixture', () => {
+  assert.deepEqual(sourceChips({ simulated: true }, { mock: true }), {
+    local: false,
+    simulated: true,
+    demo: false,
+  });
+  // An engine row that somehow carries the flag stays local: the engine wins.
+  assert.deepEqual(sourceChips({ local: true, simulated: true }, { mock: true }), {
+    local: true,
+    simulated: true,
+    demo: false,
+  });
 });
 
 test('the five report fields keep their labels and fall back honestly', () => {

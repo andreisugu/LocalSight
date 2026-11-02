@@ -15,6 +15,9 @@ export function useSimulation({ showToast, setEvents, setSelectedEventId }) {
     const newId = `evt_${SIMULATED_CAMERA_ID}_${Date.now()}_${Math.floor(Math.random() * 80 + 10)}`;
     const newEvent = {
       event_id: newId,
+      // The one flag that separates a menu-created demo event from a fixture: it stays
+      // visible even with the demo fixtures hidden, because the operator asked for it.
+      simulated: true,
       type,
       severity,
       camera_id: SIMULATED_CAMERA_ID,

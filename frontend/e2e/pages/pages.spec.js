@@ -2,6 +2,9 @@ import { expect, test } from '@playwright/test';
 import {
   PAGES_BASE as BASE,
   incidentIdFromUrl,
+  incidentRows,
+  openView,
+  setDemoData,
   startEngine,
   waitForIsolation,
 } from '../helpers.mjs';
@@ -32,9 +35,12 @@ test('the deploy base serves / and the sidebar says which build it is', async ({
 });
 
 test('a deep link loads through the Pages 404 fallback', async ({ page }) => {
-  // The id comes from the running app, so this does not hardcode fixture data.
+  // A Slack link points at one incident; the default build lists no fixtures, so ask for
+  // them first. The id comes from the running app, never from hardcoded fixture data.
   await page.goto(`${BASE}incidents`);
-  const row = page.getByTestId('incident-row').first();
+  await setDemoData(page, true);
+  await openView(page, 'incidents');
+  const row = incidentRows(page).first();
   await expect(row).toBeVisible();
   await row.click();
   const deepLink = new URL(page.url()).pathname;
