@@ -15,6 +15,7 @@ import { useBackgroundCameras } from './useBackgroundCameras.js';
 import { useBackendBootstrap } from './useBackendBootstrap.js';
 import { useCameraStore } from './useCameraStore.js';
 import { useConnectionHealth } from './useConnectionHealth.js';
+import useCoverageSamples from './useCoverageSamples.js';
 import { useIncidentStore } from './useIncidentStore.js';
 import { useKpis } from './useKpis.js';
 import { useOperator } from './useOperator.js';
@@ -98,6 +99,9 @@ export const SecurityProvider = ({ children }) => {
   });
 
   const report = useShiftReport({ showToast });
+  // The coverage receipt's raw samples. Additive and session-only: no key below changes,
+  // and the list is never persisted (the Reports panel says "doar cât a rulat motorul").
+  const coverage = useCoverageSamples();
 
   const { simulateIncomingWsEvent } = useSimulation({
     showToast,
@@ -189,6 +193,12 @@ export const SecurityProvider = ({ children }) => {
     liveEngineCameraId,
     reportActiveCamera,
   };
+  // Additive: Live records the samples, Reports reads them. No existing key changes.
+  const coverageKeys = {
+    coverageSamples: coverage.coverageSamples,
+    recordCoverageSample: coverage.recordCoverageSample,
+    clearCoverageSamples: coverage.clearCoverageSamples,
+  };
 
   const value = {
     ...navigation,
@@ -201,6 +211,7 @@ export const SecurityProvider = ({ children }) => {
     ...connectionKeys,
     ...demoKeys,
     ...backgroundKeys,
+    ...coverageKeys,
   };
 
   return <Store.Provider value={value}>{children}</Store.Provider>;
