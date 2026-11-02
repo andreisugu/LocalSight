@@ -1,4 +1,3 @@
-import React from 'react';
 import { Camera, CameraOff, RotateCcw } from 'lucide-react';
 
 // Small pieces of chrome drawn over the feed. They only report what the page already

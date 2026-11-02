@@ -34,7 +34,7 @@ export const NO_VEST_MAX = 0.03; // ppe.py: NO_VEST_MAX
 /** Smaller people have too few torso pixels to judge, in frame pixels. */
 export const MIN_PERSON_PX = 80; // ppe.py: MIN_PERSON_PX
 /** Claiming "no vest" needs more pixels than judging a vest, in frame pixels. */
-export const MIN_PERSON_PX_NO_VEST = 150; // ppe.py: MIN_PERSON_PX_NO_VEST
+const MIN_PERSON_PX_NO_VEST = 150; // ppe.py: MIN_PERSON_PX_NO_VEST
 /** Good frames before a track gets a state. */
 export const MIN_SAMPLES = 5; // ppe.py: MIN_SAMPLES
 /** "No vest" looks at the last RECENT good frames. */
@@ -42,7 +42,7 @@ export const RECENT = 30; // ppe.py: RECENT
 /** Frames needed before "no vest" may be claimed. */
 export const MIN_SAMPLES_NO_VEST = 10; // ppe.py: MIN_SAMPLES_NO_VEST
 /** Boxes on barriers and equipment scored 0.39-0.50: do not call those "no vest". */
-export const MIN_CONFIDENCE_NO_VEST = 0.5; // ppe.py: MIN_CONFIDENCE_NO_VEST
+const MIN_CONFIDENCE_NO_VEST = 0.5; // ppe.py: MIN_CONFIDENCE_NO_VEST
 /** A box this close to the frame border is cut: `x <= EDGE` or `x >= 1 - EDGE`. */
 export const EDGE = 0.005; // ppe.py: EDGE
 

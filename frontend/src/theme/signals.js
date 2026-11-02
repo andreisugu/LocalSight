@@ -10,5 +10,3 @@ export const SIGNAL_COLORS = {
   BLUE_MANDATORY: BRAND.frostedBlue, // mandatory actions, PPE, information
   FROSTED_BLUE: BRAND.frostedBlue,
 };
-
-export default SIGNAL_COLORS;

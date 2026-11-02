@@ -1,4 +1,3 @@
-import React from 'react';
 import { Clock } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { buildTimeline } from '../../utils/incidentDetail';

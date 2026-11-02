@@ -10,7 +10,7 @@
  * @param {number} threshold
  * @returns {Array<{x1:number,y1:number,x2:number,y2:number,score:number}>}
  */
-export function nms(boxes, threshold) {
+function nms(boxes, threshold) {
   const order = boxes
     .map((box, index) => ({ box, index }))
     .sort((a, b) => b.box.score - a.box.score)
@@ -92,7 +92,7 @@ export function decodeYolo(data, options = {}) {
   return nms(candidates, iouThreshold);
 }
 
-export const YUNET_STRIDES = [8, 16, 32];
+const YUNET_STRIDES = [8, 16, 32];
 
 /**
  * YuNet decode, the same maths as the removed ml/safesight_ml/privacy.py `_decode_yunet`:

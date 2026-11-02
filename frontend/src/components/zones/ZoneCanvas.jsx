@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Trash2, Wand2 } from 'lucide-react';
 
 // A click this close to the first point closes the outline instead of adding a point.

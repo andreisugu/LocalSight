@@ -1,4 +1,3 @@
-import React from 'react';
 import { outlineForZone } from './liveMedia';
 
 // The zone outline is configuration, not a detection: it is drawn from the zone editor's

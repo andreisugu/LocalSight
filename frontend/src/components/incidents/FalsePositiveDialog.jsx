@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 
 // The note is the only part of a false-positive decision the model can learn from, so the

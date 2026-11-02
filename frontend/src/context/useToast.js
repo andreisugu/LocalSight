@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /** How long a toast stays on screen. */
-export const TOAST_DURATION_MS = 3800;
+const TOAST_DURATION_MS = 3800;
 
 export function useToast() {
   const [toastMessage, setToastMessage] = useState(null);

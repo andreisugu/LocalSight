@@ -1,4 +1,3 @@
-import React from 'react';
 import { toneClass } from './tone.js';
 
 // Three shapes cover the chips in the chrome: a rounded count, the compact mono tag used

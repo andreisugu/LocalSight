@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { ShieldAlert } from 'lucide-react';
 import { USE_MOCK } from '../../services/api';
 import DemoDataChip from './DemoDataChip';

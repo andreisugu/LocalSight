@@ -19,7 +19,7 @@ const INITIAL_ROUTE = typeof window === 'undefined'
   : readInitialRoute(window.location.pathname, BASE);
 
 /** The incident a Slack link asked for, if the app was opened on one. */
-export const LINKED_INCIDENT_ID = INITIAL_ROUTE.eventId;
+const LINKED_INCIDENT_ID = INITIAL_ROUTE.eventId;
 
 export function useRouting() {
   const [currentView, setCurrentView] = useState(INITIAL_ROUTE.view);

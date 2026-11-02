@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Check, FileDown, RotateCcw, XCircle } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import FalsePositiveDialog from './FalsePositiveDialog';

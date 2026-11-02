@@ -1,5 +1,3 @@
-import React from 'react';
-
 // The static Pages build ships fixture KPIs and fixture incidents; the clip is a
 // recording and only the opt-in browser engine produces real detections. One quiet chip
 // marks the blocks a visitor could otherwise read as live telemetry, so the numbers never

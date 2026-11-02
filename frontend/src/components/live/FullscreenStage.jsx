@@ -1,4 +1,3 @@
-import React from 'react';
 import { Minimize2, Power, Video } from 'lucide-react';
 import { SignalLost } from './LiveEmptyStates';
 

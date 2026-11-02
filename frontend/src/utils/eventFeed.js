@@ -4,7 +4,7 @@
 // rule and is kept exactly as it behaved.
 
 /** Filter tabs on the Live feed. `all` is "everything today", not "everything ever". */
-export const FEED_FILTERS = Object.freeze(['open', 'critical', 'all']);
+const FEED_FILTERS = Object.freeze(['open', 'critical', 'all']);
 
 const SEARCH_FIELDS = ['event_id', 'type', 'camera_id'];
 

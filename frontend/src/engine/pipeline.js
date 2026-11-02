@@ -21,13 +21,13 @@ import { createTracker } from './tracker.js';
 import { RuleEngine, ZoneMembership, triggersEvent } from './zones.js';
 
 /** Zone rule -> contract event type. Every other rule type stays silent. */
-export const EVENT_TYPE_BY_RULE = Object.freeze({
+const EVENT_TYPE_BY_RULE = Object.freeze({
   RESTRICTED: 'RESTRICTED_ZONE',
   PPE_REQUIRED: 'NO_PPE',
 });
 
 /** Detector name the browser build runs, stored in `model` (`events.js` requires it). */
-export const DEFAULT_MODEL = 'yolo26n';
+const DEFAULT_MODEL = 'yolo26n';
 
 /**
  * `snapshot_url` used when the caller has not rendered a blurred frame yet. The static

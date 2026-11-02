@@ -1,5 +1,3 @@
-import React from 'react';
-
 // Icon-only buttons are easy to ship without an accessible name. `label` is required and
 // becomes the aria-label; `title` is the hover hint and defaults to the same text. Sizes
 // map to the icon scale and the padding used by the chrome; `active` exposes a pressed

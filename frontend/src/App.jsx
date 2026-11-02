@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { SecurityProvider, useSecurity } from './context/SecurityContext';
 import Header from './components/layout/Header';
