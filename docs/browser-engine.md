@@ -111,7 +111,8 @@ Restul planului de port nu există încă: `tracker.js`, `zones.js`, `privacy.js
 | `FaceBlurrer` fail-closed | `privacy.py:179` | `privacy.js` | dacă `yunet.onnx` nu se încarcă: fără snapshot, fără înregistrare, banner explicit |
 | `detector.letterbox` + `decode` (640, fill 114, conf 0.35, NMS 0.45, clasa 0) | `ncnn_detector.py:32,49` | `detector.js` | aceiași parametri; decodarea anulează letterbox-ul înainte de pipeline |
 | ByteTrack | `detector.py:106` | `tracker.js` | **înlocuit**, vezi mai jos |
-| `vest_sample` / `VestTracker` | `ppe.py` | `pipeline.js` (opțional) | HSV pe `ImageData` din cadrul brut, înainte de blur; fără `cv2.inRange`, doar aritmetică pe `Uint8ClampedArray` |
+| `vest_sample` / `VestTracker` | `ppe.py` | `vest.js`, apelat din `worker.js` | HSV pe `ImageData` din cadrul brut, înainte de blur; `vestStates` intră în `pipeline.step()`. Fără `cv2.inRange`, doar aritmetică pe `Uint8ClampedArray` |
+| `FaceBlurrer.blur_with_faces` (banda de cap 0.35) | `privacy.py:200-235` | `worker.js` | după blurul pe fețe, se blurează topul de 35% al fiecărei persoane — plasa de siguranță pentru fețele ratate de YuNet |
 | `Sink.store_snapshot` | `sink.py` | `store.js` | `convertToBlob({type:'image/jpeg', quality:0.8})` → `URL.createObjectURL`, revocat la închiderea incidentului |
 
 **Trackerul IoU care înlocuiește ByteTrack.** ByteTrack are două stagii (detecții
