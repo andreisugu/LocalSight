@@ -1,6 +1,8 @@
 // Date demo pentru build-ul static (VITE_USE_MOCK=true) și pentru `npm run dev`.
-// Nimic nu vine din backend: totul e generat relativ la momentul încărcării paginii,
-// ca lista de incidente și raportul de tură să arate ca o tură reală oricând e deschis linkul.
+// Nimic nu vine din backend: orele (detected_at, received_at, acked_at…) sunt generate
+// relativ la momentul încărcării paginii, ca lista de incidente și raportul de tură să
+// arate ca o tură reală oricând e deschis linkul. `event_id` face excepție: e un
+// identificator stabil (vezi FIXTURE_ANCHOR_MS), altfel linkul din Slack moare la reload.
 //
 // Imagini demo (fără fețe identificabile):
 // - Unsplash, photo-1542296332-2e4473faf563 — apron cu aeronavă la poartă.
@@ -11,6 +13,15 @@
 const MINUTE_MS = 60_000;
 const SECOND_MS = 1_000;
 const TIME_ZONE = 'Europe/Bucharest';
+
+// Ancora id-urilor demo: un moment fix, nu „acum”. Contractul cere
+// `evt_<camera_id>_<13 cifre>_<track_id>` (backend/app/schemas.py), iar linkul profund
+// `/incidents/<id>` trebuie să rămână același după reload, în alt tab și pe altă mașină.
+// De aceea mijlocul de 13 cifre e un identificator derivat din ancoră + un decalaj
+// stabil per eveniment, complet separat de `detected_at`, care continuă să se miște cu
+// ceasul ca „Toate azi” și raportul de tură să arate o tură vie.
+const FIXTURE_ANCHOR_MS = 1_700_000_000_000; // 2023-11-14T22:13:20Z, 13 cifre
+const FIXTURE_ID_STEP_MS = 60_000; // un minut între id-uri, ca fiecare să fie unic
 
 const pad2 = (value) => String(value).padStart(2, '0');
 const roDecimal = (value) => String(value).replace('.', ',');
@@ -396,7 +407,7 @@ const eventSpecs = [
   },
 ];
 
-function buildEvent(spec) {
+function buildEvent(spec, index) {
   const detectedMs = spec.detectedAt.getTime();
   const receivedAt = new Date(detectedMs + 180 + (spec.trackId % 6) * 25);
   const notifiedAt = new Date(receivedAt.getTime() + 800 + (spec.trackId % 7) * 90);
@@ -405,9 +416,11 @@ function buildEvent(spec) {
     spec.status === 'escalated' && spec.escalateAfterS != null
       ? new Date(detectedMs + spec.escalateAfterS * SECOND_MS)
       : null;
+  // Id-ul nu conține `detectedMs`: acela se schimbă la fiecare încărcare de document.
+  const idMs = FIXTURE_ANCHOR_MS + index * FIXTURE_ID_STEP_MS;
 
   return {
-    event_id: `evt_${spec.cameraId}_${detectedMs}_${spec.trackId}`,
+    event_id: `evt_${spec.cameraId}_${idMs}_${spec.trackId}`,
     type: spec.type,
     severity: spec.severity,
     camera_id: spec.cameraId,
@@ -438,7 +451,7 @@ function buildEvent(spec) {
 }
 
 export const INITIAL_EVENTS = eventSpecs
-  .map(buildEvent)
+  .map((spec, index) => buildEvent(spec, index))
   .sort((a, b) => String(b.detected_at).localeCompare(String(a.detected_at)));
 
 export const INITIAL_ZONES = [
