@@ -92,7 +92,7 @@ function NoCamerasNotice() {
       >
         <h2 className="text-sm font-bold uppercase">Nu există camere</h2>
         <p className="text-xs" style={{ color: themeStyles.textMuted }}>
-          Backend-ul nu a returnat camere. Pornește stack-ul cu ./run.sh demo.
+          Build-ul static nu are camere încărcate. Reîncarcă pagina; camerele demo vin din fixture-uri.
         </p>
       </div>
     </div>
