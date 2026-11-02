@@ -17,7 +17,7 @@ Constrângerile sunt fixe, nu preferințe:
 | Constrângere | Consecință directă |
 |---|---|
 | Hosting static (GitHub Pages, `VITE_BASE=/LocalSight/` în `.github/workflows/pages.yml`, vezi `frontend/vite.config.js`) | Nu există `POST /edge/events`, nici `GET /events`; starea trăiește în memorie |
-| Fără anteturi custom | Fără `Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` ⇒ fără `SharedArrayBuffer` ⇒ WASM single-thread (secțiunea 5) |
+| Fără anteturi custom | Un service worker same-origin re-servește navigările cu COOP/COEP, deci `SharedArrayBuffer` și WASM pe 4 fire (secțiunea 5); fără el, un singur fir |
 | Fără upload, fără stocare | Cadrele nu părăsesc niciodată tab-ul; nici măcar snapshot-ul nu se salvează pe disc |
 | Fără descărcare de modele la runtime | Cele două ONNX sunt urmărite în `frontend/public/models/` (excepție țintită în `.gitignore`) și Vite le copiază în `dist/` la build (secțiunea 4) |
 
@@ -68,8 +68,9 @@ Trei reguli de structură:
    main thread-ul îl desenează. Ținta e `canvas.transferControlToOffscreen()`, ca main
    thread-ul să nu atingă pixelii deloc; un `body` de 8 MB pe cadru ar fi mai scump decât
    inferența.
-3. **Un singur worker.** Fără `SharedArrayBuffer` nu există memorie partajată; un al
-   doilea worker ar însemna o a doua sesiune ONNX și doi tensori de 1080p în RAM.
+3. **Un singur worker de aplicație.** ORT își pornește firele WASM în interiorul lui când
+   documentul e `crossOriginIsolated`; un al doilea worker de aplicație ar însemna o a doua
+   sesiune ONNX și doi tensori de 1080p în RAM.
 
 Sursa se schimbă din UI fără reload: se înlocuiește `src`-ul clipului, iar worker-ul reia
 cadrele la noua dimensiune. Pentru `getUserMedia` rămân de făcut oprirea `MediaStream`-ului
@@ -169,13 +170,17 @@ dintr-un release extern ar adăuga o dependență de rețea în calea critică d
 - WebGPU cere build-ul `jsep` al ORT-web (îl include pe cel WASM); mărimea livrată e de
   verificat, nu presupusă. `executionMode: 'parallel'` nu ajută fără fire.
 
-**De ce WASM cu fire nu e o opțiune pe Pages.** `onnxruntime-web` folosește
-`SharedArrayBuffer` pentru `numThreads > 1`, iar `SharedArrayBuffer` cere
-`crossOriginIsolated === true`, adică anteturile COOP/COEP. GitHub Pages nu permite
-anteturi custom, iar `pages.yml` publică doar artefactul static — nu există unde pune
-anteturile. Consecință: fallback-ul WASM e single-thread și semnificativ mai lent decât
-cele 4 fire din `privacy.py:24`, care dădeau 26 ms la 1080p. Fallback-ul e pentru
-corectitudine, nu pentru demo.
+**Cum se obțin firele WASM pe Pages.** `onnxruntime-web` folosește `SharedArrayBuffer`
+pentru `numThreads > 1`, iar `SharedArrayBuffer` cere `crossOriginIsolated === true`,
+adică anteturile COOP/COEP. GitHub Pages nu le trimite. Soluția e
+`frontend/public/coi-serviceworker.js`: un service worker same-origin care re-fetch-uiește
+navigările și scripturile de worker și le reconstruiește cu
+`Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: require-corp`.
+Nu cachează nimic, ca un deploy să nu rămână ascuns în spatele unui shell vechi. Prima
+încărcare nu e izolată; după ce worker-ul preia pagina, `main.jsx` face **un singur reload**
+(guard în `sessionStorage`). Măsurat pe clipul de 1080p: 2,5–3,6 fps în Chromium, 2,9 fps în
+Firefox, față de 1,5–1,8 fps pe un fir. Dacă service worker-ul nu e disponibil, aplicația
+rulează identic, doar pe un fir; izolarea e o optimizare, nu o dependență.
 
 ## 6. Buget de performanță
 
@@ -195,9 +200,9 @@ OpenCV 5.0, YOLO26n, YuNet 2023mar), o cameră la 1080p:
 | Măsurătoare | Ipoteză | De ce ar putea să nu țină |
 |---|---|---|
 | YOLO26n 640, WebGPU | 5–15 ms | upload fp32 640×640 (~4.9 MB) + readback; drivere care serializează |
-| YOLO26n 640, WASM single-thread | 40–90 ms | ~4× mai lent decât 4 fire; sub 12 fps |
+| YOLO26n 640, WASM 4 fire (măsurat) | 2,5–3,6 fps pe clip 1080p | cu `crossOriginIsolated`; fără el, 1,5–1,8 fps |
 | YuNet 1080p, WebGPU | 20–50 ms | intrare fp32 1920×1080 = ~8.3 MB per cadru; modelul e mic, transferul domină (aceeași concluzie ca la iGPU + ncnn în `docs/performance.md`) |
-| YuNet 1080p, WASM | 80–200 ms | un singur fir față de 4 |
+| YuNet 1080p, WASM | 80–200 ms | depinde de fire; 4 fire prin service worker-ul COOP/COEP |
 | primul cadru după încărcare | < 3 s | depinde de cache; rece: 9,9 MB + runtime |
 | memorie tab | < 300 MB | buffere 1080p + blob-uri de snapshot |
 
@@ -234,7 +239,8 @@ treilea mod de rulare, util când WebGPU lipsește.
 ## 8. Riscuri și întrebări deschise
 
 1. **WebGPU pe mașina privitorului.** Cel mai probabil mod de eșec al demonstrației.
-   Fallback-ul WASM single-thread poate coborî sub 10 fps și face demo-ul să pară stricat.
+   Fallback-ul WASM pe un fir coboară la 1,5–1,8 fps; cu service worker-ul COOP/COEP urcă
+   la 2,5–3,6 fps, dar tot sub un demo fluid. De decis pragul de „mod lent”.
    De decis: prag minim (dacă YOLO > 80 ms, se afișează explicit „rulează în mod lent”) și
    dacă demo-ul oficial cere Chrome/Edge pe desktop. De măsurat pe o placă integrată, una
    dedicată și un Mac.

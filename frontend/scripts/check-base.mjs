@@ -99,7 +99,20 @@ if (fallbackHtml !== null && indexHtml !== null && fallbackHtml !== indexHtml) {
   fail('dist/404.html differs from dist/index.html (pages.yml copies index.html to 404.html)');
 }
 
-// --- 4. Browser models must be published -----------------------------------
+// --- 4. The COOP/COEP worker must be published ------------------------------
+// Without it the engine still runs, but on one thread; a missing file would be a silent
+// 2x regression that only shows up in production performance.
+const coiPath = join(distDir, 'coi-serviceworker.js');
+const coiSource = readOrFail(coiPath, 'COOP/COEP worker dist/coi-serviceworker.js');
+if (coiSource !== null) {
+  const needed = ['Cross-Origin-Opener-Policy', 'Cross-Origin-Embedder-Policy'];
+  const missing = needed.filter((header) => !coiSource.includes(header));
+  if (missing.length) {
+    fail(`dist/coi-serviceworker.js does not set ${missing.join(', ')}`);
+  }
+}
+
+// --- 5. Browser models must be published -----------------------------------
 const modelsDir = join(distDir, 'models');
 const presentModels = REQUIRED_MODELS.filter((name) => existsSync(join(modelsDir, name)));
 for (const name of REQUIRED_MODELS) {
@@ -119,6 +132,7 @@ console.log(
   `  404.html fallback: ${fallbackHtml === null ? 'missing' : fallbackHtml === indexHtml ? 'identical to index.html' : 'differs'}`,
 );
 console.log(`  models: ${presentModels.length}/${REQUIRED_MODELS.length} present (${REQUIRED_MODELS.join(', ')})`);
+console.log(`  COOP/COEP worker: ${coiSource === null ? 'missing' : 'present'}`);
 
 if (ok) {
   console.log(`OK: ${internal.length} internal ref(s) under ${EXPECTED_BASE}, fallback and models intact`);

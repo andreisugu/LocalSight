@@ -11,7 +11,7 @@ demo-ul SafeSight pe `ml/` + `backend/` și rămâne material istoric.
    - pe **Firefox**: `MODEL DETECȚIE: YOLO26n · wasm`, motorul e **oprit** implicit;
    - pe **Chrome/Edge**: dacă există adapter WebGPU, motorul pornește singur; altfel pornește-l tu.
 3. Pornește motorul o dată și așteaptă primul cadru (2–3 s). Trebuie să vezi cutii `PERSON`,
-   fețele blurate și ~1,5–1,8 fps pe WASM. Dacă nu apare nimic în 30 s, oprește-l și
+   fețele blurate și ~2,5–3,6 fps pe WASM (4 fire). Dacă nu apare nimic în 30 s, oprește-l și
    repornește; watchdog-ul îl mută singur pe WASM dacă providerul cerut se blochează.
 4. Deschide `/zones` și verifică fundalul: primul cadru din clipul camerei, nu panou negru.
 5. Deschide `/bench` doar dacă vrei cifre; nu face parte din demo.
@@ -53,6 +53,6 @@ Ce să nu promiți: nu există Slack, nu există backend, nu există persistenț
 
 ## Limite pe care le spui tu primul
 
-- WASM single-thread: ~1,5–1,8 fps pe 1080p; GitHub Pages nu poate trimite COOP/COEP.
+- WASM cu 4 fire prin service worker COOP/COEP: ~2,5–3,6 fps pe 1080p; fără el, 1,5–1,8 fps.
 - Firefox: WebGPU e ignorat intenționat (0,4–0,7 fps și instabil); Chrome/Edge pot folosi GPU-ul.
 - Nimic nu pleacă în rețea; starea se pierde la reload; snapshot-urile trăiesc în memorie.

@@ -10,7 +10,8 @@ Linkul public este un **showcase static** — UI-ul React rulează pe date mock
 (`VITE_USE_MOCK=true`), dar poate rula și motorul real pe clipul demo sau pe camera
 browserului. Motorul e scris în [`frontend/src/engine/`](frontend/src/engine/): YOLO26n +
 YuNet + tracker + zone + reguli + blur + vestă hi-vis. Pe browsere fără WebGPU (inclusiv
-Firefox, intenționat) pornește doar la cerere, pe WASM single-thread, ~1,5–1,8 fps.
+Firefox, intenționat) pornește doar la cerere, pe WASM; un service worker aduce anteturile
+COOP/COEP, deci rulează pe 4 thread-uri (`~2,5–3,6 fps` pe clipul de 1080p).
 Pipeline-ul Python din `ml/` + `backend/` rămâne implementarea de referință pe care portul
 o urmează.
 
@@ -26,6 +27,7 @@ Demo static: <https://andreisugu.github.io/LocalSight/>
 | Modele ONNX servite din repo | funcționează | [`frontend/public/models/`](frontend/public/models/) (9,9 MB + 232 KB) |
 | Implementare de referință CPU | funcționează | [`ml/`](ml/) + [`backend/`](backend/) |
 | Motor browser: YOLO + YuNet + tracker + zone + evenimente | funcționează în Live, `/lab` și `/bench` | [`frontend/src/engine/`](frontend/src/engine/) |
+| WASM pe 4 fire pe Pages | funcționează prin service worker COOP/COEP, fără cache | [`frontend/public/coi-serviceworker.js`](frontend/public/coi-serviceworker.js) |
 | Raport de tură | calculat din incidentele vizibile, marcat `șablon` | `/reports` |
 | Detecție de vestă hi-vis (PPE) | funcționează; badge `VESTĂ` / `FĂRĂ VESTĂ` / `PPE ?` pe canvas | [`frontend/src/engine/vest.js`](frontend/src/engine/vest.js); `NO_PPE` cere un om de ≥150 px în cadru |
 | Camere | 3 clipuri demo + camera browser (getUserMedia) | selectorul de cameră din Live |
@@ -33,13 +35,16 @@ Demo static: <https://andreisugu.github.io/LocalSight/>
 | Motor browser în Live | opt-in, ~1,8–3 fps pe WASM | comutatorul „Procesează în browser” |
 | Backend, Slack, MJPEG, SQLite | în afara scopului | rămân în repo ca referință |
 
-Cifrele de browser sunt măsurate pe hardware-ul de dezvoltare, WASM single-thread (fără
-fire, din cauza anteturilor lipsă de pe Pages): **1,5–1,8 fps** pe clipul de 1080p, atât în
-Chromium cât și în Firefox. Firefox este ținut intenționat pe WASM: WebGPU în workeri dădea
-0,4–0,7 fps și putea bloca sesiunea ONNX Runtime. Chrome/Edge folosesc WebGPU când există
-adapter; cifra depinde de GPU. Sub 2 fps, panoul din Live avertizează după 10 s de rulare.
+Cifrele de browser sunt măsurate pe hardware-ul de dezvoltare, pe clipul de 1080p:
+**2,5–3,6 fps** în Chromium și **2,9 fps** în Firefox, pe WASM cu 4 fire. Firele vin din
+`frontend/public/coi-serviceworker.js`: un service worker care re-servește navigările cu
+COOP/COEP (GitHub Pages nu poate trimite antete custom), fără să cacheze nimic. Fără el
+(dev, browser fără service worker) motorul cade pe un singur fir: 1,5–1,8 fps. Firefox este
+ținut intenționat pe WASM — WebGPU în workeri dădea 0,4–0,7 fps și putea bloca sesiunea ONNX
+Runtime. Chrome/Edge folosesc WebGPU când există adapter; cifra depinde de GPU. Sub 2 fps,
+panoul din Live avertizează după 10 s de rulare.
 
-Teste: 156 Node (`node --test`, motor + utilitare + raport) și 5 E2E Playwright; CI
+Teste: 232 Node (`node --test`, motor + utilitare + raport) și 5 E2E Playwright; CI
 rulează unit, backend, ml, build-ul de frontend, e2e și o gardă pentru subpath-ul de Pages.
 
 ## Pagini
@@ -110,7 +115,7 @@ Traseul, așa cum e scris azi:
 
 Nimic nu urcă pe rețea: se descarcă doar fișierele statice (JS, `yolo26n.onnx`,
 `yunet.onnx`, clipul). Starea trăiește în tab și se pierde la reload. Deciziile, inclusiv
-de ce WASM cu fire nu este posibil pe GitHub Pages, sunt în
+cum se obțin firele WASM pe un host fără antete custom, sunt în
 [`docs/browser-engine.md`](docs/browser-engine.md).
 
 ## Harta repo-ului
