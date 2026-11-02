@@ -25,14 +25,81 @@ const NO_ZONE_MESSAGE = 'Alege o zonă salvată sau apasă „Zonă nouă”.';
 const MIN_POINTS_MESSAGE = 'O zonă are nevoie de cel puțin 3 puncte.';
 const REORDER_NOTICE = 'Punctele au fost reordonate în jurul centrului zonei.';
 const TEXT_ENTRY_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
+const HINT =
+  'Trage un punct ca să-l muți · „+” de pe latură adaugă un punct · click dreapta / Delete șterge · Ctrl+Z anulează';
 
 /**
- * Zone configuration screen. The polygon and the parameters live in one draft state
- * machine (`utils/zoneDraft.js`); this file wires that machine to the store, the
- * keyboard and the four panels, and owns nothing that could be tested without a DOM.
+ * Zone configuration screen.
+ *
+ * The polygon and the parameters are one draft document (`utils/zoneDraft.js`); this
+ * file only wires that document to the store, the keyboard and the four panels, and owns
+ * nothing that could be tested without a DOM.
  */
-export default function ZoneEditorView() {
+
+/** Page title plus the camera picker: which camera's zones the editor is showing. */
+function EditorHeader({ cameraChoices, selectedCameraId, onCameraChange }) {
   const { themeStyles } = useTheme();
+  return (
+    <header
+      className="flex flex-wrap items-start justify-between gap-3 border-b pb-3"
+      style={{ borderColor: themeStyles.panelBorder }}
+    >
+      <div className="min-w-0">
+        <h2 className="flex items-center gap-2 text-xl font-black uppercase tracking-tight">
+          <PenTool size={20} className="shrink-0 text-[#D73833] dark:text-[#FFEB33]" aria-hidden="true" />
+          Configurare zone
+        </h2>
+        <p className="mt-1 text-xs font-mono" style={{ color: themeStyles.textMuted }}>
+          {HINT}
+        </p>
+      </div>
+
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-2 text-xs sm:w-auto">
+        <label htmlFor="zone-camera" className="font-bold opacity-75">
+          Camera:
+        </label>
+        <select
+          id="zone-camera"
+          data-testid="zone-camera"
+          value={selectedCameraId}
+          onChange={onCameraChange}
+          style={{
+            backgroundColor: themeStyles.cardBg,
+            borderColor: themeStyles.panelBorder,
+            color: themeStyles.text,
+          }}
+          className="min-w-0 flex-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#FFEB33] sm:min-w-[15rem] sm:flex-none"
+        >
+          {cameraChoices.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </header>
+  );
+}
+
+/** Nothing to edit: the camera list came back empty. */
+function NoCamerasNotice() {
+  const { themeStyles } = useTheme();
+  return (
+    <div className="flex h-full items-center justify-center p-6">
+      <div
+        style={{ backgroundColor: themeStyles.panelBg, borderColor: themeStyles.panelBorder }}
+        className="max-w-md space-y-2 rounded-xl border p-5 text-center"
+      >
+        <h2 className="text-sm font-bold uppercase">Nu există camere</h2>
+        <p className="text-xs" style={{ color: themeStyles.textMuted }}>
+          Backend-ul nu a returnat camere. Pornește stack-ul cu ./run.sh demo.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default function ZoneEditorView() {
   const {
     cameras,
     selectedCameraId,
@@ -68,15 +135,15 @@ export default function ZoneEditorView() {
   const cameraChoices = useMemo(() => cameraOptions(cameras, zones), [cameras, zones]);
   const canSave = check.canSave && !saving;
 
-  // The textarea mirrors the geometry; typing in it does not change the draft until
-  // "Aplică pe cadru", so a half-typed line cannot corrupt the points.
+  // The JSON textarea mirrors the geometry; typing does not touch the draft until
+  // "Aplică pe cadru", so a half-typed line cannot corrupt the polygon.
   useEffect(() => {
     setJsonText(formatPoints(draft.points));
   }, [draft.points]);
 
   // Reload only when the selection changes, never on every store update: a save or a
-  // live event must not throw away the edit in progress. A new zone is not in the
-  // store yet, so it is left alone.
+  // live event must not throw away the edit in progress. A zone that is not saved yet
+  // has nothing to reload and stays as it is.
   useEffect(() => {
     if (draft.isNew) return;
     const current = cameraZones.find((item) => item.zone_id === draft.zoneId);
@@ -92,71 +159,87 @@ export default function ZoneEditorView() {
     dispatch({ type: 'reset' });
   }, [selectedCameraId, draft.zoneId, draft.isNew, cameraZones.length]);
 
-  // Keyboard: Ctrl+Z / Ctrl+Shift+Z, Delete removes the selected point, arrows nudge
-  // it (Shift = 5x) and Esc deselects. Inputs keep their own keys.
+  // Keyboard: Ctrl+Z / Ctrl+Shift+Z, Delete removes the selected point, arrows nudge it
+  // (Shift = 5x) and Esc deselects. Text fields keep their own keys.
   useEffect(() => {
-    const handleKeyDown = (event) => {
-      const tag = event.target?.tagName;
-      if (TEXT_ENTRY_TAGS.has(tag) || event.target?.isContentEditable) return;
+    function onKeyDown(event) {
+      if (TEXT_ENTRY_TAGS.has(event.target?.tagName) || event.target?.isContentEditable) return;
       const intent = shortcutFor(event, draft.selectedIndex);
       if (!intent) return;
       if (intent.preventDefault) event.preventDefault();
-      if (intent.type === 'delete-selection' && !canDeletePoint(draft, draft.selectedIndex)) {
-        return showToast(MIN_POINTS_MESSAGE);
+      const blocked =
+        intent.type === 'delete-selection' && !canDeletePoint(draft, draft.selectedIndex);
+      if (blocked) {
+        showToast(MIN_POINTS_MESSAGE);
+        return;
       }
       dispatch(intent);
-    };
+    }
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, [draft, showToast]);
 
-  const handleCameraChange = (event) => {
+  function changeCamera(event) {
     dispatch({ type: 'camera-changed' });
     setSelectedCameraId(event.target.value);
-  };
+  }
 
-  const handleSelectZone = (zoneId) => dispatch({ type: 'select-zone', zoneId });
+  function selectZone(zoneId) {
+    dispatch({ type: 'select-zone', zoneId });
+  }
 
-  const handleNewZone = () => {
+  function createZone() {
     const id = uniqueZoneId(`${selectedCameraId}-zona`, zones);
     dispatch({ type: 'create', zoneId: id });
     showToast('Zonă nouă: desenează poligonul, apoi salvează.');
-  };
+  }
 
-  const handleAddPoint = (point) => {
-    if (draft.zoneId) dispatch({ type: 'add-point', point });
-    else showToast(NO_ZONE_MESSAGE);
-  };
+  function addPoint(point) {
+    if (draft.zoneId) {
+      dispatch({ type: 'add-point', point });
+      return;
+    }
+    showToast(NO_ZONE_MESSAGE);
+  }
 
-  const handleApplyShape = (shape) => {
-    if (draft.zoneId) dispatch({ type: 'apply-shape', shape });
-    else showToast(NO_ZONE_MESSAGE);
-  };
+  function applyShape(shape) {
+    if (draft.zoneId) {
+      dispatch({ type: 'apply-shape', shape });
+      return;
+    }
+    showToast(NO_ZONE_MESSAGE);
+  }
 
-  const handleDeletePoint = (index) => {
-    if (canDeletePoint(draft, index)) dispatch({ type: 'delete-point', index });
-    else showToast(MIN_POINTS_MESSAGE);
-  };
+  function removePoint(index) {
+    if (!canDeletePoint(draft, index)) {
+      showToast(MIN_POINTS_MESSAGE);
+      return;
+    }
+    dispatch({ type: 'delete-point', index });
+  }
 
-  const reorderPoints = () => {
+  function reorderPoints() {
     dispatch({ type: 'reorder' });
     showToast(REORDER_NOTICE);
-  };
+  }
 
-  const applyJsonPoints = () => {
+  function applyJsonPoints() {
     const { points, error } = parsePointList(jsonText);
     if (error) {
       showToast(error);
-    } else {
-      dispatch({ type: 'apply-points', points });
-      showToast('Coordonate aplicate pe cadru.');
+      return;
     }
-  };
+    dispatch({ type: 'apply-points', points });
+    showToast('Coordonate aplicate pe cadru.');
+  }
 
-  const handleSave = async () => {
-    const failure = check.errors[0];
-    if (failure) return showToast(failure.message);
+  async function saveDraft() {
+    const [failure] = check.errors;
+    if (failure) {
+      showToast(failure.message);
+      return;
+    }
     setSaving(true);
     try {
       await saveZone(draft.zoneId, buildZonePayload(draft, { cameraId: selectedCameraId, zone }));
@@ -164,9 +247,9 @@ export default function ZoneEditorView() {
     } finally {
       setSaving(false);
     }
-  };
+  }
 
-  const handleDeleteZone = async () => {
+  async function deleteDraftZone() {
     if (!draft.zoneId || !zone) return;
     const confirmed = window.confirm(
       `Ștergi zona „${draft.zoneId}”? Acțiunea nu poate fi anulată.`
@@ -175,9 +258,9 @@ export default function ZoneEditorView() {
     const remaining = cameraZones.filter((item) => item.zone_id !== draft.zoneId);
     await deleteZone(draft.zoneId);
     dispatch({ type: 'delete-result', remainingZones: remaining });
-  };
+  }
 
-  const handleReferenceUpload = async (file) => {
+  async function uploadReference(file) {
     if (!draft.zoneId) return;
     setUploading(true);
     try {
@@ -186,9 +269,9 @@ export default function ZoneEditorView() {
     } finally {
       setUploading(false);
     }
-  };
+  }
 
-  const handleCaptureFromLive = async () => {
+  async function captureFromLive() {
     if (!draft.zoneId) return;
     setCapturing(true);
     try {
@@ -197,29 +280,15 @@ export default function ZoneEditorView() {
     } finally {
       setCapturing(false);
     }
-  };
+  }
 
-  const handleClearReference = () => {
+  function clearReference() {
     if (!draft.zoneId) return;
     clearReferenceFrame(draft.zoneId);
     setCapturedAt(null);
-  };
-
-  if (!activeCamera) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-6">
-        <div
-          style={{ backgroundColor: themeStyles.panelBg, borderColor: themeStyles.panelBorder }}
-          className="max-w-md rounded-xl border p-5 text-center space-y-2"
-        >
-          <h2 className="font-bold text-sm uppercase">Nu există camere</h2>
-          <p style={{ color: themeStyles.textMuted }} className="text-xs">
-            Nu există camere în date. Verifică fixturile demo și reîncarcă pagina.
-          </p>
-        </div>
-      </div>
-    );
   }
+
+  if (!activeCamera) return <NoCamerasNotice />;
 
   // The static build has no edge to upload a reference frame, so the first frame of the
   // camera's demo clip is the background. An uploaded frame still wins.
@@ -228,53 +297,22 @@ export default function ZoneEditorView() {
   const usingDemoReference = !zone?.reference_frame_url && Boolean(demoReferenceUrl);
 
   return (
-    <div className="flex-1 p-4 md:p-6 overflow-y-auto h-full">
-      <div className="max-w-7xl mx-auto space-y-4">
-        <div className="flex items-start justify-between gap-3 border-b border-black/10 dark:border-white/10 pb-3 flex-wrap">
-          <div className="min-w-0">
-            <h2 className="font-black text-lg uppercase tracking-tight flex items-center gap-2">
-              <PenTool size={20} className="text-[#D73833] dark:text-[#FFEB33]" />
-              Configurare zone
-            </h2>
-            <p style={{ color: themeStyles.textMuted }} className="text-xs font-mono">
-              Trage un punct ca să-l muți · „+” de pe latură adaugă un punct · click dreapta /
-              Delete șterge · Ctrl+Z anulează
-            </p>
-          </div>
+    <div className="flex-1 h-full overflow-y-auto">
+      <div className="mx-auto w-full max-w-7xl space-y-4 p-4 md:p-6">
+        <EditorHeader
+          cameraChoices={cameraChoices}
+          selectedCameraId={selectedCameraId}
+          onCameraChange={changeCamera}
+        />
 
-          <div className="flex items-center gap-2 text-xs flex-wrap">
-            <label htmlFor="zone-camera" className="font-bold opacity-75">
-              Camera:
-            </label>
-            <select
-              id="zone-camera"
-              data-testid="zone-camera"
-              value={selectedCameraId}
-              onChange={handleCameraChange}
-              style={{
-                backgroundColor: themeStyles.cardBg,
-                borderColor: themeStyles.panelBorder,
-                color: themeStyles.text,
-              }}
-              className="min-w-[15rem] max-w-full px-2.5 py-1.5 rounded-lg border text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#FFEB33]"
-            >
-              {cameraChoices.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-          <div className="xl:col-span-2 min-w-0 space-y-3">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <div className="min-w-0 space-y-3 xl:col-span-2">
             <ZoneToolbar
               zones={cameraZones}
               zoneId={draft.zoneId}
-              onSelectZone={handleSelectZone}
-              onNewZone={handleNewZone}
-              onApplyShape={handleApplyShape}
+              onSelectZone={selectZone}
+              onNewZone={createZone}
+              onApplyShape={applyShape}
               canUndo={draft.past.length > 0}
               canRedo={draft.future.length > 0}
               onUndo={() => dispatch({ type: 'undo' })}
@@ -293,20 +331,20 @@ export default function ZoneEditorView() {
               crossing={check.crossing}
               hasCrossing={check.hasCrossing}
               referenceUrl={referenceUrl}
-              onAddPoint={handleAddPoint}
+              onAddPoint={addPoint}
               onClose={() => dispatch({ type: 'close' })}
               onSelect={(index) => dispatch({ type: 'select', index })}
               onBeginGesture={() => dispatch({ type: 'begin-gesture' })}
               onEndGesture={() => dispatch({ type: 'end-gesture' })}
               onMovePoint={(index, point) => dispatch({ type: 'move-point', index, point })}
               onInsertPoint={(index, point) => dispatch({ type: 'insert-point', index, point })}
-              onDeletePoint={handleDeletePoint}
+              onDeletePoint={removePoint}
               onReorder={reorderPoints}
               onRedraw={() => dispatch({ type: 'redraw' })}
             />
           </div>
 
-          <div className="min-w-0 space-y-3">
+          <aside className="min-w-0 space-y-3" aria-label="Parametrii și cadrul zonei">
             <ZoneParameters
               zoneId={draft.zoneId}
               idLocked={Boolean(zone) && !draft.isNew}
@@ -317,8 +355,8 @@ export default function ZoneEditorView() {
               pointCount={draft.points.length}
               onIdChange={(value) => dispatch({ type: 'set-id', zoneId: value })}
               onFieldChange={(field, value) => dispatch({ type: 'set-field', field, value })}
-              onSave={handleSave}
-              onDelete={handleDeleteZone}
+              onSave={saveDraft}
+              onDelete={deleteDraftZone}
             />
 
             <ZoneReferencePanel
@@ -328,12 +366,12 @@ export default function ZoneEditorView() {
               uploading={uploading}
               capturing={capturing}
               capturedAt={capturedAt}
-              onUpload={handleReferenceUpload}
-              onCaptureFromLive={handleCaptureFromLive}
-              onClear={handleClearReference}
+              onUpload={uploadReference}
+              onCaptureFromLive={captureFromLive}
+              onClear={clearReference}
               onError={showToast}
             />
-          </div>
+          </aside>
         </div>
       </div>
     </div>

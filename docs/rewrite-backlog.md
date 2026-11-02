@@ -48,6 +48,8 @@ doar ce cod a fost scris înainte de direcția LocalSight și cât de mult l-am 
 | `components/views/IncidentDetailView.jsx` | muxxq (4/9) | parțial rescris: copiază link, descarcă dovada, etichete demo/local; layout-ul de bază e încă moștenit | restul layout-ului, într-un pass separat |
 | `components/views/IncidentsListView.jsx` | VojuAriana (1/3) | **logică înlocuită**: filtrare/formatare în `utils/incidentList.js` (8 teste), markup nou (181+/143−); 66 de linii rămase = `TokenBadge`, importuri, câteva clase | parțial textual, complet pe logică |
 | `components/views/SettingsView.jsx` | VojuAriana (3/7) | **înlocuit** (347→66 linii; +269/−296), logică în `utils/systemView.js` + 13 teste; audit: 0 linii de logică | gata |
+| `components/views/ReportsView.jsx` | VojuAriana | **înlocuit** (496 linii; +444/−352), pagina rescrisă, valorile în `utils/reportExport.js` + 12 teste; light mode lizibil; audit: 57 de linii (importuri, etichete, stiluri, JSX) | gata |
+| `components/views/ZoneEditorView.jsx` | VojuAriana | **înlocuit**: logica la `990028f`, shell-ul refăcut la `8095b9e` (+159/−121); audit: 36 de linii (importuri, chei de context, JSX) | gata |
 | `components/layout/Sidebar.jsx` | andreisugu (8/17) | parțial rescris (responsive, footer) | refăcut la un design pass, nu înainte |
 | `components/common/Toast.jsx` | VojuAriana (2/4) | **înlocuit** (20→11; +27/−9), `role=status`/`aria-live`, audit: 0 logică | gata |
 | `components/common/ConfidenceBadge.jsx` | VojuAriana (1/1) | **logică nouă**: `utils/confidence.js` + 6 teste; 11 linii rămase sunt importuri/semnătură | parțial (markup-ul e încă aproape identic) |
@@ -87,6 +89,7 @@ tracker, vest, blur, report, webgpu, decode), `LiveEngineCard`, `SafeImage`, `Er
 | `1381d99` | `App.jsx` | +35 / −30 | hartă de rute, scroll/focus | 43 — importuri/layout |
 | `f0b0eae` | `worker.js` / `useEngine.js` | +12/−12, +12/−1 | snapshot-ul e deținut de pagină | nu se aplică (engine al nostru) |
 | `3990c27` | `SettingsView.jsx` + `Toast.jsx` + `utils/systemView.js` | +269/−296, +27/−9, +201 nou | pagină „Sistem & Audit" și toast accesibil, logică testată | 0 logică; doar importuri/JSX/clase |
+| `8095b9e` | `ReportsView.jsx` + `ZoneEditorView.jsx` + `utils/reportExport.js` | +444/−352, +159/−121, +316 nou | pagini rescrise, CSV compus și testat (12 teste), light mode reparat | 57 / 36 — importuri, etichete, stiluri, JSX (0 logică) |
 
 ## Ce am amânat
 
