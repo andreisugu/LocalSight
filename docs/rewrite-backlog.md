@@ -4,6 +4,21 @@ Regula proiectului: codul scris înainte de fork se înlocuiește **oportunist**
 Nu rescriem un modul doar pentru că e vechi; îl rescriem când avem un motiv de produs și
 atingem oricum fișierul. Restul se notează aici, ca să nu se piardă.
 
+## Ce înseamnă „înlocuit" (standard strict)
+
+Un fișier se declară înlocuit doar dacă toate trei sunt adevărate:
+
+1. **Diff-ul arată înlocuire**, nu doar atingere: implementarea veche ștearsă, una nouă
+   scrisă. Commit-ul și `git show --numstat` sunt dovada, nu procentul.
+2. **Auditul nu mai găsește logică a colegilor.** `python3 scripts/provenance.py --audit
+   <fișier>` listează fiecare linie rămasă. Poate rămâne import, cheie de context, etichetă,
+   clasă CSS sau matematică identică; **nicio funcție/ramură de logică**.
+3. **Logica nouă are teste**, când e testabilă.
+
+Altfel fișierul e „parțial", oricât de mare ar fi diff-ul. Procentul singur nu dovedește
+nimic: `git blame -w` păstrează autorul vechi pentru liniile identice, iar o rescriere care
+re-produce aceleași importuri și clase nu le transferă.
+
 ## Politica
 
 1. **Oportunist, nu big-bang.** Când un fix sau o funcție atinge un fișier moștenit, poți
@@ -28,17 +43,17 @@ doar ce cod a fost scris înainte de direcția LocalSight și cât de mult l-am 
 
 | Fișier | Proveniență | Stare | Decizie |
 |---|---|---|---|
-| `components/layout/Header.jsx` | VojuAriana (6/16) | **rescris 2026-11-02**: meniuri accesibile (Escape/click-outside), căutare cu `/`, aceleași funcții | gata |
+| `components/layout/Header.jsx` | VojuAriana (6/16) | **parțial**: structura, meniurile și focusul sunt rescrise (185+/122−), dar 173 de linii rămân (importuri, chei de context, JSX, clase) | nu se declară înlocuit până nu scade logică; restul e prezentare |
 | `components/views/IncidentDetailView.jsx` | muxxq (4/9) | parțial rescris: copiază link, descarcă dovada, etichete demo/local; layout-ul de bază e încă moștenit | restul layout-ului, într-un pass separat |
-| `components/views/IncidentsListView.jsx` | VojuAriana (1/3) | **rescris 2026-11-02**: căutarea globală din header filtrează lista, chip `local`, fără text de backend în mock | gata |
+| `components/views/IncidentsListView.jsx` | VojuAriana (1/3) | **parțial**: căutarea globală, chip-urile și textele sunt noi; 161 de linii din structura listei rămân | rescriere completă într-un pass separat |
 | `components/views/SettingsView.jsx` | VojuAriana (3/7) | parțial rescris (onestitate) | rescrie ca „Sistem" de la zero la următorul pass de UI |
 | `components/layout/Sidebar.jsx` | andreisugu (8/17) | parțial rescris (responsive, footer) | refăcut la un design pass, nu înainte |
 | `components/common/Toast.jsx` | VojuAriana (2/4) | moștenit | mic; înlocuiește-l când umbli la notificări |
-| `components/common/ConfidenceBadge.jsx` | VojuAriana (1/1) | **rescris 2026-11-02**: nu mai inventează `0.90` / `14/15` când lipsesc datele; 6 teste pe formatter | gata |
+| `components/common/ConfidenceBadge.jsx` | VojuAriana (1/1) | **logică nouă**: `utils/confidence.js` + 6 teste; 11 linii rămase sunt importuri/semnătură | parțial (markup-ul e încă aproape identic) |
 | `constants/theme.js` + `context/ThemeContext.jsx` | VojuAriana | moștenit (tokens) | nu atinge până la un design pass; e folosit peste tot |
-| `utils/polygon.js` | muxxq (1/1) | **rescris 2026-11-02** cu 14 teste: crossing, collinear, open/closed, ordonare deterministă | gata |
+| `utils/polygon.js` | muxxq (1/1) | **rescris ca implementare** (63+/20−) + 14 teste; 45 de linii rămase sunt matematica identică și comentarii | înlocuit ca logică, nu ca text; nu pretindem altfel |
 | `utils/print.js` | muxxq (1/1) | moștenit, folosit de 7 fișiere | înlocuiește-l cu un export CSV/PDF real, nu `window.print` |
-| `utils/sound.js` | VojuAriana (1/1) | **rescris 2026-11-02**: un singur `AudioContext` refolosit, resume pe gest; 4 teste | gata |
+| `utils/sound.js` | VojuAriana (1/1) | **înlocuit** (41+/32−) + 4 teste; 5 linii rămase sunt acolade/goale | gata |
 | `constants/eventActions.js` | muxxq (1/1) | moștenit (matricea de acțiuni) | înlocuiește-l cu tabelul din contract la următoarea modificare de statusuri |
 | `main.jsx` | VojuAriana (1/2) | aproape tot al nostru (ErrorBoundary) | nu merită un pass separat |
 | `components/video/BoundingBox.jsx` | VojuAriana (2/2) | **mort** — 0 importuri | candidat la ștergere; cere confirmare înainte |
@@ -53,12 +68,22 @@ tracker, vest, blur, report, webgpu, decode), `LiveEngineCard`, `SafeImage`, `Er
 
 **Referință, nu produs:** `backend/`, `ml/`, `data/`, `docker-compose.yml`. Nu le rescriem.
 
+## Dovada rescrierilor
+
+| Commit | Fișier | +/− | Ce s-a schimbat | Linii rămase (audit) |
+|---|---|---|---|---|
+| `ca4d137` | `Header.jsx` | +185 / −122 | meniuri cu Escape/click-outside, focus, căutare cu `/` | 173 — importuri, chei, JSX, clase |
+| `8788265` | `utils/polygon.js` | +63 / −20 | implementare nouă + 14 teste | 45 — matematică identică |
+| `1e15a73` | `utils/sound.js` | +41 / −32 | un singur AudioContext + 4 teste | 5 — acolade/goale |
+| `009fdaf` | `ConfidenceBadge.jsx` + `utils/confidence.js` | +21/−11, +54 nou | formatter testat, fără valori inventate | 11 — importuri/semnătură |
+| `ab3bac5` | `IncidentDetailView.jsx` | +42 / −3 | copiază link, descarcă dovada | 342 — layout moștenit |
+
 ## Ce am amânat
 
 | Data | Fișier | Motiv |
 |---|---|---|
 | 2026-11-02 | `IncidentDetailView.jsx` | am adăugat doar eticheta „date demo" și copy-ul onest; layout-ul rămâne moștenit |
 | 2026-11-02 | `Header.jsx`, `IncidentsListView.jsx`, `Toast.jsx` | fix-uri punctuale de responsive/onestitate; rescrierea nu era în scope |
-| 2026-11-02 | `IncidentDetailView.jsx` (layout) | am adăugat doar acțiunile noi; rescrierea de layout cere un pass separat |
+| 2026-11-02 | `IncidentDetailView.jsx` (layout) | 342 de linii rămase; doar acțiunile noi sunt ale noastre. Rescrierea completă e următorul pass. |
 | 2026-11-02 | `Toast.jsx`, `eventActions.js`, `print.js` | mici și funcționale; le înlocuim când le atinge un feature |
 | 2026-11-02 | `BoundingBox.jsx` | cod mort (0 importuri); așteaptă confirmarea pentru ștergere |
