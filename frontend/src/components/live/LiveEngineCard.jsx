@@ -95,6 +95,9 @@ export default function LiveEngineCard({
   const loading = engine.status === 'loading';
   const lowFps = measured && running && engine.fps < LOW_FPS_THRESHOLD;
   const recent = engine.events.slice(0, 3);
+  // The worker measures these every frame (vest.js on the raw pixels). Unknown means the
+  // track has not collected enough samples yet, so it is shown, not hidden.
+  const vest = engine.vest || { vest: 0, noVest: 0, unknown: 0 };
   const fpsValue = engine.fps ? engine.fps.toFixed(1) : '—';
 
   // One line instead of empty engine slots: the card keeps its shape when detection is off.
@@ -223,6 +226,22 @@ export default function LiveEngineCard({
           </>
         )}
       </dl>
+
+      {running && (
+        <p
+          className="text-[10px] font-mono text-slate-500 dark:text-slate-400"
+          title="PPE are nevoie de 5–10 cadre pe aceeași urmărie; până atunci starea rămâne necunoscută."
+        >
+          <span className="font-semibold uppercase tracking-wide">PPE</span>{' '}
+          <span className="font-bold text-emerald-600 dark:text-emerald-400">
+            {vest.vest} cu vestă
+          </span>
+          {' · '}
+          <span className="font-bold text-[#D73833]">{vest.noVest} fără vestă</span>
+          {' · '}
+          <span className="text-slate-400">{vest.unknown} necunoscut</span>
+        </p>
+      )}
 
       {running ? (
         <div className="pt-2 border-t border-slate-500/15 space-y-1.5">
