@@ -1,0 +1,226 @@
+// Pure logic for the incident detail screen.
+//
+// The component used to own the time formatting, the timeline, the action matrix and the
+// report labels inline, which made every rule untestable. They live here instead, so the
+// view renders values and the behaviour can be checked with `node --test`.
+
+// `.js` extensions keep this file loadable by Node's test runner as well as Vite.
+import { STATUS_TOKENS } from '../constants/theme.js';
+import { canDo } from '../constants/eventActions.js';
+
+// One formatter instead of one per render: `Intl.DateTimeFormat` is the expensive part.
+const TIME_FORMAT = new Intl.DateTimeFormat('ro-RO', {
+  timeZone: 'Europe/Bucharest',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
+
+// The snapshot URL the in-browser engine writes when it has no frame yet. It is a marker,
+// not a loadable resource, so it must never power a download link.
+const PENDING_SNAPSHOT = 'blob:pending';
+
+const UNKNOWN_STATUS_TOKEN = {
+  bg: '#EEEEEE',
+  text: '#222222',
+  border: '#DDDDDD',
+  label: 'Necunoscut',
+};
+
+// Same five timestamps the operator walks through after a detection. The last two carry a
+// tone because escalation is bad news and an ack is the good ending.
+const TIMELINE_STEPS = [
+  { id: 'detected', label: 'Detecție', field: 'detected_at', tone: 'neutral' },
+  { id: 'received', label: 'Primit', field: 'received_at', tone: 'neutral' },
+  { id: 'notified', label: 'Notificat', field: 'notified_at', tone: 'neutral' },
+  { id: 'escalated', label: 'Escaladat', field: 'escalated_at', tone: 'alert' },
+  { id: 'acked', label: 'Confirmat', field: 'acked_at', tone: 'ok' },
+];
+
+const REPORT_FIELDS = [
+  { key: 'what', label: 'CE:' },
+  { key: 'where', label: 'UNDE:' },
+  { key: 'when', label: 'CÂND:' },
+  { key: 'severity_reason', label: 'SEVERITATE & RISC:' },
+  { key: 'recommended_action', label: 'ACȚIUNE RECOMANDATĂ:' },
+];
+
+/**
+ * The API sends UTC; operators read Bucharest local time.
+ *
+ * @param {string|null|undefined} iso
+ * @param {{placeholder?: string}} [options]
+ * @returns {string} `HH:MM:SS`, the placeholder for a missing timestamp, or an em dash
+ *   for a value that is present but not a date (a broken timestamp is not "pending").
+ */
+export function formatEventTime(iso, { placeholder = 'În așteptare' } = {}) {
+  if (!iso) return placeholder;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  return TIME_FORMAT.format(date);
+}
+
+/**
+ * The five timeline steps, in order, with their already-formatted times.
+ *
+ * @param {object|null|undefined} event
+ * @returns {Array<{id: string, position: number, label: string, at: string|null,
+ *   time: string, reached: boolean, tone: 'neutral'|'alert'|'ok'}>}
+ */
+export function buildTimeline(event) {
+  const source = event || {};
+  return TIMELINE_STEPS.map((step, index) => {
+    const at = source[step.field] || null;
+    return {
+      id: step.id,
+      position: index + 1,
+      label: step.label,
+      at,
+      time: formatEventTime(at),
+      reached: Boolean(at),
+      // A tone only applies once that step actually happened; a pending ack is not green.
+      tone: at ? step.tone : 'neutral',
+    };
+  });
+}
+
+/**
+ * Which operator actions the backend accepts from this status, and which ones are
+ * already in effect. Mirrors `canDo` in constants/eventActions.js.
+ *
+ * @param {object|null|undefined} event
+ * @returns {{ack: boolean, falsePositive: boolean, reopen: boolean,
+ *   acked: boolean, markedFalsePositive: boolean}}
+ */
+export function actionState(event) {
+  const status = event?.status;
+  return {
+    ack: canDo('ack', status),
+    falsePositive: canDo('false_positive', status),
+    reopen: canDo('reopen', status),
+    acked: status === 'acknowledged',
+    markedFalsePositive: status === 'false_positive',
+  };
+}
+
+/**
+ * The report header says where the text came from: a real AI pass, the AI of the mock
+ * fixtures, or the template written from the event itself. The browser has no LLM, so a
+ * template report must never be labelled `AI`.
+ *
+ * @param {{source?: string}|null|undefined} report
+ * @param {{mock?: boolean}} [options]
+ * @returns {'AI'|'AI · demo'|'șablon'}
+ */
+export function reportSourceLabel(report, { mock = false } = {}) {
+  if (report?.source !== 'llm') return 'șablon';
+  return mock ? 'AI · demo' : 'AI';
+}
+
+/**
+ * The retry button only exists where an AI could answer. The static build has no backend,
+ * so it stays hidden there; elsewhere it shows when the ingest wrote a template report.
+ *
+ * @param {object|null|undefined} event
+ * @param {{mock?: boolean}} [options]
+ * @returns {boolean}
+ */
+export function shouldOfferReportRetry(event, { mock = false } = {}) {
+  if (mock) return false;
+  return !event?.report || event.report.source !== 'llm';
+}
+
+/**
+ * Copy the deep link, reporting whether the clipboard accepted it. The writer is injected
+ * so the failure path (no permission, insecure context, no Clipboard API) is testable.
+ *
+ * @param {string} url
+ * @param {(text: string) => Promise<void>} write
+ * @returns {Promise<boolean>}
+ */
+export async function copyIncidentLink(url, write) {
+  try {
+    await write(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether the evidence can be downloaded. `blob:pending` is a marker, not a picture, and
+ * mock fixtures use same-origin stills the browser can save like any other URL.
+ *
+ * @param {object|null|undefined} event
+ * @returns {{url: string, fileName: string, downloadable: boolean}}
+ */
+export function snapshotDownload(event) {
+  const url = event?.snapshot_url || '';
+  return {
+    url,
+    fileName: `${event?.event_id || 'incident'}.jpg`,
+    downloadable: Boolean(url) && url !== PENDING_SNAPSHOT,
+  };
+}
+
+/**
+ * Which provenance chips the header shows: a local engine detection, a demo fixture, or
+ * neither. They are exclusive: a fixture is not local, and a local incident is not demo.
+ *
+ * @param {object|null|undefined} event
+ * @param {{mock?: boolean}} [options]
+ * @returns {{local: boolean, demo: boolean}}
+ */
+export function sourceChips(event, { mock = false } = {}) {
+  const local = Boolean(event?.local);
+  return { local, demo: Boolean(mock) && !local };
+}
+
+/**
+ * Status token (colours and Romanian label) with a neutral fallback for a value outside
+ * the contract; the screen shows the raw status instead of hiding it.
+ *
+ * @param {string|null|undefined} status
+ * @returns {{bg: string, text: string, border: string, label: string}}
+ */
+export function statusToken(status) {
+  return STATUS_TOKENS[status] || { ...UNKNOWN_STATUS_TOKEN, label: status || UNKNOWN_STATUS_TOKEN.label };
+}
+
+/**
+ * Severity token with the same fallback as `statusToken`.
+ *
+ * @param {string|null|undefined} severity
+ * @returns {{bg: string, text: string, border: string, label: string}}
+ */
+export function severityToken(severity) {
+  return STATUS_TOKENS[severity] || { ...UNKNOWN_STATUS_TOKEN, label: severity || UNKNOWN_STATUS_TOKEN.label };
+}
+
+/**
+ * The five report fields in reading order, with the honest fallback for a missing value.
+ *
+ * @param {{[key: string]: unknown}|null|undefined} report
+ * @returns {Array<{key: string, label: string, value: string}>}
+ */
+export function reportFields(report) {
+  return REPORT_FIELDS.map((field) => ({
+    key: field.key,
+    label: field.label,
+    value: report?.[field.key] || 'necunoscut',
+  }));
+}
+
+/** The model and track line under the incident id. */
+export function detectionSummary(event) {
+  const model = event?.model || '—';
+  const track = event?.track_id ?? '—';
+  return `Model detecție: ${model} • Track ID: #${track}`;
+}
+
+/** Caption on the evidence frame; the blur happened in the tab only for engine incidents. */
+export function snapshotCaption(event) {
+  return event?.local
+    ? 'Momentul incidentului • fețe blurate în browser'
+    : 'Momentul incidentului • fețe blurate';
+}
