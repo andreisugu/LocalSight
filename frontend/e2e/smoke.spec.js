@@ -32,7 +32,7 @@ test('app boots with zero console errors and shows the sidebar', async ({ page }
 
   await page.goto('/');
 
-  await expect(page.getByRole('heading', { level: 1, name: /safesight/i })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: /localsight/i })).toBeVisible();
 
   const sidebar = page.getByRole('complementary');
   await expect(sidebar).toBeVisible();
@@ -66,8 +66,15 @@ test('opening an incident from the list shows the report section', async ({ page
   await page.goto('/incidents');
   await page.getByRole('listitem').first().getByRole('button').click();
 
-  await expect(page.getByRole('heading', { level: 2, name: /^incident:/i })).toBeVisible();
+  // The detail screen must show the incident that was opened, not any incident.
+  await expect(page).toHaveURL(/\/incidents\/[^/]+$/);
+  const incidentId = decodeURIComponent(new URL(page.url()).pathname.split('/').pop());
+
+  await expect(
+    page.getByRole('heading', { level: 2, name: new RegExp(`^incident: ${incidentId}$`, 'i') })
+  ).toBeVisible();
   await expect(page.getByRole('heading', { level: 3, name: /^raport incident/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^(confirmă|confirmat)$/i })).toBeVisible();
   await expect(page.getByText('CE:', { exact: true })).toBeVisible();
   await expect(page.getByText('ACȚIUNE RECOMANDATĂ:', { exact: true })).toBeVisible();
 
@@ -96,17 +103,27 @@ test('zone editor renders the drawing canvas', async ({ page }) => {
 test('a deep link to an incident loads the detail view directly', async ({ page }) => {
   const problems = watchPageErrors(page);
 
+  // Mock event ids embed the load time (mockData builds them from Date.now()), so
+  // a second full load would invent new ids and the captured link would point at
+  // nothing. Freezing Date makes the static build deterministic for this test;
+  // timers keep running because only the clock is fixed, not the scheduler.
+  await page.clock.setFixedTime(new Date('2026-11-02T09:00:00Z'));
+
   // The id comes from the running app, so the test does not hardcode mock data.
   await page.goto('/incidents');
   await page.getByRole('listitem').first().getByRole('button').click();
   const deepLink = new URL(page.url()).pathname;
   expect(deepLink).toMatch(/^\/incidents\/[^/]+$/);
+  const incidentId = decodeURIComponent(deepLink.split('/').pop());
 
   // A full page load, exactly like a link opened from Slack after the Pages deploy.
   await page.goto(deepLink);
 
-  await expect(page.getByRole('heading', { level: 2, name: /^incident:/i })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 2, name: new RegExp(`^incident: ${incidentId}$`, 'i') })
+  ).toBeVisible();
   await expect(page.getByRole('heading', { level: 3, name: /^raport incident/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^(confirmă|confirmat)$/i })).toBeVisible();
   expect(new URL(page.url()).pathname).toBe(deepLink);
 
   expectNoPageErrors(problems);
