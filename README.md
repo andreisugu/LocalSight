@@ -70,10 +70,10 @@ Toate rutele sunt client-side, definite în `VIEW_PATHS` din
 ## Capturi
 
 ![Live: feed-ul camerei CAM-01 cu zona motorului și incidentele detectate](docs/assets/localsight-live.png)
-*Live: feed-ul camerei CAM-01 cu zona motorului și incidentele detectate.*
+*Live: motorul din browser pe CAM-01, zonele pe sol și un incident real; fixturile demo sunt oprite.*
 
 ![Incidente: lista completă, cu severitate, status și dovada foto](docs/assets/localsight-incidents.png)
-*Incidente: lista completă, cu severitate, status și dovada foto.*
+*Incidente: doar detecția reală, cu severitate, status și dovadă; datele demo sunt ascunse implicit.*
 
 ![Configurare zone: poligonul pe canvas și parametrii regulii](docs/assets/localsight-zones.png)
 *Configurare zone: poligonul pe canvas și parametrii regulii.*
