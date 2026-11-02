@@ -123,6 +123,14 @@ export default function IncidentDetailView() {
                 {STATUS_TOKENS[selectedEvent.status]?.label || selectedEvent.status}
               </span>
               {/* The list already labels fixtures; the detail must not present them as a real detection. */}
+              {selectedEvent.local && (
+                <span
+                  className="text-[10px] font-bold px-2 py-0.5 rounded border border-[#33E1FF]/40 bg-[#33E1FF]/10 text-cyan-700 dark:text-[#33E1FF] whitespace-nowrap shrink-0"
+                  title="Produs de motorul din browser în această sesiune; nu e un fixture demo."
+                >
+                  detecție locală
+                </span>
+              )}
               {USE_MOCK && !selectedEvent.local && (
                 <span
                   className="text-[10px] font-bold px-2 py-0.5 rounded border border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-[#FFEB33] whitespace-nowrap shrink-0"

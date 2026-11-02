@@ -152,6 +152,14 @@ export default function IncidentsListView() {
                       <span className="font-bold text-sm">{TYPE_LABELS[e.type] || e.type}</span>
                       <Badge token={STATUS_TOKENS[e.severity]} fallback={e.severity} isDarkMode={isDarkMode} />
                       <Badge token={STATUS_TOKENS[e.status]} fallback={e.status} isDarkMode={isDarkMode} />
+                      {e.local && (
+                        <span
+                          className="text-[10px] font-bold px-2 py-0.5 rounded border border-[#33E1FF]/40 bg-[#33E1FF]/10 text-cyan-700 dark:text-[#33E1FF]"
+                          title="Produs de motorul din browser, nu din fixture-urile demo."
+                        >
+                          local
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs truncate mt-0.5" style={{ color: themeStyles.textMuted }}>
                       {cameraName(e.camera_id)} · zona {e.zone_id}
@@ -169,7 +177,9 @@ export default function IncidentsListView() {
         )}
       </div>
       <p className="text-[11px]" style={{ color: themeStyles.textMuted }}>
-        Ultimele {events.length} incidente încărcate din backend.
+        {USE_MOCK
+          ? `Ultimele ${events.length} incidente: fixture-uri demo plus detecțiile motorului local.`
+          : `Ultimele ${events.length} incidente încărcate din backend.`}
       </p>
     </div>
   );
