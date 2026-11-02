@@ -6,8 +6,13 @@
 // Storage can be absent or throw (private mode, quota, disabled cookies); the name then
 // lives for the session only and the app still works.
 
+import { STORAGE_LIMITS, readStoredText } from './storage.js';
+
 export const OPERATOR_STORAGE_KEY = 'localsight.operator';
 export const LEGACY_OPERATOR_STORAGE_KEY = 'safesight.operator';
+// A name is a short label, not a document: the same value is shown in the header and in
+// every audit line, so a planted 10 000 character name is capped when it is read.
+export const OPERATOR_NAME_LIMIT = STORAGE_LIMITS.operatorName;
 
 /**
  * Trim a typed name. A non-string (null from storage, an event object passed by mistake)
@@ -27,9 +32,13 @@ export function normalizeOperatorName(value) {
 export function readStoredOperatorName(storage) {
   if (!storage) return '';
   try {
-    const current = normalizeOperatorName(storage.getItem(OPERATOR_STORAGE_KEY));
+    const current = normalizeOperatorName(
+      readStoredText(storage, OPERATOR_STORAGE_KEY, { maxChars: OPERATOR_NAME_LIMIT })
+    );
     if (current) return current;
-    const legacy = normalizeOperatorName(storage.getItem(LEGACY_OPERATOR_STORAGE_KEY));
+    const legacy = normalizeOperatorName(
+      readStoredText(storage, LEGACY_OPERATOR_STORAGE_KEY, { maxChars: OPERATOR_NAME_LIMIT })
+    );
     if (!legacy) return '';
     // Migrate: the next read uses the current key and the legacy one is never needed again.
     storage.setItem(OPERATOR_STORAGE_KEY, legacy);

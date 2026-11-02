@@ -2,22 +2,39 @@
 <html lang="ro">
   <head>
     <meta charset="UTF-8" />
+    <!-- GitHub Pages cannot send response headers, so the security policy travels with
+         the document. Keep this meta before every script: a meta policy applies only to
+         content that follows it.
+
+         - script-src: only our own modules. 'wasm-unsafe-eval' is the one eval allowance,
+           required by ONNX Runtime to instantiate WASM (it does not grant JS eval).
+         - worker-src: the engine worker is same-origin; blob: is for ONNX Runtime's
+           pthread/proxy worker scripts.
+         - style-src: React writes inline style attributes (theme colours); there is no
+           nonce/hash for an attribute, so 'unsafe-inline' is limited to styles.
+         - connect/img/media: 'self' plus the blob: URLs the engine uses for snapshots,
+           clips and the local camera. No external origin is allowed anywhere.
+         - Vite's development preamble is injected at the top of <head>, before this meta,
+         so the dev server's inline HMR preamble still runs; the production HTML has no
+         inline script. The optional VITE_USE_MOCK=false API mode is outside this policy:
+         connect-src is same-origin only, which is what a static app needs. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' blob:; img-src 'self' blob: data:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <!-- Best effort only: Chromium ignores Permissions-Policy in a meta tag (it is a
+         response-header policy). It is kept here so a host that can send the header has
+         the intended value beside the app; a static Pages deploy cannot enforce it. -->
+    <meta http-equiv="Permissions-Policy" content="camera=(self), microphone=(), geolocation=()" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LocalSight - Management condiții siguranță</title>
+    <!-- Render-blocking on purpose: the theme is in place before the first paint, and
+         the policy above disallows the inline version this replaced. -->
+    <script src="/theme-init.js"></script>
   </head>
   <body class="bg-white text-[#1F1F1F] dark:bg-[#1F1F1F] dark:text-[#F5F5F5] overflow-hidden">
-    <!-- The theme is stored before React mounts; apply it before the first paint so a
-         light-mode reload does not flash the dark body. Default is dark. -->
-    <script>
-      try {
-        if (localStorage.getItem('localsight.theme') !== 'light') {
-          document.documentElement.classList.add('dark');
-        }
-      } catch (error) {
-        document.documentElement.classList.add('dark');
-      }
-    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

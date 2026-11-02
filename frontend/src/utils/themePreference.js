@@ -1,6 +1,8 @@
 // Theme preference: one key, one fallback. Kept pure so the storage rules are testable
 // without a DOM. The product defaults to dark; an explicit choice survives a reload.
 
+import { readStoredEnum } from './storage.js';
+
 export const THEME_STORAGE_KEY = 'localsight.theme';
 export const DEFAULT_THEME = 'dark';
 
@@ -11,13 +13,8 @@ const THEMES = new Set(['dark', 'light']);
  * @returns {'dark'|'light'|null}
  */
 export function readStoredTheme(storage) {
-  if (!storage || typeof storage.getItem !== 'function') return null;
-  try {
-    const value = storage.getItem(THEME_STORAGE_KEY);
-    return THEMES.has(value) ? value : null;
-  } catch {
-    return null;
-  }
+  const value = readStoredEnum(storage, THEME_STORAGE_KEY, THEMES);
+  return value === 'dark' || value === 'light' ? value : null;
 }
 
 /**
