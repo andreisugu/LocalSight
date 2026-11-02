@@ -1,10 +1,11 @@
 // Browser-engine settings, kept on the main thread: the worker never imports this file.
 //
-// Two knobs live under one JSON key. The reader is tolerant field by field, so a value
+// Three knobs live under one JSON key. The reader is tolerant field by field, so a value
 // written by an older build (or by hand) can never break the engine: an unknown thread
-// count falls back to `auto`, a non-boolean blur flag to the privacy-safe `true`.
-// `resolveWasmThreads` is the only place that decides how many ORT threads actually run,
-// and it is pure, so every branch is checked with `node --test` instead of guessed at.
+// count falls back to `auto`, a non-boolean blur flag to the privacy-safe `true`, an
+// unknown detector to the default Lite0. `resolveWasmThreads` is the only place that
+// decides how many ORT threads actually run, and it is pure, so every branch is checked
+// with `node --test` instead of guessed at.
 
 import { STORAGE_LIMITS, readStoredJson } from './storage.js';
 
@@ -13,8 +14,18 @@ export const ENGINE_SETTINGS_KEY = 'localsight.engineSettings';
 /** The thread choices the settings panel offers. `auto` resolves from the machine. */
 export const WASM_THREAD_CHOICES = Object.freeze(['auto', 1, 2, 4, 6, 8]);
 
-/** Defaults: let the engine pick, and keep the head-band safety blur ON. */
-export const DEFAULT_ENGINE_SETTINGS = Object.freeze({ wasmThreads: 'auto', safetyBlur: true });
+/**
+ * The shipped person detectors, Apache-2.0 weights either way: Lite0 is the fast default
+ * (320 px), Lite2 the slower, more accurate option (448 px). There is no third choice.
+ */
+export const DETECTOR_CHOICES = Object.freeze(['efficientdet', 'efficientdet-lite2']);
+
+/** Defaults: efficient threads, head-band safety blur ON, EfficientDet-Lite0. */
+export const DEFAULT_ENGINE_SETTINGS = Object.freeze({
+  wasmThreads: 'auto',
+  safetyBlur: true,
+  detector: 'efficientdet',
+});
 
 // `navigator.hardwareConcurrency` is allowed to be missing (some hardened browsers); the
 // old hardcoded default when isolated was 4, so an unknown machine keeps that behaviour.
@@ -44,9 +55,19 @@ export function normalizeWasmThreads(value) {
 }
 
 /**
- * Read both settings. Never throws and never returns a partial object.
+ * One of the two shipped detectors, else `null`.
+ * @param {unknown} value
+ * @returns {'efficientdet' | 'efficientdet-lite2' | null}
+ */
+export function normalizeDetector(value) {
+  return DETECTOR_CHOICES.includes(value) ? value : null;
+}
+
+/**
+ * Read all three settings. Never throws and never returns a partial object.
  * @param {{getItem(key: string): string|null}|null|undefined} [storage]
- * @returns {{wasmThreads: 'auto'|1|2|4|6|8, safetyBlur: boolean}}
+ * @returns {{wasmThreads: 'auto'|1|2|4|6|8, safetyBlur: boolean,
+ *            detector: 'efficientdet'|'efficientdet-lite2'}}
  */
 export function readEngineSettings(storage = defaultStorage()) {
   const settings = { ...DEFAULT_ENGINE_SETTINGS };
@@ -58,6 +79,8 @@ export function readEngineSettings(storage = defaultStorage()) {
   const threads = normalizeWasmThreads(parsed.wasmThreads);
   if (threads !== null) settings.wasmThreads = threads;
   if (typeof parsed.safetyBlur === 'boolean') settings.safetyBlur = parsed.safetyBlur;
+  const detector = normalizeDetector(parsed.detector);
+  if (detector !== null) settings.detector = detector;
   return settings;
 }
 
@@ -95,9 +118,10 @@ export function resolveWasmThreads(setting, environment = {}) {
  * stale select value cannot silently degrade the next engine start. The returned object
  * is what the caller should put in state, even when storage refused the write.
  *
- * @param {{wasmThreads?: unknown, safetyBlur?: unknown}} patch
+ * @param {{wasmThreads?: unknown, safetyBlur?: unknown, detector?: unknown}} patch
  * @param {{getItem(key: string): string|null, setItem(key: string, value: string): void}|null|undefined} [storage]
- * @returns {{wasmThreads: 'auto'|1|2|4|6|8, safetyBlur: boolean}}
+ * @returns {{wasmThreads: 'auto'|1|2|4|6|8, safetyBlur: boolean,
+ *            detector: 'efficientdet'|'efficientdet-lite2'}}
  */
 export function storeEngineSettings(patch = {}, storage = defaultStorage()) {
   const next = readEngineSettings(storage);
@@ -107,6 +131,10 @@ export function storeEngineSettings(patch = {}, storage = defaultStorage()) {
   }
   if (Object.hasOwn(patch, 'safetyBlur') && typeof patch.safetyBlur === 'boolean') {
     next.safetyBlur = patch.safetyBlur;
+  }
+  if (Object.hasOwn(patch, 'detector')) {
+    const detector = normalizeDetector(patch.detector);
+    if (detector !== null) next.detector = detector;
   }
   try {
     storage?.setItem(ENGINE_SETTINGS_KEY, JSON.stringify(next));
@@ -130,4 +158,12 @@ export function storeWasmThreads(value, storage = defaultStorage()) {
  */
 export function storeSafetyBlur(value, storage = defaultStorage()) {
   return storeEngineSettings({ safetyBlur: value }, storage);
+}
+
+/**
+ * @param {unknown} value
+ * @param {{getItem(key: string): string|null, setItem(key: string, value: string): void}|null|undefined} [storage]
+ */
+export function storeDetector(value, storage = defaultStorage()) {
+  return storeEngineSettings({ detector: value }, storage);
 }

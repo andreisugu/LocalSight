@@ -140,10 +140,13 @@ export default function LiveView() {
     // result, not just the 250 ms-throttled counts. This is the same opt-in `/lab` uses;
     // the worker attaches `{ time, boxes }` and nothing else changes.
     trackFeed: true,
-    // Cap the processed frame at 1280 on the long side. The YOLO graph is fixed 640 and
-    // faces/blur do not need 1920; the bench measures ~5 fps at 1280 versus ~3.7 at 1080p
-    // on the same 4 threads. `/bench` still lets a visitor compare sizes explicitly.
+    // Cap the processed frame at 1280 on the long side. The person graph has its own input
+    // (320 for Lite0, 448 for Lite2) and faces/blur do not need 1920; the bench measures
+    // ~5 fps at 1280 versus ~3.7 at 1080p on the same 4 threads. `/bench` still lets a
+    // visitor compare sizes explicitly.
     inputSize: 1280,
+    // The person detector is read from Settings inside `useEngine`, so a model change
+    // restarts the worker without anything Live-specific to pass.
   });
 
   useEngineIncidents(engine.events, addEngineEvents);

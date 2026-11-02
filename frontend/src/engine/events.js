@@ -181,7 +181,7 @@ export class IncidentCooldown {
  * @param {boolean} input.engineOn `context.engine_on` at detection time.
  * @param {string} input.snapshotUrl Blob URL (or `/snapshots/...` / http(s)) of the
  *   already blurred frame.
- * @param {string} input.model Detector name and version, e.g. `yolo26n`.
+ * @param {string} input.model Detector name and version, e.g. `efficientdet-lite0`.
  * @param {number|Date} [input.detectedAt=Date.now()] Detection time, epoch ms.
  * @param {number|Date} [input.receivedAt=input.detectedAt] Local ingest time, epoch ms.
  * @param {number|Date} [input.idMs=input.detectedAt] Millisecond used in the event **id**

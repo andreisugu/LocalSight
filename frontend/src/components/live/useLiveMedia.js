@@ -9,10 +9,11 @@ import {
   storeEnginePreference,
 } from './liveMedia';
 
-// The browser engine is a stored preference with a measured default. One probe decides
-// the default and the copy; it uses the engine's own rule (`webgpuAvailable`), so a
-// browser that exposes WebGPU but is kept on wasm by the engine (Firefox today) does not
-// auto-start the slow path.
+// The browser engine is a stored preference with a measured default. The person detector
+// always runs on WASM (see `preferredProviders` in detectors.js): EfficientDet on
+// Chromium's WebGPU EP measured 0.1 fps on a software adapter, so WebGPU stays a bench-only
+// experiment. The adapter probe therefore only decides whether the demo auto-starts: a
+// machine that exposes WebGPU is a desktop demo machine, not a slow-path phone.
 export function useEnginePreference() {
   const [preference, setPreference] = useState(readEnginePreference);
   const [gpuAvailable, setGpuAvailable] = useState(null);
@@ -27,9 +28,10 @@ export function useEnginePreference() {
     };
   }, []);
 
-  // Default ON only on the fast path. Without an adapter the engine runs on WASM at
-  // ~2 fps, so it stays OFF until the visitor explicitly asks for it. The automatic
-  // answer is not stored: a reload re-probes instead of freezing today's GPU state.
+  // Default ON for a machine that exposes a GPU adapter, OFF otherwise so a slow phone
+  // never starts an inference loop unasked. The detector itself is WASM either way. The
+  // automatic answer is not stored: a reload re-probes instead of freezing today's GPU
+  // state.
   useEffect(() => {
     if (preference !== null || gpuAvailable === null) return;
     setPreference(gpuAvailable);

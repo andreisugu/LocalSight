@@ -11,7 +11,7 @@
 import { EVENT_LIMIT } from './incidentState.js';
 
 /** The model name the engine reports when it does not set one itself. */
-export const DEFAULT_ENGINE_MODEL = 'yolo26n';
+export const DEFAULT_ENGINE_MODEL = 'efficientdet-lite0';
 
 /**
  * @param {Array<object>} events current list

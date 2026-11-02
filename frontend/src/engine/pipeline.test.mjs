@@ -100,7 +100,7 @@ describe('createPipeline', () => {
     assert.equal(event.zone_id, 'engine-left');
     assert.equal(event.track_id, 1);
     assert.equal(event.snapshot_url, SNAPSHOT);
-    assert.equal(event.model, 'yolo26n');
+    assert.equal(event.model, 'efficientdet-lite0');
     assert.deepEqual(event.context, { engine_on: true });
     assert.equal(event.confidence.detector, 0.9);
     // 0.125 s per frame: frame 9 is the first with a full-second presence, and the whole

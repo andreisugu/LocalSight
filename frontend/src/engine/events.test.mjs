@@ -23,7 +23,7 @@ function sample(overrides = {}) {
     durationS: 1.4,
     engineOn: true,
     snapshotUrl: 'blob:http://localhost:5173/9f1c-4d2a',
-    model: 'yolo26n',
+    model: 'efficientdet-lite0',
     detectedAt: T0,
     ...overrides,
   });
@@ -109,7 +109,7 @@ test('buildEvent returns every field the UI consumes', () => {
   assert.equal(event.duration_s, 1.4);
   assert.deepEqual(event.context, { engine_on: true });
   assert.equal(event.snapshot_url, 'blob:http://localhost:5173/9f1c-4d2a');
-  assert.equal(event.model, 'yolo26n');
+  assert.equal(event.model, 'efficientdet-lite0');
   assert.equal(event.detected_at, ISO_T0);
   assert.equal(event.detected_at, new Date(T0).toISOString());
   assert.equal(event.received_at, ISO_T0);

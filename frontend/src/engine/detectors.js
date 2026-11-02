@@ -1,9 +1,13 @@
-// Model loading for the in-browser spike. Everything here runs inside the module
+// Model loading for the in-browser engine. Everything here runs inside the module
 // worker (src/engine/worker.js); nothing touches the DOM or the backend.
 //
 // Two ONNX graphs are used:
-//   yolo26n.onnx - person detector, 640x640 letterboxed input, [1, 84, 8400] output
-//   yunet.onnx   - face detector, the same model the Python edge uses for blurring
+//   efficientdet_lite0.onnx / efficientdet_lite2.onnx - person detector, uint8 NHWC input
+//   yunet.onnx                                        - face detector, the blur guard
+//
+// Both person graphs are the Apache-2.0 EfficientDet-Lite ONNX export: 320 px square for
+// Lite0, 448 px for Lite2, four outputs (boxes, classes, scores, count). Lite0 is the
+// default; the settings choice swaps the URL and nothing else. There is no third detector.
 //
 // The wasm binary is bundled by Vite (`?url`) instead of being fetched from a CDN, so
 // the page works offline and from a static Pages build with no extra copy step.
@@ -15,15 +19,39 @@
 // module (see `worker.format` in vite.config.js), which is what allows the dynamic import
 // below to become its own chunk; an IIFE worker cannot code-split and would inline ORT.
 import ortWasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?url';
-import { webgpuAvailable, withTimeout } from './webgpu.js';
+import { withTimeout } from './webgpu.js';
+import { matchEfficientDetOutputs } from './decode.js';
 
 const MODEL_BASE = `${import.meta.env.BASE_URL}models`;
-export const YOLO_MODEL_URL = `${MODEL_BASE}/yolo26n.onnx`;
 export const YUNET_MODEL_URL = `${MODEL_BASE}/yunet.onnx`;
 
-export const YOLO_INPUT_SIZE = 640;
-// Ultralytics pads with 114 grey; matching it keeps the detector in its training regime.
-export const LETTERBOX_PAD = 114;
+// The two shipped person detectors. Both are the ONNX export of Google's EfficientDet-Lite
+// (Apache-2.0 weights, CC BY 3.0 conversion note in THIRD_PARTY.md), run on the same
+// onnxruntime-web session as YuNet: uint8 NHWC input, 320 / 448 px square, 25 detections.
+export const EFFICIENTDET_LITE0_MODEL_URL = `${MODEL_BASE}/efficientdet_lite0.onnx`;
+export const EFFICIENTDET_LITE2_MODEL_URL = `${MODEL_BASE}/efficientdet_lite2.onnx`;
+// `efficientdet` is the settings value without a suffix and means Lite0.
+export const EFFICIENTDET_MODEL_URL = EFFICIENTDET_LITE0_MODEL_URL;
+
+/** Fallback input side if a graph declares none; Lite0 is the default graph. */
+export const DEFAULT_PERSON_INPUT_SIZE = 320;
+
+// `detector` values accepted by `loadModels`, mapped to the graph. Anything else (missing
+// value included) resolves to Lite0: the default must not move because of a typo in a
+// hand-edited storage blob.
+const PERSON_MODELS = Object.freeze({
+  efficientdet: { id: 'efficientdet', url: EFFICIENTDET_LITE0_MODEL_URL },
+  'efficientdet-lite2': { id: 'efficientdet-lite2', url: EFFICIENTDET_LITE2_MODEL_URL },
+});
+
+/**
+ * Resolve a settings value to the person graph. Unknown values fall back to Lite0.
+ * @param {string} [detector]
+ * @returns {{id: 'efficientdet'|'efficientdet-lite2', url: string}}
+ */
+export function resolvePersonModel(detector) {
+  return PERSON_MODELS[detector] ?? PERSON_MODELS.efficientdet;
+}
 
 let configured = false;
 // Resolved once per module instance; a rejected import clears it so a retry can work.
@@ -72,11 +100,21 @@ export function configureOrt(ort, threads) {
 }
 
 /**
- * WebGPU when the browser exposes a usable adapter, wasm otherwise.
+ * Execution providers for the shipped engine. WASM only.
+ *
+ * The EfficientDet-Lite graphs take a uint8 NHWC tensor. Run on Chromium's WebGPU EP under
+ * a software adapter (Playwright, `--enable-unsafe-webgpu`), Lite0 did produce real
+ * detections - 3 persons on the demo clip - but at 0.1 fps, against 8.8 fps on four-thread
+ * WASM. That path is not validated on real GPUs and is far too slow to ship, so the Live
+ * and background workers always ask for wasm. `/bench` still passes an explicit provider,
+ * where the same measurement is visible and a failed WebGPU session falls back to wasm.
+ *
+ * Kept as a function because the default is a decision, not a constant: the bench and the
+ * worker both call it through `loadModels`.
  * @returns {Promise<string[]>}
  */
 export async function preferredProviders() {
-  return (await webgpuAvailable()) ? ['webgpu', 'wasm'] : ['wasm'];
+  return ['wasm'];
 }
 
 /**
@@ -85,7 +123,7 @@ export async function preferredProviders() {
  * @param {number} srcH
  * @param {number} [size]
  */
-export function letterbox(srcW, srcH, size = YOLO_INPUT_SIZE) {
+export function letterbox(srcW, srcH, size = DEFAULT_PERSON_INPUT_SIZE) {
   const scale = Math.min(size / srcW, size / srcH);
   const drawW = Math.round(srcW * scale);
   const drawH = Math.round(srcH * scale);
@@ -102,9 +140,9 @@ export function letterbox(srcW, srcH, size = YOLO_INPUT_SIZE) {
 /**
  * HWC RGBA bytes -> NCHW float32.
  *
- * `normalize` divides by 255 (YOLO's expected 0..1 RGB). YuNet must NOT be normalised:
- * OpenCV's `blobFromImage` defaults, which the Python edge relies on, feed raw 0..255
- * BGR - normalising drops the face scores from 0.92 to below the 0.6 threshold.
+ * `normalize` divides by 255 (the 0..1 RGB an anchor decoder expects). YuNet must NOT be
+ * normalised: OpenCV's `blobFromImage` defaults, which the privacy guard relies on, feed raw
+ * 0..255 BGR - normalising drops the face scores from 0.92 to below the 0.6 threshold.
  *
  * @param {Uint8ClampedArray|Uint8Array} rgba
  * @param {number} width
@@ -168,8 +206,11 @@ async function createSession(ort, url, providers) {
     );
     return { session, provider: 'webgpu', fallback: false };
   } catch (error) {
-    // A GPU session can be refused (driver blocklist, out of memory) or never settle
-    // (Firefox today). Wasm is the documented fallback and is what the Python edge uses.
+    // A GPU session can be refused (driver blocklist, out of memory) or never settle.
+    // Wasm is the documented fallback. This path is bench-only today: the shipped workers
+    // ask for wasm, so a wedged GPU session can never stall Live. A session that is created
+    // but fails on its first run surfaces the ORT error through the worker's fail-closed
+    // frame instead of silently producing zero boxes.
     const reason = error instanceof Error ? error.message : String(error);
     const session = await ort.InferenceSession.create(bytes, {
       ...options,
@@ -179,23 +220,42 @@ async function createSession(ort, url, providers) {
   }
 }
 
+/**
+ * Read the graph input metadata. Two layouts are supported:
+ *   NCHW `[1, 3, H, W]` - YuNet (the historical shape)
+ *   NHWC `[1, H, W, 3]` - EfficientDet, whose channel axis is last
+ * A dynamic axis comes back as 0, exactly as before (YuNet's `yunetDynamic`).
+ *
+ * @param {{inputMetadata?: any[], inputs?: any[], inputNames?: string[]}} session
+ * @returns {{name: string, width: number, height: number,
+ *            layout: 'nchw'|'nhwc'}} width/height are the declared axes, 0 when symbolic
+ */
 function inputShape(session) {
   const input = session.inputMetadata?.[0] ?? session.inputs?.[0];
   const dims = input?.shape ?? input?.dims ?? [];
-  const height = Number(dims[2]) || 0;
-  const width = Number(dims[3]) || 0;
+  const second = Number(dims[1]) || 0;
+  const third = Number(dims[2]) || 0;
+  const fourth = Number(dims[3]) || 0;
   const name = input?.name ?? session.inputNames?.[0] ?? 'input';
-  return { name, width, height };
+  // The channel axis is the one fixed at 3; a 3-D `fourth` next to a spatial `second`
+  // means NHWC. NCHW keeps `second === 3` and reads H/W from axes 2 and 3.
+  const layout = fourth === 3 && second !== 3 ? 'nhwc' : 'nchw';
+  return layout === 'nhwc'
+    ? { name, width: third, height: second, layout }
+    : { name, width: fourth, height: third, layout };
 }
 
 /**
- * Load both sessions. Resolves with plain objects so the worker can pass them around.
+ * Load the person detector and the face detector. Resolves with plain objects so the
+ * worker can pass them around.
  *
  * @param {(stage: string) => void} [onProgress]
- * @param {{providers?: string[], threads?: number}} [options] explicit execution providers
- *   and wasm thread count. Omitting both keeps the spike behaviour: probe WebGPU, ask for
- *   `['webgpu', 'wasm']`, and let ORT use the isolation-based default. The bench page
- *   passes a single provider so the returned `actualProviders` says what really ran.
+ * @param {{providers?: string[], threads?: number, detector?: string}} [options]
+ *   explicit execution providers, wasm thread count and person detector. `detector` is the
+ *   settings value (`efficientdet`, `efficientdet-lite2`); omitted or unknown loads the
+ *   default Lite0. Omitting `providers` asks for wasm (`preferredProviders`), and omitting
+ *   `threads` keeps ORT's isolation-based default. The bench page passes a single provider
+ *   so `actualProviders` says what ran.
  */
 export async function loadModels(onProgress = () => {}, options = {}) {
   const ort = await loadOrt();
@@ -203,54 +263,78 @@ export async function loadModels(onProgress = () => {}, options = {}) {
   const providers = Array.isArray(options.providers) && options.providers.length
     ? options.providers
     : await preferredProviders();
+  const person = resolvePersonModel(options.detector);
   onProgress(providers[0] === 'webgpu' ? 'loading (webgpu)' : 'loading (wasm)');
 
-  const [yolo, yunet] = providers[0] === 'webgpu'
+  const [personSession, yunet] = providers[0] === 'webgpu'
     // ORT's WebGPU EP refuses a second concurrent session ("another WebGPU EP inference
     // session is being created"), so build the graphs one after the other there. On wasm
     // the two loads are independent and run in parallel.
     ? [
-        await createSession(ort, YOLO_MODEL_URL, providers),
+        await createSession(ort, person.url, providers),
         await createSession(ort, YUNET_MODEL_URL, providers),
       ]
     : await Promise.all([
-        createSession(ort, YOLO_MODEL_URL, providers),
+        createSession(ort, person.url, providers),
         createSession(ort, YUNET_MODEL_URL, providers),
       ]);
 
-  const yoloInput = inputShape(yolo.session);
+  const personInput = inputShape(personSession.session);
   const yunetInput = inputShape(yunet.session);
-  const actualProviders = [...new Set([yolo.provider, yunet.provider])];
+  const actualProviders = [...new Set([personSession.provider, yunet.provider])];
 
   return {
-    yolo: yolo.session,
+    // The person graph whichever detector the settings picked; the stored id travels with
+    // it so the card can name the graph that really loaded (an unknown value resolves to
+    // Lite0, and saying so is more honest than repeating the raw setting).
+    person: personSession.session,
+    personInput,
+    personDetector: person.id,
+    detector: person.id,
     yunet: yunet.session,
     // What was asked for: `/lab` prints this list exactly as before.
     providers,
     // What ORT actually created. `fallback` marks a WebGPU request that ended on wasm.
     actualProviders,
-    fallback: yolo.fallback || yunet.fallback,
-    yoloInput,
+    fallback: personSession.fallback || yunet.fallback,
     yunetInput,
     // A graph with symbolic height/width accepts the whole frame padded to multiples of
-    // 32 (exactly what the Python edge feeds); a frozen 640x640 graph needs a letterbox.
+    // 32 (exactly what the privacy guard feeds); a frozen input needs a letterbox.
     yunetDynamic: !yunetInput.width || !yunetInput.height,
     async close() {
-      await Promise.allSettled([yolo.session.release?.(), yunet.session.release?.()]);
+      await Promise.allSettled([personSession.session.release?.(), yunet.session.release?.()]);
     },
   };
 }
 
 /**
- * Run the person detector on a 640x640 NCHW blob.
- * @returns {Promise<Float32Array>} raw [1, 84, 8400] scores
+ * Run the EfficientDet person detector on an NHWC uint8 RGB input.
+ *
+ * The graph is the ONNX export of Google's EfficientDet-Lite: `uint8 [1, H, W, 3]` in
+ * (0..255, no normalisation), and four outputs - `[1, 25, 4]` normalized
+ * `[ymin, xmin, ymax, xmax]`, `[1, 25]` class ids, `[1, 25]` scores, `[1]` count.
+ * `matchEfficientDetOutputs` resolves the tensors by name, then by graph order, so a
+ * renamed export still works and a class-0 person is never mistaken for a low score.
+ *
+ * @param {object} models result of `loadModels`
+ * @param {Uint8Array} input size*size*3 RGB bytes
+ * @param {number} width model input width (square: 320 or 448)
+ * @param {number} height model input height
+ * @returns {Promise<{boxes: Float32Array, classes: Float32Array,
+ *                    scores: Float32Array, count: number}>}
  */
-export async function runYolo(models, blob, size = YOLO_INPUT_SIZE) {
+export async function runEfficientDet(models, input, width, height) {
   const { Tensor } = await loadOrt();
-  const tensor = new Tensor('float32', blob, [1, 3, size, size]);
-  const results = await models.yolo.run({ [models.yoloInput.name]: tensor });
-  const output = results[Object.keys(results)[0]];
-  return output.data;
+  const tensor = new Tensor('uint8', input, [1, height, width, 3]);
+  const results = await models.person.run({ [models.personInput.name ?? 'input']: tensor });
+  const output = matchEfficientDetOutputs(results);
+  if (!output) {
+    const shapes = Object.entries(results)
+      .map(([name, value]) => `${name}:[${value?.dims?.join(',') ?? '?'}]`)
+      .join(' ');
+    throw new Error(`EfficientDet: unexpected output graph (${shapes})`);
+  }
+  return output;
 }
 
 /**

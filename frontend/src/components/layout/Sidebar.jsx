@@ -12,6 +12,8 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { USE_MOCK } from '../../services/api';
+import { detectorLabel } from '../../engine/detectorFlag';
+import { readEngineSettings } from '../../utils/engineSettings';
 import { IconButton, Panel, Pill } from '../ui';
 
 // Below Tailwind's `sm` (640px) a 240px rail would leave ~135px of content on a 375px
@@ -29,7 +31,6 @@ const FOOTER_BUTTON =
 // a plain local build has no SHA and says `dev` instead of inventing one. Short form only:
 // the footer is 240 px wide and the point is comparing it with `git rev-parse --short HEAD`.
 const BUILD_SHA = String(import.meta.env.VITE_BUILD_SHA || 'dev').slice(0, 7);
-
 const NAV_ITEMS = [
   {
     id: 'live',
@@ -265,7 +266,7 @@ function SidebarFooter({ collapsed, health, edgeLabel, edgeActive, edgeSuffix, o
           // runs in the tab, so the footer cannot look like a live connection.
           <StatusCard title="Motor local" tag="STATIC" tone="neutral">
             <p className="text-[10px] font-medium leading-tight text-slate-700 dark:text-slate-400">
-              YOLO26n + tracker local (IoU + distanță centru)
+              {detectorLabel(readEngineSettings().detector)} + tracker local (IoU + distanță centru)
             </p>
             <p className="text-[10px] font-medium leading-tight text-slate-700 dark:text-slate-400">
               Blur YuNet în tab · fără backend sau edge
@@ -285,7 +286,7 @@ function SidebarFooter({ collapsed, health, edgeLabel, edgeActive, edgeSuffix, o
               {health?.db ? 'Backend online' : 'Backend offline'} · {edgeSuffix}
             </p>
             <p className="font-mono text-[10px] leading-tight text-slate-600 dark:text-slate-400">
-              YOLO26 + ByteTrack • snapshot automat
+              {detectorLabel(readEngineSettings().detector)} + tracker local • snapshot automat
             </p>
           </StatusCard>
         ))}
@@ -301,7 +302,7 @@ function SidebarFooter({ collapsed, health, edgeLabel, edgeActive, edgeSuffix, o
             data-testid="notice-link"
             target="_blank"
             rel="noreferrer"
-            title="YOLO26n AGPL-3.0 · YuNet MIT · THIRD_PARTY.md"
+            title="EfficientDet-Lite0/Lite2 Apache-2.0 · YuNet MIT · THIRD_PARTY.md"
             className="underline decoration-dotted underline-offset-2 hover:text-slate-700 dark:hover:text-slate-200"
           >
             Licențe

@@ -84,7 +84,7 @@ async function seedStoredIncidents(page, { count, staleCount = 0 }) {
           duration_s: 1.2,
           context: { engine_on: true },
           snapshot_url: `blob:http://localhost/${id}`,
-          model: 'yolo26n',
+          model: 'efficientdet-lite0',
           detected_at: detected,
           received_at: detected,
           notified_at: null,

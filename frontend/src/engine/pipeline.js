@@ -26,8 +26,8 @@ const EVENT_TYPE_BY_RULE = Object.freeze({
   PPE_REQUIRED: 'NO_PPE',
 });
 
-/** Detector name the browser build runs, stored in `model` (`events.js` requires it). */
-const DEFAULT_MODEL = 'yolo26n';
+/** Detector name the browser build runs by default, stored in `model`. */
+const DEFAULT_MODEL = 'efficientdet-lite0';
 
 /**
  * `snapshot_url` used when the caller has not rendered a blurred frame yet. The static
@@ -97,7 +97,8 @@ function zonesForCamera(zones, cameraId) {
  *   `0` disables it, e.g. for a looped demo clip. Defaults to 60.
  * @param {() => number} [input.clock] Event-clock source in epoch milliseconds. Defaults
  *   to `Date.now`; pass a media-time clock when a replay must stay deterministic.
- * @param {string} [input.model] Detector name stored in `model`. Defaults to `yolo26n`.
+ * @param {string} [input.model] Detector name stored in `model`. Defaults to
+ *   `efficientdet-lite0`.
  * @returns {{
  *   step: (detections: PipelineDetection[], nowS: number,
  *          options: { frameWidth: number, frameHeight: number,

@@ -4,11 +4,14 @@ import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { TYPE_LABELS } from '../../services/api';
 import {
+  DETECTOR_CHOICES,
   readEngineSettings,
   resolveWasmThreads,
+  storeDetector,
   storeSafetyBlur,
   storeWasmThreads,
 } from '../../utils/engineSettings';
+import { PERSON_DETECTOR_LABELS } from '../../engine/detectorFlag';
 import { BACKGROUND_MAX_CAMERAS, BACKGROUND_MIN_CORES } from '../../context/useBackgroundCameras';
 import { WEBCAM_CAMERA_ID } from '../live/liveMedia';
 import {
@@ -185,6 +188,9 @@ export default function SettingsView() {
   const changeSafetyBlur = (event) => {
     setEngineSettings(storeSafetyBlur(event.target.checked));
   };
+  const changeDetector = (event) => {
+    setEngineSettings(storeDetector(event.target.value));
+  };
 
   // The manager lives in the provider; Settings only samples its status once a second
   // while the option is on. When it is off there is nothing to poll: the section renders
@@ -245,8 +251,15 @@ export default function SettingsView() {
   const isMock = Boolean(health?.mock);
   const latestModel = useMemo(() => latestDetectionModel(events), [events]);
   const tiles = useMemo(
-    () => buildSystemTiles({ isMock, health, cameras, zones, latestModel }),
-    [isMock, health, cameras, zones, latestModel]
+    () => buildSystemTiles({
+      isMock,
+      health,
+      cameras,
+      zones,
+      latestModel,
+      detector: engineSettings.detector,
+    }),
+    [isMock, health, cameras, zones, latestModel, engineSettings.detector]
   );
   const cameraRows = useMemo(() => buildCameraRows(cameras, { isMock, zones }), [cameras, isMock, zones]);
   const sources = useMemo(() => sourceSummary(cameras, { isMock }), [cameras, isMock]);
@@ -495,6 +508,78 @@ export default function SettingsView() {
         </section>
 
         <section
+          data-testid="detector-panel"
+          aria-labelledby="detector-heading"
+          style={surface}
+          className="space-y-3 rounded-xl border p-4"
+        >
+          <h3 id="detector-heading" className="flex flex-wrap items-center gap-2 text-sm font-bold uppercase">
+            <Box size={16} aria-hidden="true" className="text-[#0284C7] dark:text-[#FFEB33]" />
+            Model detecție
+          </h3>
+          <p className="text-xs" style={muted}>
+            Ambele grafice sunt EfficientDet-Lite, licență Apache-2.0, și rulează local în tab. Alegerea se
+            salvează aici și repornește motorul la următoarea pornire, ca să încarce graful ales.
+          </p>
+
+          <div role="radiogroup" aria-labelledby="detector-heading" className="grid gap-3 sm:grid-cols-2">
+            {DETECTOR_CHOICES.map((value) => {
+              const selected = engineSettings.detector === value;
+              const isLite2 = value === 'efficientdet-lite2';
+              return (
+                <label
+                  key={value}
+                  className={`flex cursor-pointer items-start gap-2 rounded-lg border p-3 transition-colors ${
+                    selected
+                      ? 'border-[#0284C7] bg-[#0284C7]/5 dark:border-[#FFEB33] dark:bg-[#FFEB33]/5'
+                      : 'hover:bg-slate-50 dark:hover:bg-white/5'
+                  }`}
+                  style={{ borderColor: selected ? undefined : themeStyles.panelBorder }}
+                >
+                  <input
+                    type="radio"
+                    name="person-detector"
+                    value={value}
+                    data-testid={`detector-${value}`}
+                    checked={selected}
+                    onChange={changeDetector}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-[#0284C7] focus:outline-none focus:ring-2 focus:ring-[#FFEB33]"
+                  />
+                  <span className="space-y-0.5">
+                    <span className="block text-xs font-bold">
+                      {PERSON_DETECTOR_LABELS[value]}
+                      {isLite2 ? '' : ' (recomandat)'}
+                    </span>
+                    <span className="block font-mono text-[11px] leading-snug" style={muted}>
+                      {isLite2 ? '448 px · ~4.8 fps' : '320 px · ~8.8 fps'} · Apache-2.0
+                    </span>
+                    <span className="block text-[11px] leading-snug" style={muted}>
+                      {isLite2
+                        ? 'mai precis, mai lent: modelează persoane mici și departe mai bine.'
+                        : 'cel mai rapid: suficient pentru zona motor la 1280 px.'}
+                    </span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+
+          <p className="text-[11px] leading-snug" style={muted}>
+            Ambele rulează local; schimbarea repornește motorul. Fără AGPL: build-ul nu mai include niciun model
+            YOLO. Detalii de licență în{' '}
+            <a
+              href={`${import.meta.env.BASE_URL}NOTICE`}
+              target="_blank"
+              rel="noreferrer"
+              className="underline decoration-dotted underline-offset-2"
+            >
+              NOTICE
+            </a>{' '}
+            și <code>THIRD_PARTY.md</code>.
+          </p>
+        </section>
+
+        <section
           data-testid="background-panel"
           aria-labelledby="background-heading"
           style={surface}
@@ -624,8 +709,8 @@ export default function SettingsView() {
                 <li className="flex gap-2">
                   <ShieldCheck size={12} aria-hidden="true" className="mt-0.5 shrink-0 text-[#0284C7] dark:text-[#FFEB33]" />
                   <span>
-                    Prin rețea trec doar fișierele aplicației (JS, yolo26n.onnx, yunet.onnx, clipul demo), în jos; nimic nu se
-                    încarcă în sus. Un tab închis nu lasă nimic pe server.
+                    Prin rețea trec doar fișierele aplicației (JS, modelul EfficientDet ales, yunet.onnx, clipul demo), în
+                    jos; nimic nu se încarcă în sus. Un tab închis nu lasă nimic pe server.
                   </span>
                 </li>
                 <li className="flex gap-2">

@@ -15,7 +15,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const EXPECTED_BASE = '/LocalSight/';
-const REQUIRED_MODELS = ['yolo26n.onnx', 'yunet.onnx'];
+const REQUIRED_MODELS = ['efficientdet_lite0.onnx', 'efficientdet_lite2.onnx', 'yunet.onnx'];
 
 const frontendDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const distDir = join(frontendDir, 'dist');

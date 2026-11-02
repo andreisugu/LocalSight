@@ -2,11 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_ENGINE_SETTINGS,
+  DETECTOR_CHOICES,
   ENGINE_SETTINGS_KEY,
   WASM_THREAD_CHOICES,
+  normalizeDetector,
   normalizeWasmThreads,
   readEngineSettings,
   resolveWasmThreads,
+  storeDetector,
   storeEngineSettings,
   storeSafetyBlur,
   storeWasmThreads,
@@ -34,21 +37,55 @@ function throwingStorage() {
   };
 }
 
-test('defaults are auto threads and safety blur ON', () => {
-  assert.deepEqual(readEngineSettings(memoryStorage()), { wasmThreads: 'auto', safetyBlur: true });
-  assert.deepEqual(readEngineSettings(null), DEFAULT_ENGINE_SETTINGS);
-  assert.deepEqual(readEngineSettings({}), DEFAULT_ENGINE_SETTINGS);
+test('defaults are auto threads, safety blur ON and EfficientDet-Lite0', () => {
+  const expected = { wasmThreads: 'auto', safetyBlur: true, detector: 'efficientdet' };
+  assert.deepEqual(readEngineSettings(memoryStorage()), expected);
+  assert.deepEqual(readEngineSettings(null), expected);
+  assert.deepEqual(readEngineSettings({}), expected);
+  assert.deepEqual(readEngineSettings(memoryStorage()), DEFAULT_ENGINE_SETTINGS);
   assert.equal(DEFAULT_ENGINE_SETTINGS.safetyBlur, true);
+  assert.equal(DEFAULT_ENGINE_SETTINGS.detector, 'efficientdet');
+});
+
+test('the two detector choices are the only ones offered', () => {
+  assert.deepEqual([...DETECTOR_CHOICES], ['efficientdet', 'efficientdet-lite2']);
+  assert.equal(normalizeDetector('efficientdet'), 'efficientdet');
+  assert.equal(normalizeDetector('efficientdet-lite2'), 'efficientdet-lite2');
+  for (const value of ['yolo', 'yolo26n', 'efficientdet-lite0', 'EfficientDet', '', null, undefined, 0, true]) {
+    assert.equal(normalizeDetector(value), null, `value ${String(value)}`);
+  }
+});
+
+test('a stored Lite2 choice is read back and the default is Lite0', () => {
+  const storage = memoryStorage({ [ENGINE_SETTINGS_KEY]: JSON.stringify({ detector: 'efficientdet-lite2' }) });
+  assert.deepEqual(readEngineSettings(storage), {
+    wasmThreads: 'auto',
+    safetyBlur: true,
+    detector: 'efficientdet-lite2',
+  });
+  // A stored blob from the old build (no detector field, e.g. the spike) keeps the default.
+  const legacy = memoryStorage({ [ENGINE_SETTINGS_KEY]: JSON.stringify({ wasmThreads: 4, safetyBlur: false }) });
+  assert.deepEqual(readEngineSettings(legacy), {
+    wasmThreads: 4,
+    safetyBlur: false,
+    detector: 'efficientdet',
+  });
+  const unknown = memoryStorage({ [ENGINE_SETTINGS_KEY]: JSON.stringify({ detector: 'yolo' }) });
+  assert.equal(readEngineSettings(unknown).detector, 'efficientdet');
 });
 
 test('a stored pair is read back unchanged', () => {
   const storage = memoryStorage({
     [ENGINE_SETTINGS_KEY]: JSON.stringify({ wasmThreads: 4, safetyBlur: false }),
   });
-  assert.deepEqual(readEngineSettings(storage), { wasmThreads: 4, safetyBlur: false });
+  assert.deepEqual(readEngineSettings(storage), {
+    wasmThreads: 4,
+    safetyBlur: false,
+    detector: 'efficientdet',
+  });
   assert.deepEqual(
     readEngineSettings(memoryStorage({ [ENGINE_SETTINGS_KEY]: JSON.stringify({ wasmThreads: 'auto', safetyBlur: true }) })),
-    { wasmThreads: 'auto', safetyBlur: true },
+    { wasmThreads: 'auto', safetyBlur: true, detector: 'efficientdet' },
   );
 });
 
@@ -71,17 +108,29 @@ test('each invalid field falls back on its own, the valid one survives', () => {
   const invalidThreads = memoryStorage({
     [ENGINE_SETTINGS_KEY]: JSON.stringify({ wasmThreads: 3, safetyBlur: false }),
   });
-  assert.deepEqual(readEngineSettings(invalidThreads), { wasmThreads: 'auto', safetyBlur: false });
+  assert.deepEqual(readEngineSettings(invalidThreads), {
+    wasmThreads: 'auto',
+    safetyBlur: false,
+    detector: 'efficientdet',
+  });
 
   const invalidBlur = memoryStorage({
     [ENGINE_SETTINGS_KEY]: JSON.stringify({ wasmThreads: 6, safetyBlur: 'false' }),
   });
-  assert.deepEqual(readEngineSettings(invalidBlur), { wasmThreads: 6, safetyBlur: true });
+  assert.deepEqual(readEngineSettings(invalidBlur), {
+    wasmThreads: 6,
+    safetyBlur: true,
+    detector: 'efficientdet',
+  });
 
   const stringThreads = memoryStorage({
     [ENGINE_SETTINGS_KEY]: JSON.stringify({ wasmThreads: '4', safetyBlur: true }),
   });
-  assert.deepEqual(readEngineSettings(stringThreads), { wasmThreads: 'auto', safetyBlur: true });
+  assert.deepEqual(readEngineSettings(stringThreads), {
+    wasmThreads: 'auto',
+    safetyBlur: true,
+    detector: 'efficientdet',
+  });
 });
 
 test('a storage that throws is treated as empty', () => {
@@ -152,41 +201,75 @@ test('an invalid stored setting behaves like auto instead of guessing', () => {
 
 test('storeWasmThreads persists a valid choice and returns the merged settings', () => {
   const storage = memoryStorage();
-  assert.deepEqual(storeWasmThreads(6, storage), { wasmThreads: 6, safetyBlur: true });
-  assert.deepEqual(JSON.parse(storage.data[ENGINE_SETTINGS_KEY]), { wasmThreads: 6, safetyBlur: true });
-  assert.deepEqual(readEngineSettings(storage), { wasmThreads: 6, safetyBlur: true });
+  const expected = { wasmThreads: 6, safetyBlur: true, detector: 'efficientdet' };
+  assert.deepEqual(storeWasmThreads(6, storage), expected);
+  assert.deepEqual(JSON.parse(storage.data[ENGINE_SETTINGS_KEY]), expected);
+  assert.deepEqual(readEngineSettings(storage), expected);
 });
 
 test('storeSafetyBlur persists a boolean and keeps the thread choice', () => {
   const storage = memoryStorage({ [ENGINE_SETTINGS_KEY]: JSON.stringify({ wasmThreads: 2, safetyBlur: true }) });
-  assert.deepEqual(storeSafetyBlur(false, storage), { wasmThreads: 2, safetyBlur: false });
-  assert.deepEqual(readEngineSettings(storage), { wasmThreads: 2, safetyBlur: false });
-  assert.deepEqual(storeSafetyBlur(true, storage), { wasmThreads: 2, safetyBlur: true });
+  assert.deepEqual(storeSafetyBlur(false, storage), {
+    wasmThreads: 2,
+    safetyBlur: false,
+    detector: 'efficientdet',
+  });
+  assert.deepEqual(readEngineSettings(storage), {
+    wasmThreads: 2,
+    safetyBlur: false,
+    detector: 'efficientdet',
+  });
+  assert.deepEqual(storeSafetyBlur(true, storage), {
+    wasmThreads: 2,
+    safetyBlur: true,
+    detector: 'efficientdet',
+  });
 });
 
 test('invalid values are ignored, not written over a good setting', () => {
   const storage = memoryStorage({ [ENGINE_SETTINGS_KEY]: JSON.stringify({ wasmThreads: 4, safetyBlur: false }) });
-  assert.deepEqual(storeWasmThreads(7, storage), { wasmThreads: 4, safetyBlur: false });
-  assert.deepEqual(storeWasmThreads('many', storage), { wasmThreads: 4, safetyBlur: false });
-  assert.deepEqual(storeSafetyBlur('off', storage), { wasmThreads: 4, safetyBlur: false });
-  assert.deepEqual(readEngineSettings(storage), { wasmThreads: 4, safetyBlur: false });
+  const kept = { wasmThreads: 4, safetyBlur: false, detector: 'efficientdet' };
+  assert.deepEqual(storeWasmThreads(7, storage), kept);
+  assert.deepEqual(storeWasmThreads('many', storage), kept);
+  assert.deepEqual(storeSafetyBlur('off', storage), kept);
+  // Same rule for the model: an unknown value never overwrites a good choice.
+  assert.deepEqual(storeDetector('yolo', storage), kept);
+  assert.deepEqual(storeDetector('efficientdet-lite1', storage), kept);
+  assert.deepEqual(readEngineSettings(storage), kept);
+  // ... and a valid one does, leaving the other fields alone.
+  assert.deepEqual(storeDetector('efficientdet-lite2', storage), {
+    wasmThreads: 4,
+    safetyBlur: false,
+    detector: 'efficientdet-lite2',
+  });
+  assert.equal(readEngineSettings(storage).detector, 'efficientdet-lite2');
 });
 
 test('a corrupt store is repaired by the first valid write', () => {
   const storage = memoryStorage({ [ENGINE_SETTINGS_KEY]: '{oops' });
-  assert.deepEqual(storeWasmThreads(8, storage), { wasmThreads: 8, safetyBlur: true });
-  assert.deepEqual(JSON.parse(storage.data[ENGINE_SETTINGS_KEY]), { wasmThreads: 8, safetyBlur: true });
-  assert.deepEqual(readEngineSettings(storage), { wasmThreads: 8, safetyBlur: true });
+  const expected = { wasmThreads: 8, safetyBlur: true, detector: 'efficientdet' };
+  assert.deepEqual(storeWasmThreads(8, storage), expected);
+  assert.deepEqual(JSON.parse(storage.data[ENGINE_SETTINGS_KEY]), expected);
+  assert.deepEqual(readEngineSettings(storage), expected);
 });
 
-test('storeEngineSettings merges both fields and survives a blocked storage', () => {
+test('storeEngineSettings merges every field and survives a blocked storage', () => {
   assert.deepEqual(
-    storeEngineSettings({ wasmThreads: 4, safetyBlur: false }, throwingStorage()),
-    { wasmThreads: 4, safetyBlur: false },
+    storeEngineSettings({ wasmThreads: 4, safetyBlur: false, detector: 'efficientdet-lite2' }, throwingStorage()),
+    { wasmThreads: 4, safetyBlur: false, detector: 'efficientdet-lite2' },
   );
   const storage = memoryStorage();
   storeEngineSettings({ wasmThreads: 1 }, storage);
-  assert.deepEqual(storeEngineSettings({ safetyBlur: false }, storage), { wasmThreads: 1, safetyBlur: false });
+  assert.deepEqual(storeEngineSettings({ safetyBlur: false }, storage), {
+    wasmThreads: 1,
+    safetyBlur: false,
+    detector: 'efficientdet',
+  });
+  assert.deepEqual(storeEngineSettings({ detector: 'efficientdet-lite2' }, storage), {
+    wasmThreads: 1,
+    safetyBlur: false,
+    detector: 'efficientdet-lite2',
+  });
   assert.doesNotThrow(() => storeEngineSettings({}, throttledStorage()));
 });
 

@@ -59,8 +59,8 @@ test('a report the event already carries is kept', () => {
 });
 
 test('the engine model is kept when set, defaulted otherwise', () => {
-  const [merged] = mergeEngineEvents([], [engineEvent({ model: 'yolo26s' })], { buildReport });
-  assert.equal(merged.model, 'yolo26s');
+  const [merged] = mergeEngineEvents([], [engineEvent({ model: 'efficientdet-lite2' })], { buildReport });
+  assert.equal(merged.model, 'efficientdet-lite2');
 });
 
 test('a zone can be matched by id or zone_id', () => {
