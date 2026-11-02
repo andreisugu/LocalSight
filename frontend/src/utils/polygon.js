@@ -1,30 +1,33 @@
 // Polygon geometry for the zone editor. Points are normalised { x, y } in 0..1.
 //
-// The same crossing check existed server-side (the removed backend's `geometry.py`) and
-// rejected a self-crossing polygon with 422, so the editor blocks Save before that happens. This
-// module is deliberately pure and dependency-free; the rewrite keeps the public API
-// (`segmentsIntersect`, `crossingEdges`, `orderAroundCentroid`) intact.
+// The editor needs to know whether a draft outline crosses itself before it lets the
+// operator save. This module answers that with a parametric segment test: the two lines
+// p1 + t·r and p3 + u·s are solved for (t, u) with cross products instead of classifying
+// four orientation signs. The collinear/overlapping and endpoint-touching cases take a
+// separate branch that asks whether an endpoint lies on the other segment.
+//
+// Everything here is pure and dependency-free. Coordinates are normalised, so EPS is far
+// below one screen pixel; it absorbs floating-point noise and never moves a point.
 
-// Coordinates are normalised to 0..1, so 1e-9 is far below one screen pixel. It is used
-// only to absorb floating-point noise in collinearity tests, never to move a point.
 const EPS = 1e-9;
 
-/** Signed area of the triangle (a, b, c); sign tells the turn direction. */
-function orient(a, b, c) {
-  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+/** 2-D cross product of the vectors (ux, uy) and (vx, vy). */
+function cross(ux, uy, vx, vy) {
+  return ux * vy - uy * vx;
 }
 
-function sign(value) {
-  if (value > EPS) return 1;
-  if (value < -EPS) return -1;
-  return 0;
-}
-
-/** Is p inside the axis-aligned box of the segment a-b (inclusive)? */
-function withinBox(a, b, p) {
+/**
+ * Does p lie on the closed segment a-b? Collinearity is a cross-product test; the
+ * position along the segment is an inclusive coordinate box, which is exactly what an
+ * on-segment test needs and is more forgiving than a projection at the endpoints.
+ */
+function onSegment(a, b, p) {
+  if (Math.abs(cross(b.x - a.x, b.y - a.y, p.x - a.x, p.y - a.y)) > EPS) return false;
   return (
-    Math.min(a.x, b.x) - EPS <= p.x && p.x <= Math.max(a.x, b.x) + EPS &&
-    Math.min(a.y, b.y) - EPS <= p.y && p.y <= Math.max(a.y, b.y) + EPS
+    p.x >= Math.min(a.x, b.x) - EPS &&
+    p.x <= Math.max(a.x, b.x) + EPS &&
+    p.y >= Math.min(a.y, b.y) - EPS &&
+    p.y <= Math.max(a.y, b.y) + EPS
   );
 }
 
@@ -33,46 +36,80 @@ function withinBox(a, b, p) {
  * overlapping collinearly)?
  */
 export function segmentsIntersect(p1, p2, p3, p4) {
-  const d1 = orient(p3, p4, p1);
-  const d2 = orient(p3, p4, p2);
-  const d3 = orient(p1, p2, p3);
-  const d4 = orient(p1, p2, p4);
+  const rx = p2.x - p1.x;
+  const ry = p2.y - p1.y;
+  const sx = p4.x - p3.x;
+  const sy = p4.y - p3.y;
+  const qx = p3.x - p1.x;
+  const qy = p3.y - p1.y;
 
-  // Proper crossing: each segment has one endpoint on each side of the other.
-  if (sign(d1) * sign(d2) < 0 && sign(d3) * sign(d4) < 0) return true;
+  const denominator = cross(rx, ry, sx, sy);
 
-  // Touching or collinear: the point must also lie within the segment's box.
-  if (sign(d1) === 0 && withinBox(p3, p4, p1)) return true;
-  if (sign(d2) === 0 && withinBox(p3, p4, p2)) return true;
-  if (sign(d3) === 0 && withinBox(p1, p2, p3)) return true;
-  if (sign(d4) === 0 && withinBox(p1, p2, p4)) return true;
+  // Parallel or collinear segments have no unique (t, u) solution, so they get their
+  // own path: they meet only when an endpoint of one lies on the other.
+  if (Math.abs(denominator) <= EPS) {
+    return (
+      onSegment(p1, p2, p3) ||
+      onSegment(p1, p2, p4) ||
+      onSegment(p3, p4, p1) ||
+      onSegment(p3, p4, p2)
+    );
+  }
 
-  return false;
+  // p1 + t·r = p3 + u·s. A proper crossing has both parameters strictly inside (0, 1);
+  // the tolerance is the segment-scale equivalent of the EPS used on cross products.
+  const t = cross(qx, qy, sx, sy) / denominator;
+  const u = cross(qx, qy, rx, ry) / denominator;
+  const tolerance = EPS / Math.abs(denominator);
+
+  if (t > tolerance && t < 1 - tolerance && u > tolerance && u < 1 - tolerance) {
+    return true;
+  }
+
+  // Not a proper crossing, but the lines still meet: it can be an endpoint touch.
+  return (
+    onSegment(p1, p2, p3) ||
+    onSegment(p1, p2, p4) ||
+    onSegment(p3, p4, p1) ||
+    onSegment(p3, p4, p2)
+  );
 }
 
 /**
  * Indices of the edges that cross another, non-adjacent edge. Edge i joins point i to
  * point i + 1; with `closed`, the last edge joins the last point back to the first.
  *
- * Adjacent edges share an endpoint by construction and are not treated as crossings.
+ * Adjacency is precomputed in a matrix: adjacent edges share an endpoint by construction
+ * and are skipped, so only independent pairs reach the segment test.
  */
 export function crossingEdges(points, closed = true) {
   const n = points.length;
   // A polygon needs at least four points to cross itself (a triangle cannot).
   if (n < 4) return new Set();
 
-  const count = closed ? n : n - 1;
-  const crossing = new Set();
+  const edgeCount = closed ? n : n - 1;
+  const edges = Array.from({ length: edgeCount }, (_, index) => ({
+    from: points[index],
+    to: points[(index + 1) % n],
+  }));
 
-  for (let i = 0; i < count; i += 1) {
-    const a1 = points[i];
-    const a2 = points[(i + 1) % n];
-    for (let j = i + 1; j < count; j += 1) {
-      // Edge 0 and the closing edge are adjacent in a closed polygon.
-      if (j === i + 1 || (closed && i === 0 && j === n - 1)) continue;
-      const b1 = points[j];
-      const b2 = points[(j + 1) % n];
-      if (segmentsIntersect(a1, a2, b1, b2)) {
+  const adjacent = Array.from({ length: edgeCount }, () =>
+    new Array(edgeCount).fill(false)
+  );
+  for (let i = 0; i < edgeCount - 1; i += 1) {
+    adjacent[i][i + 1] = true;
+    adjacent[i + 1][i] = true;
+  }
+  if (closed && edgeCount > 1) {
+    adjacent[edgeCount - 1][0] = true;
+    adjacent[0][edgeCount - 1] = true;
+  }
+
+  const crossing = new Set();
+  for (let i = 0; i < edgeCount; i += 1) {
+    for (let j = i + 1; j < edgeCount; j += 1) {
+      if (adjacent[i][j]) continue;
+      if (segmentsIntersect(edges[i].from, edges[i].to, edges[j].from, edges[j].to)) {
         crossing.add(i);
         crossing.add(j);
       }
@@ -87,8 +124,11 @@ export function crossingEdges(points, closed = true) {
  * most simple ones; a strongly concave outline can still come out wrong, so it is a
  * button, not an automatic fix.
  *
- * Equal angles are ordered by distance from the centroid so the result is deterministic
- * for duplicated directions (two points on the same ray from the centre).
+ * The comparator splits the plane into the same four arcs `Math.atan2` produces
+ * ([-π, 0), 0, (0, π), π) and orders each arc by cross product. A turn smaller than
+ * double-precision resolution is a tie: there the exact `atan2` comparison is used, so
+ * near-collinear rays keep the deterministic order they had before. Equal directions fall
+ * back to distance from the centroid, then to input order.
  */
 export function orderAroundCentroid(points) {
   if (points.length < 2) return [...points];
@@ -96,13 +136,40 @@ export function orderAroundCentroid(points) {
   const cx = points.reduce((sum, p) => sum + p.x, 0) / points.length;
   const cy = points.reduce((sum, p) => sum + p.y, 0) / points.length;
 
-  return [...points].sort((a, b) => {
-    const angleA = Math.atan2(a.y - cy, a.x - cx);
-    const angleB = Math.atan2(b.y - cy, b.x - cx);
-    if (angleA !== angleB) return angleA - angleB;
+  /** Arc rank: 0 = (-π, 0), 1 = 0, 2 = (0, π), 3 = π. */
+  function arc(dx, dy) {
+    if (dy < 0) return 0;
+    if (dy === 0) return dx >= 0 ? 1 : Object.is(dy, -0) ? 0 : 3;
+    return 2;
+  }
 
-    const distanceA = (a.x - cx) ** 2 + (a.y - cy) ** 2;
-    const distanceB = (b.x - cx) ** 2 + (b.y - cy) ** 2;
-    return distanceA - distanceB;
+  const placed = points.map((point, index) => {
+    const dx = point.x - cx;
+    const dy = point.y - cy;
+    return {
+      point,
+      index,
+      dx,
+      dy,
+      arc: arc(dx, dy),
+      distance: dx * dx + dy * dy,
+      angle: null,
+    };
   });
+
+  placed.sort((a, b) => {
+    if (a.arc !== b.arc) return a.arc - b.arc;
+    const turn = cross(a.dx, a.dy, b.dx, b.dy);
+    // Below this relative size the cross product is rounding noise, not a direction.
+    if (Math.abs(turn) > 1e-15 * Math.sqrt(a.distance * b.distance)) {
+      return turn > 0 ? -1 : 1;
+    }
+    const angleA = a.angle ?? (a.angle = Math.atan2(a.dy, a.dx));
+    const angleB = b.angle ?? (b.angle = Math.atan2(b.dy, b.dx));
+    if (angleA !== angleB) return angleA - angleB;
+    if (a.distance !== b.distance) return a.distance - b.distance;
+    return a.index - b.index;
+  });
+
+  return placed.map((item) => item.point);
 }
