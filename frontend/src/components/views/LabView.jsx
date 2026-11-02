@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, Camera, CameraOff, Cpu, RotateCcw, Upload, Video } from 'lucide-react';
+import { Activity, AlertTriangle, Camera, CameraOff, Cpu, RotateCcw, Upload, Video } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useEngine } from '../../engine/useEngine';
+import { DEFAULT_LAB_ZONE } from '../../engine/zones.default';
 
 const MODEL_HINT = `${import.meta.env.BASE_URL}models/yolo26n.onnx + ${import.meta.env.BASE_URL}models/yunet.onnx`;
 
@@ -58,9 +59,9 @@ function cameraErrorFor(error) {
   };
 }
 
-// Spike page: proves YOLO + YuNet run in the browser on a looping clip or on the laptop
-// webcam. No backend, no zones, no incidents - the pipeline pieces live in src/engine and
-// can be promoted later.
+// Spike page: proves YOLO + YuNet + the zone rule engine run in the browser on a looping
+// clip or on the laptop webcam. No backend: the zone is the full-frame lab fixture, and
+// the incidents live in memory for as long as the tab is open.
 export default function LabView() {
   const { themeStyles } = useTheme();
   const videoRef = useRef(null);
@@ -315,7 +316,8 @@ export default function LabView() {
             Lab - motor în browser
           </h1>
           <p className="text-sm opacity-60" style={{ color: themeStyles.textColor }}>
-            Detecție de persoane YOLO și blur de față YuNet, ONNX Runtime Web, fără backend.
+            Detecție de persoane YOLO, blur de față YuNet și incidente din zona cadrului
+            întreg, ONNX Runtime Web, fără backend.
           </p>
         </div>
 
@@ -377,18 +379,63 @@ export default function LabView() {
         </p>
       )}
 
-      <div className="flex flex-wrap items-center gap-4 text-sm" style={{ color: themeStyles.textColor }}>
-        <span className="flex items-center gap-1">
-          <Cpu size={14} />
-          stare: <strong style={{ color: badgeColour }}>{statusLabel}</strong>
-        </span>
-        <span>fps: <strong>{engine.fps || '—'}</strong></span>
-        <span>persoane: <strong>{engine.persons}</strong></span>
-        <span>fețe: <strong>{engine.faces}</strong></span>
-        <span>cadru: <strong>{engine.ms ? `${engine.ms} ms` : '—'}</strong></span>
-        <span className="opacity-60">
-          provider: {engine.providers.length ? engine.providers.join(' → ') : '—'}
-        </span>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-4 text-sm" style={{ color: themeStyles.textColor }}>
+          <span className="flex items-center gap-1">
+            <Cpu size={14} />
+            stare: <strong style={{ color: badgeColour }}>{statusLabel}</strong>
+          </span>
+          <span>fps: <strong>{engine.fps || '—'}</strong></span>
+          <span>persoane: <strong>{engine.persons}</strong></span>
+          <span>fețe: <strong>{engine.faces}</strong></span>
+          <span>cadru: <strong>{engine.ms ? `${engine.ms} ms` : '—'}</strong></span>
+          <span className="opacity-60">
+            provider: {engine.providers.length ? engine.providers.join(' → ') : '—'}
+          </span>
+        </div>
+
+        {/* Incidents come from the worker's rule engine, one panel row per event. */}
+        <div
+          className="rounded border px-4 py-2 text-sm min-w-[280px]"
+          style={{
+            borderColor: themeStyles.panelBorder,
+            backgroundColor: themeStyles.cardBg,
+            color: themeStyles.textColor,
+          }}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+            <span className="font-semibold flex items-center gap-2">
+              <AlertTriangle size={14} />
+              Incidente
+            </span>
+            <span>total: <strong>{engine.totalEvents}</strong></span>
+          </div>
+
+          {engine.events.length === 0 ? (
+            <p className="mt-1 text-xs opacity-60">
+              Niciun incident încă. Zona „cadru întreg” are nevoie de
+              {' '}{DEFAULT_LAB_ZONE.debounce_s} s de prezență neîntreruptă.
+            </p>
+          ) : (
+            <ul className="mt-2 space-y-1 font-mono text-xs">
+              {engine.events.slice(0, 5).map((event) => (
+                <li
+                  key={event.event_id}
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1"
+                >
+                  <span
+                    style={{ color: event.severity === 'CRITICAL' ? '#FF5C5C' : '#FFEB33' }}
+                  >
+                    {event.type}
+                  </span>
+                  <span className="opacity-80">severitate: {event.severity}</span>
+                  <span>track: {event.track_id}</span>
+                  <span>durată: {Number(event.duration_s).toFixed(2)} s</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       {source === SOURCE_CAMERA && cameraState === 'error' && cameraError && (
@@ -499,8 +546,8 @@ export default function LabView() {
       />
 
       <p className="text-xs opacity-50" style={{ color: themeStyles.textColor }}>
-        Spike: doar cutii pe persoane, blur de față și fps. Zonele, incidentele și rapoartele
-        nu sunt conectate aici.
+        Spike: cutii pe persoane, blur de față, fps și incidentele produse de zona „cadru
+        întreg”. Snapshot-ul, raportul și escaladarea nu sunt conectate aici.
       </p>
     </div>
   );

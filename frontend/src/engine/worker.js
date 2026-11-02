@@ -1,9 +1,11 @@
 // Module worker: the whole per-frame pipeline of the spike lives here, off the main
 // thread. Frames arrive as ImageBitmaps (transferred), the processed frame leaves as one
-// ImageBitmap plus the numbers the overlay shows.
+// ImageBitmap plus the numbers the overlay shows and the incidents the rule engine
+// produced for that frame.
 //
-// Deliberately small: YOLO person boxes + YuNet face blur, no zones, no events, no
-// backend. It is the piece that proves the models run in a browser on a looping video.
+// The order per frame is the reference's: detect, blur the faces, render, then let the
+// pipeline (tracker -> zones -> rule engine -> event) run on the boxes. Blur stays first
+// class: nothing leaves this worker before the faces are blurred.
 import {
   LETTERBOX_PAD,
   YOLO_INPUT_SIZE,
@@ -14,6 +16,8 @@ import {
   runYuNet,
 } from './detectors.js';
 import { decodeYolo, decodeYuNet } from './decode.js';
+import { SNAPSHOT_PENDING, createPipeline } from './pipeline.js';
+import { DEFAULT_LAB_ZONE } from './zones.default.js';
 
 const PERSON_CONF = 0.35;
 const PERSON_NMS = 0.45;
@@ -43,6 +47,65 @@ let faceCtx = null;
 
 let lastFrameAt = 0;
 let fps = 0;
+
+// One pipeline per worker: it owns the tracker ids, the rule state and the incident
+// cooldown for this camera. The lab has no backend, so the zone is the hard-coded
+// full-frame fixture in zones.default.js.
+const LAB_CAMERA_ID = 'lab';
+const pipeline = createPipeline({
+  cameraId: LAB_CAMERA_ID,
+  zones: [DEFAULT_LAB_ZONE],
+  engineOn: true,
+  incidentCooldownS: 60,
+});
+
+// --- Media clock ---------------------------------------------------------------
+// `pipeline.step` needs monotonic seconds that follow the video, not the wall clock: a
+// looping clip rewinds `currentTime` to 0, and "1 s in the zone" must stay 1 s of the
+// footage the operator is watching. The hook sends `mediaTime` (video.currentTime) with
+// every frame; the clock accumulates the advance between processed frames, so a dropped
+// frame still counts, and falls back to the arrival clock across a loop or a seek.
+const BACKWARD_JUMP_S = 0.5;
+const FALLBACK_STEP_S = 1 / 30;
+let lastMediaRawS = null;
+let lastMediaNowS = 0;
+let lastArrivalS = null;
+
+function mediaSeconds(message) {
+  const raw = message.mediaTime;
+  const arrivalS = message.timestamp / 1000;
+  const hasArrival = Number.isFinite(arrivalS);
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) {
+    if (lastMediaRawS === null) {
+      // Start at the position in the footage, not at zero: a clip opened mid-way is
+      // still on its own timeline.
+      lastMediaRawS = raw;
+      lastMediaNowS = raw;
+      if (hasArrival) lastArrivalS = arrivalS;
+      return lastMediaNowS;
+    }
+    const delta = raw - lastMediaRawS;
+    if (delta > 0 && delta <= BACKWARD_JUMP_S) {
+      lastMediaRawS = raw;
+      lastMediaNowS += delta;
+      // Keep the fallback baseline fresh, so a later gap is not counted twice.
+      if (hasArrival) lastArrivalS = arrivalS;
+      return lastMediaNowS;
+    }
+    // A backward jump is a loop or a seek, a huge forward jump a seek: neither tells us
+    // how long the tab actually watched, so the arrival clock covers that gap.
+    lastMediaRawS = raw;
+  }
+  // No usable media clock (a frozen `currentTime`, or an older caller): advance by frame
+  // arrival time, which is still monotonic and close enough for the rule windows.
+  if (hasArrival && lastArrivalS !== null) {
+    lastMediaNowS += Math.max(0, arrivalS - lastArrivalS);
+  } else {
+    lastMediaNowS += FALLBACK_STEP_S;
+  }
+  if (hasArrival) lastArrivalS = arrivalS;
+  return lastMediaNowS;
+}
 
 function post(message, transfer = []) {
   self.postMessage(message, transfer);
@@ -252,13 +315,17 @@ function updateFps() {
   lastFrameAt = now;
 }
 
-async function handleFrame(bitmap) {
+async function handleFrame(message) {
+  // Două fire de lucru au atins funcția asta: una a adăugat mărimea țintă (bench),
+  // cealaltă a adăugat ceasul media și pipeline-ul. Ambele au nevoie de bitmap.
+  const bitmap = message.bitmap;
   const sourceWidth = bitmap.width;
   const sourceHeight = bitmap.height;
   if (!sourceWidth || !sourceHeight) {
     bitmap.close();
     return;
   }
+  const nowS = mediaSeconds(message);
   updateFps();
   const target = targetFrameSize(sourceWidth, sourceHeight);
   const width = target.width;
@@ -279,6 +346,7 @@ async function handleFrame(bitmap) {
         persons: 0,
         faces: 0,
         ms: 0,
+        events: [],
         error: modelError.message,
       },
       [passthrough],
@@ -289,6 +357,7 @@ async function handleFrame(bitmap) {
   const started = performance.now();
   let persons = [];
   let faces = [];
+  let events = [];
   let error = null;
   try {
     await ensureModels();
@@ -324,6 +393,34 @@ async function handleFrame(bitmap) {
   drawBoxes(frameCtx, persons, '#FFEB33', 'PERSON');
   drawBoxes(frameCtx, faces, '#33E1FF', null);
 
+  // The pipeline speaks frame-normalized boxes (0..1); the detector returns frame pixels.
+  // A failure here is a wiring bug, not a broken model: report it per frame instead of
+  // poisoning `modelError`, which would stop the engine for good.
+  if (!modelError) {
+    try {
+      const detections = persons.map((person) => ({
+        bbox: [
+          Math.max(0, Math.min(1, person.x1 / width)),
+          Math.max(0, Math.min(1, person.y1 / height)),
+          Math.max(0, Math.min(1, person.x2 / width)),
+          Math.max(0, Math.min(1, person.y2 / height)),
+        ],
+        confidence: person.score,
+      }));
+      const result = pipeline.step(detections, nowS, {
+        frameWidth: width,
+        frameHeight: height,
+        // The lab has no renderer/store yet that already saved a blurred frame, so the
+        // event carries pipeline.js's explicit placeholder. This is a static-build
+        // deviation, documented in docs/browser-engine.md §3.
+        snapshotUrl: SNAPSHOT_PENDING,
+      });
+      events = result.events;
+    } catch (caught) {
+      error = caught instanceof Error ? caught.message : String(caught);
+    }
+  }
+
   const output = frameCanvas.transferToImageBitmap();
   post(
     {
@@ -333,6 +430,7 @@ async function handleFrame(bitmap) {
       persons: persons.length,
       faces: faces.length,
       ms: Math.round(performance.now() - started),
+      events,
       error,
     },
     [output],
@@ -358,9 +456,8 @@ self.onmessage = (event) => {
   if (message.type === 'frame' && message.bitmap) {
     // One frame at a time; the hook already drops frames while a result is pending, this
     // queue only protects against a late arrival during model loading.
-    const bitmap = message.bitmap;
-    queue = queue.then(() => handleFrame(bitmap)).catch((error) => {
-      bitmap.close?.();
+    queue = queue.then(() => handleFrame(message)).catch((error) => {
+      message.bitmap?.close?.();
       post({ type: 'error', message: error instanceof Error ? error.message : String(error) });
     });
     return;

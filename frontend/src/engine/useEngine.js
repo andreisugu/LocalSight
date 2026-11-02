@@ -11,7 +11,13 @@ const INITIAL_STATS = {
   message: '',
   providers: [],
   actualProviders: [],
+  events: [],
+  totalEvents: 0,
 };
+
+// The overlay shows the last few incidents; the hook keeps a short history so the panel
+// can render after the frame that produced the event is long gone.
+const MAX_EVENTS = 50;
 
 // The worker can return a frame every 16 ms; re-rendering the overlay that often is waste.
 const STATS_INTERVAL_MS = 250;
@@ -111,21 +117,29 @@ export function useEngine({ videoRef, canvasRef, enabled = true, provider, input
           error: message.error || null,
           at,
         });
+        // Incidents must never wait for the stats throttle: a frame budget without an
+        // event is still a frame, but an event that arrives late looks like a miss.
+        const incoming = Array.isArray(message.events) ? message.events : [];
         const now = performance.now();
-        if (now - lastStatsRef.current >= STATS_INTERVAL_MS) {
-          lastStatsRef.current = now;
-          setStats((previous) => ({
-            ...previous,
-            fps: message.fps,
-            persons: message.persons,
-            faces: message.faces,
-            ms: message.ms,
-            // A frame can arrive while the graphs are missing; keep saying so instead of
-            // pretending the engine is healthy.
-            status: message.error ? 'error' : 'running',
-            message: message.error ? message.error : previous.message,
-          }));
-        }
+        if (incoming.length === 0 && now - lastStatsRef.current < STATS_INTERVAL_MS) return;
+        lastStatsRef.current = now;
+        setStats((previous) => ({
+          ...previous,
+          fps: message.fps,
+          persons: message.persons,
+          faces: message.faces,
+          ms: message.ms,
+          // Newest first. The worker sends the events of one frame in rule order; a
+          // functional update keeps a re-render from appending the same batch twice.
+          events: incoming.length
+            ? [...incoming.slice().reverse(), ...previous.events].slice(0, MAX_EVENTS)
+            : previous.events,
+          totalEvents: previous.totalEvents + incoming.length,
+          // A frame can arrive while the graphs are missing; keep saying so instead of
+          // pretending the engine is healthy.
+          status: message.error ? 'error' : 'running',
+          message: message.error ? message.error : previous.message,
+        }));
         return;
       }
       if (message.type === 'ready') {
@@ -181,7 +195,19 @@ export function useEngine({ videoRef, canvasRef, enabled = true, provider, input
             inFlight = false;
             return;
           }
-          worker.postMessage({ type: 'frame', bitmap, timestamp: performance.now() }, [bitmap]);
+          // `timestamp` stays the wall clock for anything that already read it; the
+          // pipeline runs on `mediaTime`, the position in the footage. For a live
+          // camera `currentTime` follows the stream; the worker has a fallback for
+          // sources that keep it at zero.
+          worker.postMessage(
+            {
+              type: 'frame',
+              bitmap,
+              timestamp: performance.now(),
+              mediaTime: video.currentTime,
+            },
+            [bitmap],
+          );
         })
         .catch(() => {
           inFlight = false;
@@ -221,6 +247,10 @@ export function useEngine({ videoRef, canvasRef, enabled = true, provider, input
           persons: 0,
           faces: 0,
           ms: 0,
+          // Incidents are per source: the clip the operator just left must not lend its
+          // events to the next one.
+          events: [],
+          totalEvents: 0,
           status: broken ? previous.status : 'loading',
           message: broken ? previous.message : 'se așteaptă primele cadre',
         };
@@ -234,6 +264,7 @@ export function useEngine({ videoRef, canvasRef, enabled = true, provider, input
     };
 
     LOOP_EVENTS.forEach((name) => video.addEventListener(name, onLoopHint));
+    video.addEventListener('loadstart', resetCounters);
     video.addEventListener('emptied', onSourceReset);
 
     const watchdog = setInterval(() => {
@@ -256,6 +287,7 @@ export function useEngine({ videoRef, canvasRef, enabled = true, provider, input
       stopLoop();
       clearInterval(watchdog);
       LOOP_EVENTS.forEach((name) => video.removeEventListener(name, onLoopHint));
+      video.removeEventListener('loadstart', resetCounters);
       video.removeEventListener('emptied', onSourceReset);
       worker.terminate();
       // Do not let a remount (or a source switch that disables the engine) inherit numbers
