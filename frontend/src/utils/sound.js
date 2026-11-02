@@ -1,37 +1,46 @@
-// Sunet scurt pentru alerte CRITICAL conform specificațiilor din 03_C_frontend.pdf §4.3:
-// "Adaugi evenimentul în listă și în KPI; toast + sunet scurt doar pentru CRITICAL."
-// Implementat prin Web Audio API (zero dependențe externe, fără fișiere .mp3 care ar putea lipsi).
+// Short two-tone alert for CRITICAL incidents (Web Audio, no asset files).
+//
+// Rewritten from the inherited version, which created a new AudioContext on every call
+// and never closed it. Browsers cap the number of live contexts, so after a handful of
+// incidents the alert went silent. One lazily-created context is reused; if autoplay
+// policy left it suspended, `resume()` is attempted on the user gesture that caused the
+// alert and the failure is ignored (the toast still appears).
+
+let sharedContext = null;
+
+function getContext() {
+  if (typeof window === 'undefined') return null;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return null;
+  if (!sharedContext) sharedContext = new AudioContextClass();
+  if (sharedContext.state === 'suspended' && typeof sharedContext.resume === 'function') {
+    // Must not reject the alert path: a blocked resume is not an incident failure.
+    Promise.resolve(sharedContext.resume()).catch(() => {});
+  }
+  return sharedContext;
+}
+
+function tone(context, { frequency, startAt, duration, peak }) {
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = 'sine';
+  oscillator.frequency.setValueAtTime(frequency, startAt);
+  gain.gain.setValueAtTime(peak, startAt);
+  gain.gain.exponentialRampToValueAtTime(0.001, startAt + duration);
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start(startAt);
+  oscillator.stop(startAt + duration);
+}
 
 export function playCriticalAlertSound() {
   try {
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
-
-    // Ton 1: 880 Hz
-    const osc1 = ctx.createOscillator();
-    const gain1 = ctx.createGain();
-    osc1.type = 'sine';
-    osc1.frequency.setValueAtTime(880, ctx.currentTime);
-    gain1.gain.setValueAtTime(0.15, ctx.currentTime);
-    gain1.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
-    osc1.connect(gain1);
-    gain1.connect(ctx.destination);
-    osc1.start(ctx.currentTime);
-    osc1.stop(ctx.currentTime + 0.12);
-
-    // Ton 2: 1320 Hz
-    const osc2 = ctx.createOscillator();
-    const gain2 = ctx.createGain();
-    osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(1320, ctx.currentTime + 0.14);
-    gain2.gain.setValueAtTime(0.2, ctx.currentTime + 0.14);
-    gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.28);
-    osc2.connect(gain2);
-    gain2.connect(ctx.destination);
-    osc2.start(ctx.currentTime + 0.14);
-    osc2.stop(ctx.currentTime + 0.28);
-  } catch (e) {
-    console.warn('AudioContext not allowed or not supported yet', e);
+    const context = getContext();
+    if (!context) return;
+    const now = context.currentTime;
+    tone(context, { frequency: 880, startAt: now, duration: 0.12, peak: 0.15 });
+    tone(context, { frequency: 1320, startAt: now + 0.14, duration: 0.14, peak: 0.2 });
+  } catch (error) {
+    console.warn('Alerta sonoră nu poate fi redată în acest browser.', error);
   }
 }
