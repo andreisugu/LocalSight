@@ -7,9 +7,10 @@ hackathon: în loc de un edge box care trimite evenimente unui backend, tot tras
 cod de frontend.
 
 Linkul public este un **showcase static** — UI-ul React rulează pe date mock
-(`VITE_USE_MOCK=true`), iar clipurile demo se redau în buclă, fără inferență. Motorul
-propriu-zis e scris în [`frontend/src/engine/`](frontend/src/engine/) și se poate rula din
-[`/lab`](#pagini) și [`/bench`](#pagini); în Live e opțional și lent (vezi mai jos).
+(`VITE_USE_MOCK=true`), dar poate rula și motorul real pe clipul demo sau pe camera
+browserului. Motorul e scris în [`frontend/src/engine/`](frontend/src/engine/): YOLO26n +
+YuNet + tracker + zone + reguli + blur + vestă hi-vis. Pe browsere fără WebGPU (inclusiv
+Firefox, intenționat) pornește doar la cerere, pe WASM single-thread, ~1,5–1,8 fps.
 Pipeline-ul Python din `ml/` + `backend/` rămâne implementarea de referință pe care portul
 o urmează.
 
@@ -25,6 +26,7 @@ Demo static: <https://andreisugu.github.io/LocalSight/>
 | Modele ONNX servite din repo | funcționează | [`frontend/public/models/`](frontend/public/models/) (9,9 MB + 232 KB) |
 | Implementare de referință CPU | funcționează | [`ml/`](ml/) + [`backend/`](backend/) |
 | Motor browser: YOLO + YuNet + tracker + zone + evenimente | funcționează în Live, `/lab` și `/bench` | [`frontend/src/engine/`](frontend/src/engine/) |
+| Raport de tură | calculat din incidentele vizibile, marcat `șablon` | `/reports` |
 | Detecție de vestă hi-vis (PPE) | funcționează; starea intră în regulile de zonă | [`frontend/src/engine/vest.js`](frontend/src/engine/vest.js), apelat din `worker.js`; `NO_PPE` cere un om de ≥150 px în cadru |
 | Camere | 3 clipuri demo + camera browser (getUserMedia) | selectorul de cameră din Live |
 | Blur pe fețe înainte de desenare | funcționează pe cadrul din canvas | `worker.js`; snapshot-ul de incident nu e conectat |
@@ -32,12 +34,13 @@ Demo static: <https://andreisugu.github.io/LocalSight/>
 | Backend, Slack, MJPEG, SQLite | în afara scopului | rămân în repo ca referință |
 
 Cifrele de browser sunt măsurate pe hardware-ul de dezvoltare, WASM single-thread (fără
-fire, din cauza anteturilor lipsă de pe Pages): ~1,8 fps la intrare de 640 px și ~3 fps la
-960 px. WebGPU nu a fost testat pe această mașină, deci nu are cifră. Sub 2 fps, panoul din
-Live avertizează după 10 s de rulare.
+fire, din cauza anteturilor lipsă de pe Pages): **1,5–1,8 fps** pe clipul de 1080p, atât în
+Chromium cât și în Firefox. Firefox este ținut intenționat pe WASM: WebGPU în workeri dădea
+0,4–0,7 fps și putea bloca sesiunea ONNX Runtime. Chrome/Edge folosesc WebGPU când există
+adapter; cifra depinde de GPU. Sub 2 fps, panoul din Live avertizează după 10 s de rulare.
 
-Teste: 82 Node în `frontend/src/engine/*.test.mjs` (`node --test`) și 5 E2E Playwright; CI
-rulează backend, ml, build-ul de frontend, e2e și o gardă pentru subpath-ul de Pages.
+Teste: 144 Node (`node --test`, motor + utilitare + raport) și 5 E2E Playwright; CI
+rulează unit, backend, ml, build-ul de frontend, e2e și o gardă pentru subpath-ul de Pages.
 
 ## Pagini
 
@@ -99,7 +102,8 @@ Traseul, așa cum e scris azi:
 ```text
 <video> (clip în buclă sau getUserMedia)
    └─ ImageBitmap ─► Web Worker: ONNX Runtime Web (WebGPU, fallback WASM)
-                        detector → tracker → zone/reguli → blur → eveniment
+                        YOLO → YuNet → tracker → vestă → zone/reguli
+                        → blur (fețe + banda capului) → eveniment
                      ├─ cadru adnotat (ImageBitmap) ─► canvas 2D
                      └─ evenimente în memorie ─► UI React
 ```
@@ -123,6 +127,17 @@ de ce WASM cu fire nu este posibil pe GitHub Pages, sunt în
 Modelele se regenerează cu `python3 frontend/scripts/prepare-models.py`; clipurile web cu
 [`scripts/prepare-demo-media.sh`](scripts/prepare-demo-media.sh), descris în
 [`docs/media.md`](docs/media.md).
+
+## Ce e real, ce e demo
+
+| Real, în tab | Demo / fixture |
+|---|---|
+| YOLO26n + YuNet + tracker + zone + reguli | KPI-urile din strip și incidentele fără chip `local` |
+| Blur pe fețe înainte de desenare, fail-closed | Raportul de incident (șablon, nu LLM) |
+| Detecția de vestă hi-vis și starea PPE | Escaladarea din fixture-uri |
+| Incidentele motorului, marcate `local` | Camera locală (flux propriu, doar cu permisiune) |
+
+Scenariul de prezentare, pas cu pas: [`demo/run_sheet_browser.md`](demo/run_sheet_browser.md).
 
 ## Licență
 
