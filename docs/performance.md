@@ -1,5 +1,10 @@
 # Performanță — ce s-a măsurat și ce e închis
 
+> **Document istoric — SafeSight (edge Python).** Toate cifrele de aici au fost măsurate pe
+> pipeline-ul Python din `ml/`, care a fost **șters din acest fork**; comenzile și
+> referințele din text nu mai rulează aici. Pentru motorul din browser, cifrele valabile sunt
+> în [browser-engine.md](browser-engine.md) și [qa/perf-findings.md](qa/perf-findings.md).
+
 Document de lucru pentru cine atinge pipeline-ul de edge. Toate cifrele sunt măsurate pe laptopul de dezvoltare (Ryzen 7 7840HS, 8 nuclee fizice / 16 fire, Radeon 780M, OpenCV 5.0, YOLO26n, YuNet 2023mar), pe clipurile din `data/videos`. Pe alt hardware cifrele absolute se schimbă; rapoartele și concluziile s-au ținut.
 
 ## Unde se duce timpul

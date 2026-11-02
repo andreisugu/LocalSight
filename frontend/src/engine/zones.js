@@ -1,6 +1,6 @@
-// Zone geometry and the rule engine, ported 1:1 from the edge reference:
-// ml/safesight_ml/zones.py, plus zone_active() from ml/safesight_ml/overlay.py and
-// triggers_event() from ml/safesight_ml/pipeline.py.
+// Zone geometry and the rule engine, ported 1:1 from the removed Python edge
+// (git history): ml/safesight_ml/zones.py, plus zone_active() from
+// ml/safesight_ml/overlay.py and triggers_event() from ml/safesight_ml/pipeline.py.
 //
 // Pure functions and plain classes: no DOM, no inference, no imports. Zones are plain
 // objects shaped like the ones `GET /zones` returns (snake_case fields, polygons as

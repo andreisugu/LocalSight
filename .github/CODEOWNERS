@@ -2,8 +2,5 @@
 # Înlocuiți fiecare <github-...> cu username-ul real de GitHub, apoi scoateți „#” din fața rândului.
 # Un rând cu un username inexistent e marcat ca eroare de GitHub, de aceea sunt comentate deocamdată.
 
-# /ml/          @<github-andrei>
-# /backend/     @<github-max>
-# /automation/  @<github-dalina>
 # /frontend/    @<github-ariana>
 # /docs/contract.md  @<github-max> @<github-ariana> @<github-andrei> @<github-dalina>

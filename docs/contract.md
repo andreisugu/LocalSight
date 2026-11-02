@@ -2,7 +2,9 @@
 
 > **Document istoric — SafeSight (backend + edge).** Descrie contractul dintre procesul Python
 > de edge și API-ul FastAPI, nu motorul din browser; doar forma plicului de eveniment se
-> păstrează în port. Direcția actuală: [browser-engine.md](browser-engine.md).
+> păstrează în port. Stack-ul Python a fost **șters din acest fork** (rămâne în istoricul git
+> și în upstream), deci endpointurile de aici nu mai au un server. Direcția actuală:
+> [browser-engine.md](browser-engine.md).
 
 Versiunea 2.2 · 1 noiembrie 2026. FOD scos din scope. Produs de referință: **SafeSight**, implementarea pe care LocalSight o portează în browser; plicul de eveniment și formatul `event_id` rămân valabile, transportul HTTP (`POST /edge/events`) nu. Aliniat la briefingurile Ultra A–D. Responsabil: Max (backend). Orice schimbare se face prin pull request aprobat de cel afectat.
 

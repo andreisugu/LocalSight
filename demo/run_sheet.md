@@ -2,8 +2,11 @@
 
 > **Material istoric — demo-ul SafeSight pe implementarea de referință.** Descrie run-ul de
 > hackathon (trei camere, Slack, ack, raport de tură) pe `ml/` + `backend/`; rămâne aici ca
-> record al ce s-a construit, nu ca demo al produsului. Demo-ul curent e showcase-ul static
-> din [`README.md`](../README.md), iar direcția e [`docs/browser-engine.md`](../docs/browser-engine.md).
+> record al ce s-a construit, nu ca demo al produsului. **Nu rula comenzile de mai jos:**
+> `./run.sh`, `run.cmd` și `scripts/dev.py` au fost șterse odată cu stack-ul Python. Demo-ul
+> curent e showcase-ul static din [`README.md`](../README.md), cu pașii din
+> [`run_sheet_browser.md`](run_sheet_browser.md), iar direcția e
+> [`docs/browser-engine.md`](../docs/browser-engine.md).
 
 Scop: mentorii înțeleg problema, văd incidente reale pe mai multe camere în UI și pleacă cu limitele clare.
 

@@ -176,8 +176,8 @@ def print_table(report: dict) -> None:
         f"colegi {totals['teammate']} ({pct(totals['teammate'])}), "
         f"necunoscut {totals['unknown']} ({pct(totals['unknown'])})"
     )
-    # Only product code is a rewrite candidate. backend/, ml/ and data/ are the reference
-    # implementation on purpose; replacing them is not part of the browser product.
+    # Only product code is a rewrite candidate. data/ is reference material and the Python
+    # stack (backend/, ml/) was removed from this fork, so neither is scored for rewriting.
     candidates = [
         row for row in report["rows"]
         if row["path"].startswith("frontend/") and row["teammate_pct"] >= 60 and row["lines"] >= 30
@@ -221,9 +221,9 @@ def write_markdown(report: dict, path: Path) -> None:
         "## Candidați de rescriere",
         "",
         "Doar cod de produs din `frontend/`: ≥60% linii de la colegi și ≥30 de linii, în",
-        "ordinea proporției. `backend/`, `ml/` și `data/` sunt referință intenționată și nu",
-        "intră în listă. Tokenurile de design (`theme.js`, `index.css`, `tailwind.config.js`)",
-        "apar aici din cauza liniei, nu pentru că ar conține logică de rescris.",
+        "ordinea proporției. `data/` e referință și nu intră în listă; `backend/` și `ml/`",
+        "au fost șterse din acest fork. Tokenurile de design (`theme.js`, `index.css`,",
+        "`tailwind.config.js`) apar aici din cauza liniei, nu pentru că ar conține logică de rescris.",
         "",
     ]
     if candidates:

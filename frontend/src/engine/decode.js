@@ -95,7 +95,7 @@ export function decodeYolo(data, options = {}) {
 export const YUNET_STRIDES = [8, 16, 32];
 
 /**
- * YuNet decode, the same maths as ml/safesight_ml/privacy.py `_decode_yunet`:
+ * YuNet decode, the same maths as the removed ml/safesight_ml/privacy.py `_decode_yunet`:
  * score = sqrt(cls * obj), cx = (col + dx) * stride, w = exp(dw) * stride, NMS 0.3.
  *
  * `outputs` is the model output list in graph order: cls[3], obj[3], bbox[3], kps[3].

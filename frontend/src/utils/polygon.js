@@ -1,7 +1,7 @@
 // Polygon geometry for the zone editor. Points are normalised { x, y } in 0..1.
 //
-// The same crossing check exists server-side (backend/app/geometry.py) and rejects a
-// self-crossing polygon with 422, so the editor blocks Save before that happens. This
+// The same crossing check existed server-side (the removed backend's `geometry.py`) and
+// rejected a self-crossing polygon with 422, so the editor blocks Save before that happens. This
 // module is deliberately pure and dependency-free; the rewrite keeps the public API
 // (`segmentsIntersect`, `crossingEdges`, `orderAroundCentroid`) intact.
 

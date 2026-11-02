@@ -1,7 +1,7 @@
 // Pure geometry for the privacy guard. No canvas, no DOM, no models: every function here
 // takes numbers and returns numbers, so `blur.test.mjs` can pin the rectangles exactly.
 //
-// The reference is `ml/safesight_ml/privacy.py`: `FaceBlurrer._blur_box` (margin) and
+// The reference is `ml/safesight_ml/privacy.py` (removed from this fork): `FaceBlurrer._blur_box` (margin) and
 // `FaceBlurrer.blur_with_faces` (the head band on every person box). The browser port had
 // dropped the head band, which left a profile face sharp on a frame YuNet only partly
 // covered. Keeping the arithmetic here and the drawing in `worker.js` means the safety net

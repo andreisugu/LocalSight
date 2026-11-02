@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { canDo } from './eventActions.js';
 
-// Mirrors ACTIONS in backend/app/services/events.py. If this table changes, the backend
-// must change in the same PR; the UI would otherwise offer a button that gets a 409.
+// Mirrors the ACTIONS table of the SafeSight backend (removed from this fork, in git
+// history). If this table changes, keep it in sync with the event contract; the UI would
+// otherwise offer a button the local store refuses.
 test('ack is allowed only from open or escalated', () => {
   assert.equal(canDo('ack', 'open'), true);
   assert.equal(canDo('ack', 'escalated'), true);

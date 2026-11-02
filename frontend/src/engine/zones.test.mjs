@@ -1,6 +1,6 @@
-// Tests for the zone port. They mirror the meaningful cases of
+// Tests for the zone port. They mirror the meaningful cases of the removed
 // ml/tests/test_zones.py and the triggers_event cases of ml/tests/test_pipeline.py,
-// so the browser engine is pinned to the same behaviour as the edge.
+// so the browser engine stays pinned to the same behaviour as the edge.
 
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';

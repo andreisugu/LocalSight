@@ -31,8 +31,9 @@ re-produce aceleași importuri și clase nu le transferă.
    înainte de a înlocui implementarea.
 4. **Fără schimbări de contract.** O rescriere nu modifică `docs/contract.md`; dacă are
    nevoie, e alt PR.
-5. **Referința nu e produs.** `backend/`, `ml/` și `data/` rămân implementarea de referință
-   SafeSight. Nu le rescriem și nu le „curățăm"; nu rulează în build-ul static.
+5. **Referința nu e produs.** `backend/`, `ml/` și `automation/` au fost **șterse din acest
+   fork** odată cu decizia de a livra doar aplicația statică; codul lor rămâne în istoricul
+   git și în upstream. `data/` rămâne material de referință. Nu se rescrie nimic din ele.
 6. **Ce amâni, notezi.** Fiecare fișier atins dar nelocuit primește un rând aici, cu motivul.
 
 Proveniența de mai jos e o **heuristcă** din `git log` (autorul cu cele mai multe commit-uri
@@ -68,7 +69,8 @@ doar ce cod a fost scris înainte de direcția LocalSight și cât de mult l-am 
 tracker, vest, blur, report, webgpu, decode), `LiveEngineCard`, `SafeImage`, `ErrorBoundary`,
 `BenchView`, `LabView`, `pages.yml`, `ci.yml`, `check-base.mjs`.
 
-**Referință, nu produs:** `backend/`, `ml/`, `data/`, `docker-compose.yml`. Nu le rescriem.
+**Referință, nu produs:** `data/`. Stack-ul Python (`backend/`, `ml/`, `automation/`,
+`docker-compose.yml`) a fost șters din fork; nu se rescrie și nu se restaurează aici.
 
 ## Dovada rescrierilor
 

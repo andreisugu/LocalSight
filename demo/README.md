@@ -6,8 +6,10 @@ build-ul static, tot pipeline-ul în tab.
 > **Material istoric — scenariul demo-ului SafeSight pe implementarea de referință.**
 > Descrie run-ul de hackathon (trei camere, Slack, ack, raport de tură) pe `ml/` +
 > `backend/`; rămâne aici ca record al ce s-a construit, nu ca demo al produsului.
-> Demo-ul curent e showcase-ul static din [`README.md`](../README.md), iar motorul din
-> browser e descris în [`docs/browser-engine.md`](../docs/browser-engine.md).
+> **Comenzile nu mai există:** stack-ul Python (`run.sh`, `scripts/dev.py`, `ml/`,
+> `backend/`) a fost șters din acest fork. Demo-ul curent e showcase-ul static din
+> [`README.md`](../README.md), cu pașii din [`run_sheet_browser.md`](run_sheet_browser.md),
+> iar motorul din browser e descris în [`docs/browser-engine.md`](../docs/browser-engine.md).
 
 Responsabile: **Ariana** (scenariul și înregistrarea OBS) și **Dalina** (video-urile de test și recuzita).
 

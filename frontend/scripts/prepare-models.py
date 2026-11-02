@@ -3,12 +3,14 @@
 
 The browser build has no inference server: the detector and the face guard run in
 the page through ONNX Runtime Web, so both graphs must ship inside ``public/``.
-This script reproduces them from the files the Python pipeline already uses.
+This script reproduces them from an Ultralytics ONNX export and the opencv_zoo
+YuNet release. Both sources used to live in ``ml/``; that reference stack was
+removed from this fork, so pass the sources explicitly (see below).
 
 Two steps, one per model:
 
-1. ``yolo26n.onnx`` is copied byte for byte. It is the YOLO26n export used by the
-   edge, tracked in this repo at ``ml/yolo26n.onnx``. Regenerate it with::
+1. ``yolo26n.onnx`` is copied byte for byte. It is the YOLO26n export the removed
+   Python edge used to load. Regenerate it from the Ultralytics weights with::
 
        yolo export model=yolo26n.pt format=onnx imgsz=640
 
@@ -23,19 +25,19 @@ Two steps, one per model:
 
    The output grids keep their declared 640x640 sizes. ONNX Runtime recomputes
    them at run time and logs a harmless shape-mismatch warning, exactly like the
-   backend does in ``ml/safesight_ml/privacy.py``.
+   removed Python reference did.
 
-Usage (defaults are resolved from this file, so no arguments are needed)::
-
-    python3 frontend/scripts/prepare-models.py
+Usage (both sources are required; nothing is downloaded)::
 
     python3 frontend/scripts/prepare-models.py \\
-        --yolo ../../ml/yolo26n.onnx \\
-        --yunet ../../ml/models/face_detection_yunet_2023mar.onnx \\
-        --out ../../frontend/public/models
+        --yolo path/to/yolo26n.onnx \\
+        --yunet path/to/face_detection_yunet_2023mar.onnx \\
+        --out frontend/public/models
 
-Requires the ``onnx`` package (``pip install onnx``); the backend venv does not
-ship it. Nothing is downloaded: both sources must already exist.
+The YuNet source is the MIT-licensed file from
+https://github.com/opencv/opencv_zoo (``models/face_detection_yunet``). The YOLO
+source is your own ``yolo export`` output, or the file left in the git history of
+the removed ``ml/`` stack. Requires the ``onnx`` package (``pip install onnx``).
 """
 
 from __future__ import annotations
@@ -47,8 +49,6 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_YOLO = REPO_ROOT / "ml" / "yolo26n.onnx"
-DEFAULT_YUNET = REPO_ROOT / "ml" / "models" / "face_detection_yunet_2023mar.onnx"
 DEFAULT_OUT = REPO_ROOT / "frontend" / "public" / "models"
 
 # YuNet fuses three feature strides (8, 16, 32); both input sides must be multiples
@@ -76,7 +76,7 @@ def copy_yolo(source: Path, destination: Path) -> None:
         raise FileNotFoundError(
             f"YOLO source missing: {source}\n"
             "Export it with `yolo export model=yolo26n.pt format=onnx imgsz=640` "
-            "and place the result at ml/yolo26n.onnx."
+            "and pass the result with --yolo."
         )
     shutil.copyfile(source, destination)
 
@@ -93,7 +93,7 @@ def make_yunet_dynamic(source: Path, destination: Path) -> tuple[int, int]:
     if not source.is_file():
         raise FileNotFoundError(
             f"YuNet source missing: {source}\n"
-            "Fetch it with `ml/scripts/fetch_face_model.sh`."
+            "Download it from opencv_zoo (models/face_detection_yunet) and pass it with --yunet."
         )
     model = onnx.load(str(source))
     dims = model.graph.input[0].type.tensor_type.shape.dim
@@ -118,12 +118,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Copy YOLO26n and rewrite YuNet's input shape for the static frontend.",
     )
-    parser.add_argument("--yolo", type=Path, default=DEFAULT_YOLO, help=f"YOLO26n ONNX source (default: {DEFAULT_YOLO})")
+    parser.add_argument("--yolo", type=Path, required=True, help="YOLO26n ONNX source (your Ultralytics export)")
     parser.add_argument(
         "--yunet",
         type=Path,
-        default=DEFAULT_YUNET,
-        help=f"YuNet fp32 ONNX source (default: {DEFAULT_YUNET})",
+        required=True,
+        help="YuNet fp32 ONNX source (opencv_zoo face_detection_yunet_2023mar.onnx)",
     )
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT, help=f"destination directory (default: {DEFAULT_OUT})")
     return parser.parse_args(argv)

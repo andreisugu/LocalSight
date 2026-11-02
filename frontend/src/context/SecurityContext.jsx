@@ -40,8 +40,8 @@ function loadOperatorName() {
 }
 
 // Every screen has an address, so a refresh, Back/Forward and shared links keep the place.
-// The Slack alert links to {APP_BASE_URL}{BASE}/incidents/{event_id}; the backend builds it
-// from APP_BASE_URL, so that value must include the deploy subpath (e.g. /LocalSight).
+// Alert links look like {APP_BASE_URL}{BASE}/incidents/{event_id}; the base must include the
+// deploy subpath (e.g. /LocalSight).
 const VIEW_PATHS = {
   live: '/',
   incidents: '/incidents',

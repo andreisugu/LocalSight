@@ -214,7 +214,7 @@ export default function ZoneEditorView() {
         >
           <h2 className="font-bold text-sm uppercase">Nu există camere</h2>
           <p style={{ color: themeStyles.textMuted }} className="text-xs">
-            Backend-ul nu a returnat camere. Pornește stack-ul cu ./run.sh demo.
+            Nu există camere în date. Verifică fixturile demo și reîncarcă pagina.
           </p>
         </div>
       </div>

@@ -8,9 +8,11 @@ publicat static pe GitHub Pages. Nicio imagine nu pleacă din tab.
 **Starea de azi:** site-ul static e live
 (`https://andreisugu.github.io/LocalSight/`, `VITE_USE_MOCK=true`) și motorul din browser
 rulează în tab: YOLO26n + YuNet + tracker + zone + reguli + blur + detectarea de vestă
-hi-vis. Build-ul servit de `pages.yml` nu are backend; `ml/` și `backend/` rămân
-implementarea de referință. Pe Firefox motorul alege intenționat WASM (WebGPU încă nu e
-stabil acolo); pe Chrome/Edge folosește WebGPU când există adapter.
+hi-vis. Build-ul servit de `pages.yml` nu are backend. **Stack-ul Python de referință
+(`backend/`, `ml/`, `automation/`) a fost șters din acest fork**; produsul e aplicația
+statică din `frontend/`, iar codul Python vechi rămâne în istoricul git și în repo-ul
+upstream SafeSight. Pe Firefox motorul alege intenționat WASM (WebGPU încă nu e stabil
+acolo); pe Chrome/Edge folosește WebGPU când există adapter.
 
 Acest fișier e sursa de adevăr pentru agenți. `CLAUDE.md` doar trimite aici. Citește-l
 înainte să modifici ceva și actualizează-l în același commit când o regulă durabilă se
@@ -19,20 +21,17 @@ schimbă.
 ## Harta repo-ului
 
 - `frontend/` — **produsul**. React 19 + Vite + Tailwind, JavaScript, servit static.
-  Aici crește motorul din browser (`docs/browser-engine.md` propune `frontend/src/engine/`).
+  Aici crește motorul din browser (`docs/browser-engine.md` descrie `frontend/src/engine/`).
   Build-ul static ia modelele din `frontend/public/models/` și clipurile din
   `frontend/public/media/`.
-- `ml/` — pipeline-ul Python de edge (YOLO26n, YuNet, zone, tracker). **Implementarea de
-  referință pentru port**; nu crește folderul decât dacă taskul o cere explicit.
-- `backend/` — API-ul FastAPI + SQLite. Tot referință pentru port (stocare în memorie,
-  fără ingest); nu adăuga feature-uri aici fără un motiv legat de port.
-- `automation/` — Slack și escaladare pe server; în browser nu se portează (un webhook
-  în bundle-ul public e un secret public).
 - `docs/` — `browser-engine.md` (design-ul portului), `media.md` (clipurile demo),
-  `performance.md` (măsurători și ce s-a închis), `contract.md` (plicul evenimentului).
-- `scripts/` — `prepare-demo-media.sh` (encodează clipurile), `dev.py` (runner local),
-  `bench.sh`, `agent-preflight.sh`.
+  `performance.md` (măsurători istorice), `contract.md` (plicul evenimentului).
+- `scripts/` — `prepare-demo-media.sh` (encodează clipurile) și `provenance.py`
+  (raportul de proveniență).
 - `data/` — clipuri și adnotări locale, în afara git în afară de README-uri.
+- `demo/` — `run_sheet_browser.md` (demo-ul curent) plus run sheet-urile istorice.
+- `backend/`, `ml/`, `automation/` — **nu mai există în acest fork.** Nu le recrea; dacă
+  ai nevoie de o bucată, o iei din istoricul git sau din upstream și o portezi în JS.
 
 ## Comenzi care funcționează
 
@@ -49,33 +48,27 @@ node --test src/engine/*.test.mjs                        # logica motorului (Nod
 npm run test:e2e                                         # Playwright, 5 teste
 ```
 
-Testele Python, prin `uv` (nu pip, nu venv manual):
-
-```bash
-cd backend && uv sync && uv run pytest -q
-cd ml && uv sync --extra yolo && uv run pytest -q
-```
-
-Testele care au nevoie de greutăți sau de clipuri se sar singure când fișierele lipsesc;
-asta e normal, nu un eșec.
+Testele rulează în Node, fără browser, pe tot ce ține de logică (`src/engine`,
+`src/utils`, `src/constants`). Producția nu are teste Python.
 
 Modele și media (binare, regenerate, nu inventate):
 
 ```bash
-python3 frontend/scripts/prepare-models.py   # rescrie yolo26n.onnx + yunet.onnx
+python3 frontend/scripts/prepare-models.py --yolo <export.onnx> --yunet <yunet.onnx>
+                                             # rescrie yolo26n.onnx + yunet.onnx (sursele: istoric git)
 bash scripts/prepare-demo-media.sh --check   # doar listează ce s-ar encodea
 bash scripts/prepare-demo-media.sh           # scrie în frontend/public/media/
 ```
 
-Înainte de a încheia: rulează verificarea modulului atins (`npm run build` pentru
-`frontend`, `uv run pytest -q` pentru `ml`/`backend`). Dacă nu poți, spune exact ce comandă
-a eșuat și de ce.
+Înainte de a încheia: rulează verificarea modulului atins (`npm run build` și
+`node --test ...` în `frontend`). Dacă nu poți, spune exact ce comandă a eșuat și de ce.
 
 ## Ce citești înainte de lucrul pe motor
 
 1. `docs/browser-engine.md` — ce se portează, modul cu modul, și ce rămâne afară.
 2. `docs/media.md` — cum ajung clipurile în build fără să intre în git.
-3. `docs/performance.md` — cifrele măsurate; nu optimiza după intuiție.
+3. `docs/performance.md` — cifrele măsurate pe vechea referință CPU (istoric); nu optimiza
+   după intuiție, iar pentru tab folosește cifrele din `docs/browser-engine.md`.
 4. `docs/contract.md` — plicul evenimentului (`event_id`, `confidence`, severitate).
    Abaterea acceptată în browser: `snapshot_url` devine `blob:`.
 
@@ -89,7 +82,10 @@ a eșuat și de ce.
 - Procentele se măsoară cu `python3 scripts/provenance.py`; înainte să declari un fișier
   înlocuit, rulează `--audit <fișier>` și verifică să nu rămână logică a colegilor. Liniile
   identice (importuri, clase, matematică) rămân atribuite lor — asta e corect.
-- `backend/`, `ml/`, `data/` sunt referință, nu produs: nu le rescrii și nu le cureți.
+- `data/` e referință, nu produs: nu îl rescrii și nu îl cureți.
+- Comentariile din `frontend/src` care citează `ml/` sau `backend/` sunt **proveniență**:
+  arată din ce fișier s-a portat logica. Acele fișiere nu mai există în fork; nu le urma
+  ca pe niște căi de rulat, ci caută-le în istoricul git dacă ai nevoie de ele.
 
 ## Reguli de lucru
 
