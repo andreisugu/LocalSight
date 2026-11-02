@@ -1,3 +1,14 @@
+// The shift-report screen.
+//
+// Every figure comes from `buildShiftReport(events)` — the incident list, never a
+// fixture — so acknowledging an incident or letting the browser engine raise one
+// redraws the page without a reload. The pure values the screen prints (bar shares, the
+// CSV, dates and durations through `utils/time.js`) live in `utils/reportExport.js` and
+// are tested there; this module owns layout and copy.
+//
+// PPE compliance is deliberately absent: it is measured over every person detection in
+// the shift, and this incident list does not carry those, so the page says so instead of
+// deriving a percentage from something else.
 import { useEffect, useMemo, useState } from 'react';
 import { BarChart3, Calendar, Clock, Eye, FileDown, FileText, ShieldCheck, TrendingUp } from 'lucide-react';
 import CoverageRibbon from '../reports/CoverageRibbon';
@@ -19,23 +30,11 @@ import {
   sharePercent,
 } from '../../utils/reportExport';
 import { formatDate, formatDuration } from '../../utils/time';
-
-// The shift-report screen.
-//
-// Every figure comes from `buildShiftReport(events)` — the incident list, never a
-// fixture — so acknowledging an incident or letting the browser engine raise one
-// redraws the page without a reload. The pure values the screen prints (bar shares, the
-// CSV, dates and durations through `utils/time.js`) live in `utils/reportExport.js` and
-// are tested there; this module owns layout and copy.
-//
-// PPE compliance is deliberately absent: it is measured over every person detection in
-// the shift, and this incident list does not carry those, so the page says so instead of
-// deriving a percentage from something else.
-
-// One entry per shift, in display order. The label text is the same constant the API
+// One entry per shift, in display order; the label text is the same constant the API
 // mappers and the fixtures use, so the selector cannot drift from the report.
 const SHIFT_SLOTS = Object.entries(SHIFT_LABELS).map(([id, label]) => ({ id, label }));
-
+// Value ink per KPI tone. The scarlet is darkened for AA on both surfaces and is never
+// used as decoration.
 const VALUE_TONE = {
   neutral: 'text-[#1F1F1F] dark:text-[#F5F5F5]',
   critical: 'text-red-700 dark:text-[#FF8A80]',
@@ -46,6 +45,9 @@ const VALUE_TONE = {
 
 /** Section headings: scarlet darkened for AA on both surfaces, never a decorative red. */
 const HEADING_INK = 'text-[#B91C1C] dark:text-[#FF8A80]';
+
+/** Page title, shared by the heading and the print/CSV filename. */
+const REPORT_TITLE = 'Raport de tură';
 
 /** Panel title row: glyph, uppercase label, optional right-hand slot. */
 function SectionHeading({ glyph: Glyph, label, aside = null, ink = HEADING_INK }) {
@@ -60,9 +62,12 @@ function SectionHeading({ glyph: Glyph, label, aside = null, ink = HEADING_INK }
   );
 }
 
+/**
+ * The two export buttons. Printing the report is the deliverable, so it stays the
+ * primary filled action; the CSV is the secondary export. The old pair was two equal
+ * filled buttons (green + red).
+ */
 function ExportActions({ onCsv, onPdf }) {
-  // One primary action per screen: the printed report is the deliverable and the CSV is
-  // the secondary export. The old pair was two equal filled buttons (green + red).
   const shape =
     'no-print inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-bold transition-colors';
   return (
@@ -96,34 +101,30 @@ function MetaDot() {
   );
 }
 
+/** Title block: what the page is, the operational day and where the numbers come from. */
 function ReportMasthead({ report, hasEvents, onCsv, onPdf }) {
   const { themeStyles } = useTheme();
-  return (
-    <header
-      className="flex flex-wrap items-end justify-between gap-3 border-b pb-4"
-      style={{ borderColor: themeStyles.panelBorder }}
-    >
-      <div className="min-w-0 space-y-1">
-        <h2 className="flex items-center gap-2 text-xl font-black uppercase tracking-tight">
-          <FileText size={20} className="shrink-0 text-[#D73833]" aria-hidden="true" />
-          Raport de tură
-        </h2>
-        <p className="text-xs" style={{ color: themeStyles.textMuted }}>
-          Incidente, timpi de reacție și distribuția pe tipuri, pe tură
-        </p>
-        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-0.5 font-mono text-[11px] font-bold">
-          <span className="break-words">{report.shift}</span>
-          <MetaDot />
-          <time dateTime={report.date}>{formatDate(report.date)}</time>
-          <MetaDot />
-          <SourceChip title="Sumarul și cifrele sunt compuse din incidentele din listă; niciun model AI nu a scris acest raport.">
-            sursă: {REPORT_SOURCE}
-          </SourceChip>
-        </p>
-      </div>
-      {hasEvents && <ExportActions onCsv={onCsv} onPdf={onPdf} />}
-    </header>
-  );
+  const metaSkin = { color: themeStyles.textMuted };
+  return <header
+    className="flex flex-wrap items-end justify-between gap-3 border-b pb-4"
+    style={{ borderColor: themeStyles.panelBorder }}
+  >
+    <div className="min-w-0 space-y-1">
+      <h2 className="flex items-center gap-2 text-xl font-black uppercase tracking-tight">
+        <FileText size={20} className="shrink-0 text-[#D73833]" aria-hidden="true" />
+        {REPORT_TITLE}</h2>
+      <p className="text-xs" style={metaSkin}>
+        Incidente, timpi de reacție și distribuția pe tipuri, pe tură</p>
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-0.5 font-mono text-[11px] font-bold">
+        <span className="break-words">{report.shift}</span>
+        <MetaDot />
+        <time dateTime={report.date}>{formatDate(report.date)}</time>
+        <MetaDot />
+        <SourceChip title="Sumarul și cifrele sunt compuse din incidentele din listă; niciun model AI nu a scris acest raport.">
+          sursă: {REPORT_SOURCE}
+        </SourceChip></p>
+    </div>{hasEvents ? <ExportActions onCsv={onCsv} onPdf={onPdf} /> : null}
+  </header>;
 }
 
 /** Shift selector; disabled in the mock build, which has exactly one shift. */
@@ -131,31 +132,30 @@ function ShiftSelect({ value, options, onChange }) {
   const { themeStyles } = useTheme();
   const control =
     'rounded-lg border px-2 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#7EDEED]';
+  const controlSkin = {
+    backgroundColor: themeStyles.cardBg,
+    borderColor: themeStyles.panelBorder,
+    color: themeStyles.text,
+  };
+  const choices = options.map((slot) => (
+    <option key={slot.id} value={slot.id}>
+      {slot.label}
+    </option>
+  ));
+
   return (
     <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
       <Calendar size={15} className="shrink-0 text-[#D73833]" aria-hidden="true" />
       <label htmlFor="report-shift" className="shrink-0 font-bold">
         Selectează Tura:
       </label>
-      <select
-        id="report-shift"
+      <select id="report-shift"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={USE_MOCK}
         className={`${control} min-w-0 flex-1 disabled:cursor-not-allowed disabled:opacity-70 sm:flex-none`}
-        style={{
-          backgroundColor: themeStyles.cardBg,
-          borderColor: themeStyles.panelBorder,
-          color: themeStyles.text,
-        }}
-      >
-        {options.map((slot) => (
-          <option key={slot.id} value={slot.id}>
-            {slot.label}
-          </option>
-        ))}
-      </select>
-    </div>
+        style={controlSkin}>
+        {choices}</select></div>
   );
 }
 
@@ -261,20 +261,15 @@ function EmptyShiftReport({ mock, showDemoData }) {
 
 function MetricCard({ caption, figure, tone = 'neutral', testId, note }) {
   const { themeStyles } = useTheme();
-  return (
-    <div
-      style={{ backgroundColor: themeStyles.panelBg, borderColor: themeStyles.panelBorder }}
-      className="min-w-0 rounded-xl border p-3.5 shadow-sm"
-      title={note}
-    >
-      <dt className="text-xs font-semibold" style={{ color: themeStyles.textMuted }}>
-        {caption}
-      </dt>
-      <dd className={`mt-1 font-mono text-2xl font-black leading-none ${VALUE_TONE[tone]}`} data-testid={testId}>
-        {figure}
-      </dd>
-    </div>
-  );
+  const skin = { backgroundColor: themeStyles.panelBg, borderColor: themeStyles.panelBorder };
+  return <div style={skin} className="min-w-0 rounded-xl border p-3.5 shadow-sm" title={note}>
+    <dt className="text-xs font-semibold" style={{ color: themeStyles.textMuted }}>
+      {caption}
+    </dt>
+    <dd className={`mt-1 font-mono text-2xl font-black leading-none ${VALUE_TONE[tone]}`} data-testid={testId}>
+      {figure}
+    </dd>
+  </div>;
 }
 
 function MetricGrid({ kpi }) {
@@ -345,24 +340,21 @@ function ComplianceStrip({ report }) {
 
 function ExecutiveSummary({ report }) {
   const { themeStyles } = useTheme();
+  const muted = { color: themeStyles.textMuted };
   return (
     <Panel as="section" size="card" className="space-y-1.5">
       <div className="flex flex-wrap items-center gap-2">
         <ShieldCheck size={15} className={`shrink-0 ${HEADING_INK}`} aria-hidden="true" />
         <h3 className={`text-xs font-bold uppercase tracking-wider ${HEADING_INK}`}>
-          Rezumat Executiv Tură:
-        </h3>
+          Rezumat Executiv Tură:</h3>
         <SourceChip title="Text compus din cifrele raportului; nu este generat de AI.">
           sursă: șablon
         </SourceChip>
       </div>
       {/* A readable measure: 68 characters per line instead of a 1070 px paragraph (M2). */}
       <p className="max-w-[68ch] text-[13px] leading-relaxed" style={{ color: themeStyles.text }}>
-        <span data-testid="report-summary">{report.summary}</span>
-      </p>
-      <p className="font-mono text-[10px]" style={{ color: themeStyles.textMuted }}>
-        Text compus din cifrele raportului; nu este generat de AI.
-      </p>
+        <span data-testid="report-summary">{report.summary}</span></p>
+      <p className="font-mono text-[10px]" style={muted}>Text compus din cifrele raportului; nu este generat de AI.</p>
     </Panel>
   );
 }
@@ -408,19 +400,13 @@ function TypeBreakdown({ report }) {
 
 /** One hour of the histogram: count on top, bar, clock label underneath. */
 function HourColumn({ hour, peak }) {
-  return (
-    <div className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
-      <span className="font-mono text-[11px] font-bold text-[#B91C1C] opacity-80 group-hover:opacity-100 dark:text-[#FFEB33]">
-        {hour.events}
-      </span>
-      <div
-        className="w-full min-w-[24px] max-w-[64px] rounded-t-md bg-gradient-to-t from-[#D73833]/80 to-[#D73833] shadow transition-all group-hover:from-[#D73833] group-hover:to-[#FFEB33]"
-        style={{ height: `${sharePercent(hour.events, peak)}%` }}
-        aria-hidden="true"
-      />
-      <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{hour.hour}</span>
-    </div>
-  );
+  const barHeight = { height: `${sharePercent(hour.events, peak)}%` };
+  return <div className="group flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-1.5">
+    <span className="font-mono text-[11px] font-bold text-[#B91C1C] opacity-80 group-hover:opacity-100 dark:text-[#FFEB33]">
+      {hour.events}</span>
+    <div className="w-full min-w-[24px] max-w-[64px] rounded-t-md bg-gradient-to-t from-[#D73833]/80 to-[#D73833] shadow transition-all group-hover:from-[#D73833] group-hover:to-[#FFEB33]" style={barHeight} aria-hidden="true" />
+    <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{hour.hour}</span>
+  </div>;
 }
 
 function HourHistogram({ report }) {
@@ -464,28 +450,23 @@ function ZoneRow({ zone }) {
 
 function ZoneAckTable({ rows }) {
   const head = 'pb-1.5 text-[10px] font-bold uppercase tracking-wider';
+  const columns = ZONE_COLUMNS.map((column) => (
+    <th key={column.key} scope="col" className={`${head} ${column.ink}`}>
+      {column.label}
+    </th>
+  ));
+  const body = rows.map((zone) => <ZoneRow key={zone.zone} zone={zone} />);
   return (
     <Panel as="section" size="card">
       <SectionHeading glyph={Clock} label="Statistici de Confirmare pe Sector (by_zone)" />
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs font-mono">
-          <caption className="sr-only">Critice, avertismente și timp mediu de confirmare pe fiecare sector</caption>
-          <thead>
-            <tr className="border-b border-slate-200 opacity-80 dark:border-white/10">
-              {ZONE_COLUMNS.map((column) => (
-                <th key={column.key} scope="col" className={`${head} ${column.ink}`}>
-                  {column.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-            {rows.map((zone) => (
-              <ZoneRow key={zone.zone} zone={zone} />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <div className="overflow-x-auto"><table className="w-full text-left text-xs font-mono">
+        <caption className="sr-only">Critice, avertismente și timp mediu de confirmare pe fiecare sector</caption>
+        <thead><tr className="border-b border-slate-200 opacity-80 dark:border-white/10">
+          {columns}</tr></thead>
+        <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+          {body}
+        </tbody>
+      </table></div>
     </Panel>
   );
 }
@@ -635,9 +616,7 @@ export default function ReportsView() {
     URL.revokeObjectURL(url);
   };
 
-  return (
-    <div className="h-full overflow-y-auto select-none">
-      <div className="mx-auto w-full max-w-6xl space-y-5 p-4 md:p-6">
+  return <div className="h-full overflow-y-auto select-none"><div className="mx-auto w-full max-w-6xl space-y-5 p-4 md:p-6">
         <ReportMasthead
           report={report}
           hasEvents={hasEvents}
@@ -670,7 +649,5 @@ export default function ReportsView() {
             <ZoneAckTable rows={report.by_zone} />
           </>
         )}
-      </div>
-    </div>
-  );
+      </div></div>;
 }

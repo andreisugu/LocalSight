@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, Menu, Moon, RefreshCw, Search, Sun, WifiOff, X, Zap } from 'lucide-react';
 import { IconButton, Panel, Pill } from '../ui';
-import { useSecurity } from '../../context/SecurityContext';
+import { useSecurity as useSecurityContext } from '../../context/SecurityContext';
 import { useTheme } from '../../context/ThemeContext';
 import { USE_MOCK } from '../../services/api';
-
 // The logo comes from the Vite base, so the header also works when the app is deployed
 // under a repo subpath (GitHub Pages) rather than the domain root.
+
 const BRAND_LOGO = `${import.meta.env.BASE_URL}logo.svg`;
 
 // localStorage has no length cap: a restored 10 000-character name used to break the bar
@@ -134,6 +134,24 @@ function useMenu() {
   return { open, setOpen, anchorRef, handleKeyDown };
 }
 
+/**
+ * Both dropdown triggers share one button contract: the menu ARIA attributes, the
+ * chevron and the control skin. `label` is the text that collapses under `md`; `icon`
+ * and children carry the rest of the row.
+ */
+function MenuTrigger({ expanded, title, skin, onClick, icon = null, label = null, children = null }) {
+  const attrs = {
+    type: 'button',
+    onClick,
+    'aria-haspopup': 'menu',
+    'aria-expanded': expanded,
+    title,
+    className: skin,
+  };
+  const text = label ? <span className="hidden md:inline">{label}</span> : null;
+  return <button {...attrs}>{icon}{text}{children}</button>;
+}
+
 /** Search input plus its clear button; the `/` habit and Escape stay in Header. */
 function HeaderSearch({ fieldRef, query, onQueryChange, onReset }) {
   return (
@@ -214,33 +232,30 @@ function EdgeLostBanner({ retrying, onRetry }) {
 
 /** One selectable role in the operator menu, including its selected surface. */
 function RoleChoice({ person, active, dark, palette, onPick }) {
+  const surface = {
+    backgroundColor: active ? (dark ? '#D73833' : '#7EDEED') : 'transparent',
+    color: active && dark ? '#FFFFFF' : palette.textColor,
+  };
+  const roleInk = active
+    ? dark
+      ? 'text-white/80'
+      : 'text-[#1F1F1F]/70'
+    : 'text-slate-500 dark:text-slate-400';
+
   return (
     <button
       type="button"
       role="menuitemradio"
       aria-checked={active}
       onClick={onPick}
-      style={{
-        backgroundColor: active ? (dark ? '#D73833' : '#7EDEED') : 'transparent',
-        color: active && dark ? '#FFFFFF' : palette.textColor,
-      }}
+      style={surface}
       className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition-colors ${
         active ? 'font-bold shadow-sm' : dark ? 'hover:bg-white/5' : 'hover:bg-slate-100'
       }`}
     >
       <span>
         <span className="block text-xs font-semibold leading-none">{person.name}</span>
-        <span
-          className={`mt-0.5 block text-[10px] ${
-            active
-              ? dark
-                ? 'text-white/80'
-                : 'text-[#1F1F1F]/70'
-              : 'text-slate-500 dark:text-slate-400'
-          }`}
-        >
-          {person.role}
-        </span>
+        <span className={`mt-0.5 block text-[10px] ${roleInk}`}>{person.role}</span>
       </span>
       {active && (
         <Check size={14} className={`shrink-0 ${dark ? 'text-white' : 'text-[#1F1F1F]'}`} />
@@ -277,73 +292,73 @@ function NameEntry({ ruleColor, draft, onDraftChange, onCommit, onDismiss }) {
   );
 }
 
-/** Mock-only event trigger and its menu; the static build has no ingest path. */
+/** Mock-only event list and its menu; the static build has no ingest path. */
 function SimulationMenu({ menu, surface, onToggle, onPick }) {
+  const items = SIMULATED_EVENTS.map((entry) => (
+    <button
+      key={entry.type}
+      type="button"
+      role="menuitem"
+      onClick={() => onPick(entry.type, entry.severity)}
+      className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left font-bold ${entry.itemClass}`}
+    >
+      <span>{entry.label}</span>
+      <Pill tone={entry.tone} shape="tag">
+        {entry.badge}
+      </Pill>
+    </button>
+  ));
+
+  const panel = menu.open ? (
+    <Panel
+      role="menu"
+      aria-label="Evenimente de test"
+      title="Evenimente de test (mod mock)"
+      size="menu"
+      titleClassName={MENU_HEADING}
+      style={surface}
+      className="absolute right-0 z-50 mt-2 w-64 max-w-[calc(100vw-1rem)] shadow-2xl"
+    >
+      {items}
+    </Panel>
+  ) : null;
+
   return (
     <div className="relative" ref={menu.anchorRef} onKeyDown={menu.handleKeyDown}>
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-haspopup="menu"
-        aria-expanded={menu.open}
+      <MenuTrigger
+        expanded={menu.open}
         title="Generează evenimente de test (doar în modul mock)"
-        className={`flex items-center gap-1.5 rounded-xl border px-2 py-1.5 text-xs font-bold shadow-sm transition-colors sm:px-3 ${CONTROL_SKIN}`}
+        skin={`flex items-center gap-1.5 rounded-xl border px-2 py-1.5 text-xs font-bold shadow-sm transition-colors sm:px-3 ${CONTROL_SKIN}`}
+        onClick={onToggle}
+        icon={<Zap size={14} className="fill-[#FFEB33] text-[#1F1F1F] dark:text-[#FFEB33]" />}
+        label="Simulare"
       >
-        <Zap size={14} className="fill-[#FFEB33] text-[#1F1F1F] dark:text-[#FFEB33]" />
-        <span className="hidden md:inline">Simulare</span>
-        <ChevronDown size={12} className="opacity-80" />
-      </button>
-
-      {menu.open && (
-        <Panel
-          role="menu"
-          aria-label="Evenimente de test"
-          title="Evenimente de test (mod mock)"
-          size="menu"
-          titleClassName={MENU_HEADING}
-          style={surface}
-          className="absolute right-0 z-50 mt-2 w-64 max-w-[calc(100vw-1rem)] shadow-2xl"
-        >
-          {SIMULATED_EVENTS.map((entry) => (
-            <button
-              key={entry.type}
-              type="button"
-              role="menuitem"
-              onClick={() => onPick(entry.type, entry.severity)}
-              className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left font-bold ${entry.itemClass}`}
-            >
-              <span>{entry.label}</span>
-              <Pill tone={entry.tone} shape="tag">
-                {entry.badge}
-              </Pill>
-            </button>
-          ))}
-        </Panel>
-      )}
+        <ChevronDown size={12} aria-hidden="true" className="opacity-80" />
+      </MenuTrigger>
+      {panel}
     </div>
   );
 }
 
 /** Theme switch: the icon and the pressed state both reflect the current theme. */
 function ThemeSwitch({ dark, palette, onToggle }) {
-  return (
-    <IconButton
-      icon={dark ? Sun : Moon}
-      size="md"
-      label="Comută tema interfeței"
-      title={dark ? 'Comută pe tema luminoasă' : 'Comută pe tema întunecată'}
-      onClick={onToggle}
-      // WCAG 4.1.2: expose whether the dark theme is on, instead of leaving the state
-      // only in a tooltip that touch users cannot open.
-      aria-pressed={dark}
-      iconClassName={dark ? 'text-[#FFEB33]' : 'text-[#1F1F1F]'}
-      style={{
-        backgroundColor: dark ? palette.panelBg : '#F1F5F9',
-        borderColor: dark ? 'rgba(255, 255, 255, 0.15)' : '#64748B',
-      }}
-      className="rounded-xl border text-xs shadow-sm transition-all"
-    />
-  );
+  const skin = {
+    backgroundColor: dark ? palette.panelBg : '#F1F5F9',
+    borderColor: dark ? 'rgba(255, 255, 255, 0.15)' : '#64748B',
+  };
+  return <IconButton
+    icon={dark ? Sun : Moon}
+    size="md"
+    label="Comută tema interfeței"
+    title={dark ? 'Comută pe tema luminoasă' : 'Comută pe tema întunecată'}
+    onClick={onToggle}
+    // WCAG 4.1.2: expose whether the dark theme is on, instead of leaving the state
+    // only in a tooltip that touch users cannot open.
+    aria-pressed={dark}
+    iconClassName={dark ? 'text-[#FFEB33]' : 'text-[#1F1F1F]'}
+    style={skin}
+    className="rounded-xl border text-xs shadow-sm transition-all"
+  />;
 }
 
 /** Operator trigger, role list and the audit-log name field. */
@@ -364,26 +379,58 @@ function OperatorMenu({
   const preview = clipOperatorName(operatorLabel);
   const initial = (operatorLabel || 'O').charAt(0).toUpperCase() || 'O';
   const badge = current ? current.badge : 'OPERATOR';
+  const avatarSkin = {
+    backgroundColor: dark ? '#D73833' : '#7EDEED',
+    color: dark ? '#FFFFFF' : '#1F1F1F',
+  };
+
+  const roles = roster.map((person) => (
+    <RoleChoice
+      key={person.id}
+      person={person}
+      active={current?.id === person.id}
+      dark={dark}
+      palette={palette}
+      onPick={() => onPick(person.id)}
+    />
+  ));
+
+  const panel = menu.open && roster ? (
+    <Panel
+      role="menu"
+      aria-label="Operator activ"
+      title="Rol"
+      size="menu"
+      titleClassName={MENU_HEADING}
+      style={surface}
+      className="absolute right-0 z-50 mt-2 w-64 max-w-[calc(100vw-1rem)] shadow-2xl"
+    >
+      {roles}
+      <NameEntry
+        ruleColor={surface.borderColor}
+        draft={draft}
+        onDraftChange={onDraftChange}
+        onCommit={onCommit}
+        onDismiss={() => menu.setOpen(false)}
+      />
+    </Panel>
+  ) : null;
+
+  const avatar = (
+    <span style={avatarSkin} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold shadow-inner">
+      {initial}
+    </span>
+  );
 
   return (
     <div className="relative min-w-0" ref={menu.anchorRef} onKeyDown={menu.handleKeyDown}>
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-haspopup="menu"
-        aria-expanded={menu.open}
+      <MenuTrigger
+        expanded={menu.open}
         title="Schimbă operatorul activ"
-        className={`flex max-w-[calc(100vw-1rem)] items-center gap-2 rounded-xl border py-1.5 pl-1.5 pr-2 shadow-sm transition-colors sm:pl-2 sm:pr-3 ${CONTROL_SKIN}`}
+        skin={`flex max-w-[calc(100vw-1rem)] items-center gap-2 rounded-xl border py-1.5 pl-1.5 pr-2 shadow-sm transition-colors sm:pl-2 sm:pr-3 ${CONTROL_SKIN}`}
+        onClick={onToggle}
+        icon={avatar}
       >
-        <span
-          style={{
-            backgroundColor: dark ? '#D73833' : '#7EDEED',
-            color: dark ? '#FFFFFF' : '#1F1F1F',
-          }}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold shadow-inner"
-        >
-          {initial}
-        </span>
         <span className="hidden min-w-0 text-left text-xs leading-tight lg:block">
           <span className="flex items-center gap-1 font-bold">
             <span className="max-w-[10rem] truncate" title={preview}>
@@ -395,38 +442,17 @@ function OperatorMenu({
             {badge}
           </span>
         </span>
-      </button>
+      </MenuTrigger>
+      {panel}
+    </div>
+  );
+}
 
-      {menu.open && roster && (
-        <Panel
-          role="menu"
-          aria-label="Operator activ"
-          title="Rol"
-          size="menu"
-          titleClassName={MENU_HEADING}
-          style={surface}
-          className="absolute right-0 z-50 mt-2 w-64 max-w-[calc(100vw-1rem)] shadow-2xl"
-        >
-          {roster.map((person) => (
-            <RoleChoice
-              key={person.id}
-              person={person}
-              active={current?.id === person.id}
-              dark={dark}
-              palette={palette}
-              onPick={() => onPick(person.id)}
-            />
-          ))}
-
-          <NameEntry
-            ruleColor={surface.borderColor}
-            draft={draft}
-            onDraftChange={onDraftChange}
-            onCommit={onCommit}
-            onDismiss={() => menu.setOpen(false)}
-          />
-        </Panel>
-      )}
+/** The right-hand cluster: mock trigger, theme switch and operator picker. */
+function HeaderActions({ children }) {
+  return (
+    <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2 md:gap-3">
+      {children}
     </div>
   );
 }
@@ -447,7 +473,7 @@ function Header() {
     simulateIncomingWsEvent: pushMockEvent,
     switchOperator: activateOperator,
     toggleWsSimulation: retryEdge,
-  } = useSecurity();
+  } = useSecurityContext();
 
   const simulation = useMenu();
   const operator = useMenu();
@@ -532,7 +558,7 @@ function Header() {
         />
       </div>
 
-      <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2 md:gap-3">
+      <HeaderActions>
         {USE_MOCK && (
           <SimulationMenu
             menu={simulation}
@@ -558,7 +584,7 @@ function Header() {
           onCommit={() => saveOperatorName(draftName)}
           onPick={pickOperator}
         />
-      </div>
+      </HeaderActions>
     </header>
   );
 }
