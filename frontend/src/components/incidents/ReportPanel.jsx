@@ -41,6 +41,7 @@ export default function ReportPanel({ event, mock, onRetry }) {
 
   return (
     <section
+      data-testid="incident-report"
       aria-label="Raport incident"
       style={{ backgroundColor: themeStyles.panelBg, borderColor: themeStyles.panelBorder }}
       className="rounded-xl border p-4 shadow-lg space-y-3"
@@ -76,6 +77,7 @@ export default function ReportPanel({ event, mock, onRetry }) {
           {fields.map((field) => (
             <div
               key={field.key}
+              data-testid={`report-field-${field.key}`}
               className={
                 field.key === 'recommended_action'
                   ? 'p-2.5 rounded-lg bg-amber-500/15 border border-amber-500/30'

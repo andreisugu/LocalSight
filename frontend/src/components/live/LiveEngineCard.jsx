@@ -118,6 +118,7 @@ export default function LiveEngineCard({
 
   return (
     <section
+      data-testid="engine-card"
       aria-label="Motor și senzori"
       style={{ backgroundColor: themeStyles.panelBg, borderColor: themeStyles.panelBorder }}
       className="rounded-xl border shadow-sm p-3 space-y-2.5 shrink-0 min-w-0"
@@ -130,11 +131,17 @@ export default function LiveEngineCard({
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
           {/* `fps` already lives here: one chip, never a second copy inside the card. */}
           {running && (
-            <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded border text-cyan-700 dark:text-[#33E1FF] border-[#33E1FF]/40 bg-[#33E1FF]/10 whitespace-nowrap">
+            <span
+              data-testid="engine-fps"
+              data-fps={engine.fps}
+              className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded border text-cyan-700 dark:text-[#33E1FF] border-[#33E1FF]/40 bg-[#33E1FF]/10 whitespace-nowrap"
+            >
               procesat local · {fpsValue} fps
             </span>
           )}
           <span
+            data-testid="engine-status"
+            data-engine-status={engine.status}
             className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded border whitespace-nowrap ${
               running
                 ? 'text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10'

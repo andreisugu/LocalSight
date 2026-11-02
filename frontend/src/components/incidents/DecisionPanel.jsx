@@ -31,6 +31,7 @@ export default function DecisionPanel({ event, onAck, onFalsePositive, onReopen,
   return (
     <>
       <section
+        data-testid="incident-decision"
         aria-label="Decizia operatorului"
         style={{ backgroundColor: themeStyles.panelBg, borderColor: themeStyles.panelBorder }}
         className="no-print rounded-xl border p-4 shadow-lg space-y-3"
@@ -42,6 +43,8 @@ export default function DecisionPanel({ event, onAck, onFalsePositive, onReopen,
         <div className="grid grid-cols-2 gap-2 text-xs">
           <button
             type="button"
+            data-testid="decision-ack"
+            data-acked={actions.acked ? 'true' : 'false'}
             disabled={!actions.ack}
             onClick={(clickEvent) => onAck(clickEvent)}
             className={`${BASE} ${actions.ack ? PRIMARY : DISABLED}`}
@@ -52,6 +55,8 @@ export default function DecisionPanel({ event, onAck, onFalsePositive, onReopen,
 
           <button
             type="button"
+            data-testid="decision-false-positive"
+            data-marked={actions.markedFalsePositive ? 'true' : 'false'}
             disabled={!actions.falsePositive}
             onClick={() => setDialogOpen(true)}
             className={`${BASE} ${actions.falsePositive ? SECONDARY : DISABLED}`}
@@ -62,6 +67,7 @@ export default function DecisionPanel({ event, onAck, onFalsePositive, onReopen,
 
           <button
             type="button"
+            data-testid="decision-reopen"
             disabled={!actions.reopen}
             onClick={onReopen}
             className={`${BASE} ${actions.reopen ? SECONDARY : DISABLED}`}
@@ -70,7 +76,7 @@ export default function DecisionPanel({ event, onAck, onFalsePositive, onReopen,
             <span>Redeschide</span>
           </button>
 
-          <button type="button" onClick={onExport} className={`${BASE} ${SECONDARY}`}>
+          <button type="button" data-testid="decision-export" onClick={onExport} className={`${BASE} ${SECONDARY}`}>
             <FileDown size={15} aria-hidden="true" />
             <span>Export PDF</span>
           </button>

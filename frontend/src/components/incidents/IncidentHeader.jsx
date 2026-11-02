@@ -32,7 +32,7 @@ export default function IncidentHeader({ event, mock, onBack, onCopyLink, onView
         <div className="min-w-0 space-y-1">
           <h2 className="sr-only">Incident: {event.event_id}</h2>
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="font-black text-lg uppercase tracking-tight break-words min-w-0">
+            <h2 data-testid="incident-title" className="font-black text-lg uppercase tracking-tight break-words min-w-0">
               {title}
             </h2>
             <StatusChip value={event.severity} strong />
@@ -58,7 +58,7 @@ export default function IncidentHeader({ event, mock, onBack, onCopyLink, onView
             style={{ color: themeStyles.textMuted }}
             className="text-[11px] font-mono break-words"
           >
-            <span className="break-all">{event.event_id}</span>
+            <span data-testid="incident-id" className="break-all">{event.event_id}</span>
             <span aria-hidden="true"> · </span>
             {detectionSummary(event)}
           </p>

@@ -1,4 +1,15 @@
 import { expect, test } from '@playwright/test';
+import {
+  PAGES_BASE as BASE,
+  INCIDENT_TIMEOUT_MS,
+  expectNoPageErrors,
+  firstLocalIncident,
+  localStat,
+  openView,
+  startEngine,
+  waitForIsolation,
+  watchPageErrors,
+} from '../e2e/helpers.mjs';
 
 // Browser evidence for the durable store: a real engine incident, its snapshot and its ack
 // survive a full document load; retention prunes old rows; "delete local data" empties the
@@ -6,61 +17,17 @@ import { expect, test } from '@playwright/test';
 //
 // Run with its own config (see `playwright.persistence.config.js`):
 //   PW_PORT=4352 npx playwright test --config=playwright.persistence.config.js
+//
+// Only the first test starts the engine: it is the one that proves a real captured blob
+// survives a reload. The others seed the documented schema directly, so they never pay for
+// model download or for a rule to fire.
 
-const BASE = '/LocalSight/';
-
-function watchPageErrors(page) {
-  const problems = [];
-  page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
-  page.on('console', (message) => {
-    if (message.type() !== 'error') return;
-    const source = message.location()?.url || '';
-    if (/images\.unsplash\.com/.test(source) || /images\.unsplash\.com/.test(message.text())) return;
-    // ONNX Runtime prints shape verifications through console.error while the model warms
-    // up. They are known and do not describe a page failure.
-    if (/VerifyOutputSizes|Expected shape from model/.test(message.text())) return;
-    // GitHub Pages answers any app route (a deep link, /settings) with 404.html and status
-    // 404 by design; the app then renders it. Only those document paths are skipped, so a
-    // missing asset still counts.
-    if (
-      /status of 404/.test(message.text())
-      && /\/LocalSight\/(?:incidents|settings|zones|reports|live|lab|bench)(?:\/|$)/.test(source)
-    ) return;
-    problems.push(`console.error: ${message.text()}`);
+/** True when the incident-detail screen shows the record with this id. */
+async function expectIncidentDetail(page, eventId, { restored = false } = {}) {
+  await expect(page.getByTestId('incident-id')).toHaveText(eventId, {
+    timeout: restored ? 90_000 : 30_000,
   });
-  return problems;
 }
-
-/**
- * Wait until the document is isolated. The service worker reloads the tab once when it
- * claims the page; `page.evaluate` throws during that reload, which simply means "not yet".
- */
-async function waitForIsolation(page) {
-  await expect
-    .poll(
-      async () => {
-        try {
-          return await page.evaluate(() => window.crossOriginIsolated === true);
-        } catch {
-          return false;
-        }
-      },
-      { timeout: 60_000, intervals: [250, 500, 1000] }
-    )
-    .toBe(true);
-}
-
-async function openView(page, name) {
-  await page.getByRole('complementary').getByRole('button', { name: new RegExp(`^${name}`) }).click();
-}
-
-const localPanel = (page) => page.getByRole('region', { name: /date locale/i });
-
-/** The `<dd>` under one `<dt>` label of the local-data panel. */
-const statValue = (panel, label) => panel
-  .locator('dt', { hasText: new RegExp(`^${label}$`) })
-  .locator('..')
-  .locator('dd');
 
 /**
  * Write incidents straight into the app's database, the way an earlier session would have.
@@ -169,84 +136,71 @@ async function seedStoredIncidents(page, { count, staleCount = 0 }) {
   }, { count, staleCount });
 }
 
+/** The snapshot <img> of the detail screen, once the evidence panel is mounted. */
+const snapshotImage = (page) => page.getByTestId('incident-snapshot').locator('img');
+
 test('an engine incident, its snapshot and its ack survive a reload', async ({ page }) => {
-  test.setTimeout(300_000);
-  const problems = watchPageErrors(page);
+  test.setTimeout(240_000);
+  const problems = watchPageErrors(page, { onnxNoise: true, pagesFallback: true });
 
   await page.goto(BASE);
   await waitForIsolation(page);
 
   // The fixture-only shift report is the baseline; restored incidents must add to it.
-  await openView(page, 'Rapoarte Tură');
+  await openView(page, 'reports');
   const baselineTotal = Number(await page.getByTestId('report-total').innerText());
   expect(Number.isFinite(baselineTotal)).toBe(true);
 
-  await openView(page, 'Live');
-  await page.getByRole('button', { name: /pornește motorul în browser/i }).click();
-
-  // The engine card only says "rulează" after real frames arrived.
-  const engineCard = page.getByRole('region', { name: 'Motor și senzori' });
-  await expect(engineCard.getByText('rulează', { exact: true })).toBeVisible({ timeout: 120_000 });
+  await openView(page, 'live');
+  await startEngine(page);
 
   // A card tagged `local` is a real engine incident; fixture cards never carry the badge.
-  // `hasText` sees concatenated textContent ("Deschislocal…"), so the badge is matched as
-  // its own element instead of with a word boundary.
-  const localCard = page
-    .locator('[aria-label^="Deschide incidentul evt_"]')
-    .filter({ has: page.getByText('local', { exact: true }) })
-    .first();
-  await expect(localCard).toBeVisible({ timeout: 180_000 });
-  const label = await localCard.getAttribute('aria-label');
-  const eventId = (label || '').replace('Deschide incidentul ', '').trim();
+  const localCard = firstLocalIncident(page);
+  await expect(localCard).toBeVisible({ timeout: INCIDENT_TIMEOUT_MS });
+  const eventId = await localCard.getAttribute('data-event-id');
   expect(eventId).toMatch(/^evt_/);
 
-  await localCard.click();
-  await expect(
-    page.getByRole('heading', { level: 2, name: new RegExp(`^incident: ${eventId}$`, 'i') })
-  ).toBeVisible();
+  await localCard.getByTestId('incident-open').click();
+  await expectIncidentDetail(page, eventId);
 
   // The live snapshot is a page-owned blob URL and it really renders.
-  const snapshot = page.getByRole('img', { name: 'Cadru incident blurat' });
-  await expect(snapshot).toHaveAttribute('src', /^blob:/);
-  await expect.poll(() => snapshot.evaluate((node) => node.naturalWidth)).toBeGreaterThan(0);
+  await expect(snapshotImage(page)).toHaveAttribute('src', /^blob:/);
+  await expect.poll(() => snapshotImage(page).evaluate((node) => node.naturalWidth)).toBeGreaterThan(0);
 
-  await page.getByRole('button', { name: /^Confirmă$/i }).click();
-  await expect(page.getByRole('button', { name: /^Confirmat$/i })).toBeVisible();
+  const ack = page.getByTestId('decision-ack');
+  await ack.click();
+  await expect(ack).toHaveAttribute('data-acked', 'true');
 
   // Wait until the store reports the incident and the ack, so the reload cannot race a write.
-  await openView(page, 'Sistem & Audit');
-  const panel = localPanel(page);
-  await expect(statValue(panel, 'Incidente salvate')).toHaveText(/[1-9]\d* \/ 200/, {
+  await openView(page, 'settings');
+  await expect(localStat(page, 'incidents')).toHaveText(/[1-9]\d* \/ 200/, {
     timeout: 30_000,
   });
-  await expect(statValue(panel, 'Confirmări salvate')).toHaveText(/[1-9]\d*/, {
-    timeout: 30_000,
-  });
-  await expect(panel.getByText(/^[1-9]\d* snapshot/)).toBeVisible();
+  await expect(localStat(page, 'acks')).toHaveText(/[1-9]\d*/, { timeout: 30_000 });
+  await expect(localStat(page, 'snapshots')).toHaveText(/^[1-9]\d* snapshot/);
 
   // A full document load of the deep link: the incident, its snapshot and its ack come back.
   await page.goto(`${BASE}incidents/${eventId}`);
-  await expect(
-    page.getByRole('heading', { level: 2, name: new RegExp(`^incident: ${eventId}$`, 'i') })
-  ).toBeVisible({ timeout: 90_000 });
-  await expect(page.getByRole('button', { name: /^Confirmat$/i })).toBeVisible();
-  const restored = page.getByRole('img', { name: 'Cadru incident blurat' });
-  await expect(restored).toHaveAttribute('src', /^blob:/);
-  await expect.poll(() => restored.evaluate((node) => node.naturalWidth)).toBeGreaterThan(0);
+  await expectIncidentDetail(page, eventId, { restored: true });
+  await expect(page.getByTestId('decision-ack')).toHaveAttribute('data-acked', 'true');
+  await expect(snapshotImage(page)).toHaveAttribute('src', /^blob:/);
+  await expect.poll(() => snapshotImage(page).evaluate((node) => node.naturalWidth)).toBeGreaterThan(0);
 
   // No duplicate row after hydration, and the shift report counts the restored incident.
-  await openView(page, 'Incidente');
-  await expect(page.locator(`[aria-label="Deschide incidentul ${eventId}"]`)).toHaveCount(1);
-  await openView(page, 'Rapoarte Tură');
+  await openView(page, 'incidents');
+  await expect(
+    page.locator(`[data-testid="incident-row"][data-event-id="${eventId}"]`)
+  ).toHaveCount(1);
+  await openView(page, 'reports');
   const restoredTotal = Number(await page.getByTestId('report-total').innerText());
   expect(restoredTotal).toBeGreaterThan(baselineTotal);
 
-  expect(problems, 'the page must not log errors').toEqual([]);
+  expectNoPageErrors(problems);
 });
 
 test('retention prunes by count and age, and clearing leaves the fixtures', async ({ page }) => {
   test.setTimeout(180_000);
-  const problems = watchPageErrors(page);
+  const problems = watchPageErrors(page, { onnxNoise: true, pagesFallback: true });
 
   await page.goto(BASE);
   // The isolation service worker reloads the tab once; seed after that, or the evaluate
@@ -255,63 +209,61 @@ test('retention prunes by count and age, and clearing leaves the fixtures', asyn
 
   // A demo fixture is never stored as an incident, but its confirmation is still an
   // operator decision: seed the override before the retention check, then prove it returns.
-  await openView(page, 'Incidente');
-  await page.getByRole('listitem').first().getByRole('button').click();
-  const fixtureId = decodeURIComponent(new URL(page.url()).pathname.split('/').pop());
-  await page.getByRole('button', { name: /^Confirmă$/i }).click();
-  await expect(page.getByRole('button', { name: /^Confirmat$/i })).toBeVisible();
+  await openView(page, 'incidents');
+  const fixtureRow = page.getByTestId('incident-row').first();
+  await expect(fixtureRow).toBeVisible();
+  const fixtureId = await fixtureRow.getAttribute('data-event-id');
+  await fixtureRow.click();
+  await expect(page.getByTestId('decision-ack')).toBeVisible();
+  await page.getByTestId('decision-ack').click();
+  await expect(page.getByTestId('decision-ack')).toHaveAttribute('data-acked', 'true');
 
   // The override write is fire-and-forget; wait for the store to report it before reloading.
-  await openView(page, 'Sistem & Audit');
-  await expect(statValue(localPanel(page), 'Confirmări salvate')).toHaveText('1', {
-    timeout: 30_000,
-  });
+  await openView(page, 'settings');
+  await expect(localStat(page, 'acks')).toHaveText('1', { timeout: 30_000 });
 
   const { fresh, stale } = await seedStoredIncidents(page, { count: 204, staleCount: 1 });
   expect(stale).toHaveLength(1);
 
   // Prune runs during hydration: 205 rows in, 200 newest out, the 8-day-old one gone.
   await page.reload();
-  await openView(page, 'Sistem & Audit');
-  const panel = localPanel(page);
-  await expect(statValue(panel, 'Incidente salvate')).toHaveText('200 / 200', {
-    timeout: 90_000,
-  });
+  await openView(page, 'settings');
+  await expect(localStat(page, 'incidents')).toHaveText('200 / 200', { timeout: 90_000 });
 
   // The fixture override was not tied to a stored incident; prune must not drop it.
   await page.goto(`${BASE}incidents/${fixtureId}`);
-  await expect(page.getByRole('button', { name: /^Confirmat$/i })).toBeVisible();
+  await expect(page.getByTestId('decision-ack')).toHaveAttribute('data-acked', 'true');
 
   await page.goto(`${BASE}incidents/${stale[0]}`);
-  await expect(page.getByText('Niciun incident selectat')).toBeVisible();
+  await expect(page.getByTestId('incident-empty')).toBeVisible();
 
   // The oldest fresh rows also fell outside the count budget.
   await page.goto(`${BASE}incidents/${fresh[fresh.length - 1]}`);
-  await expect(page.getByText('Niciun incident selectat')).toBeVisible();
+  await expect(page.getByTestId('incident-empty')).toBeVisible();
 
   // Delete local data: the store empties, the seeded incidents leave the list, fixtures stay.
-  await openView(page, 'Sistem & Audit');
-  await page.getByRole('button', { name: /^Șterge datele locale$/ } ).click();
-  await expect(page.getByRole('alert')).toContainText('Fixture-urile demo rămân');
-  await page.getByRole('button', { name: /^Da, șterge$/ }).click();
-  await expect(statValue(panel, 'Incidente salvate')).toHaveText('0 / 200', {
-    timeout: 30_000,
-  });
-  await expect(panel.getByText(/^0 snapshot-uri/)).toBeVisible();
+  await openView(page, 'settings');
+  await page.getByTestId('local-clear').click();
+  await expect(page.getByTestId('local-clear-warning')).toBeVisible();
+  await page.getByTestId('local-clear-confirm').click();
+  await expect(localStat(page, 'incidents')).toHaveText('0 / 200', { timeout: 30_000 });
+  await expect(localStat(page, 'snapshots')).toHaveText(/^0 snapshot/);
 
-  await openView(page, 'Incidente');
-  await expect(page.locator(`[aria-label="Deschide incidentul ${fresh[0]}"]`)).toHaveCount(0);
-  await expect(page.getByRole('listitem').first()).toBeVisible();
+  await openView(page, 'incidents');
+  await expect(
+    page.locator(`[data-testid="incident-row"][data-event-id="${fresh[0]}"]`)
+  ).toHaveCount(0);
+  await expect(page.getByTestId('incident-row').first()).toBeVisible();
 
   // The deletion is durable: a deep link to a cleared incident stays empty after a reload.
   await page.goto(`${BASE}incidents/${fresh[0]}`);
-  await expect(page.getByText('Niciun incident selectat')).toBeVisible();
+  await expect(page.getByTestId('incident-empty')).toBeVisible();
 
-  expect(problems, 'the page must not log errors').toEqual([]);
+  expectNoPageErrors(problems);
 });
 
 test('a blocked or private IndexedDB does not break boot', async ({ page }) => {
-  const problems = watchPageErrors(page);
+  const problems = watchPageErrors(page, { onnxNoise: true, pagesFallback: true });
 
   // What private modes and storage policies do: the global is simply not usable.
   await page.addInitScript(() => {
@@ -323,18 +275,18 @@ test('a blocked or private IndexedDB does not break boot', async ({ page }) => {
   });
 
   await page.goto(BASE);
-  await expect(page.getByRole('heading', { level: 1, name: /localsight/i })).toBeVisible();
+  await expect(page.getByTestId('app-title')).toBeVisible();
 
-  await openView(page, 'Sistem & Audit');
-  const panel = localPanel(page);
-  await expect(panel.getByText('IndexedDB indisponibil')).toBeVisible();
-  await expect(panel.getByText(/Mod privat, stocare blocată/)).toBeVisible();
-  await expect(panel.getByText(/incidentele nu supraviețuiesc reîncărcării/)).toBeVisible();
-  await expect(statValue(panel, 'Incidente salvate')).toHaveText('0 / 200');
+  await openView(page, 'settings');
+  const panel = page.getByTestId('local-data');
+  await expect(panel).toHaveAttribute('data-supported', 'false');
+  await expect(localStat(page, 'storage')).toHaveText(/IndexedDB indisponibil/);
+  await expect(page.getByTestId('local-storage-note')).toContainText(/Mod privat, stocare blocată/);
+  await expect(localStat(page, 'incidents')).toHaveText('0 / 200');
 
   // The demo fixtures still drive the product with no durable store at all.
-  await openView(page, 'Incidente');
-  await expect(page.getByRole('listitem').first()).toBeVisible();
+  await openView(page, 'incidents');
+  await expect(page.getByTestId('incident-row').first()).toBeVisible();
 
-  expect(problems, 'the page must not log errors').toEqual([]);
+  expectNoPageErrors(problems);
 });

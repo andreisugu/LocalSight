@@ -179,6 +179,7 @@ function NavButton({ item, active, collapsed, attention, onSelect }) {
     <button
       type="button"
       onClick={onSelect}
+      data-testid={`nav-${item.id}`}
       style={{
         backgroundColor: active ? (isDarkMode ? '#D73833' : '#7EDEED') : 'transparent',
         color: active && isDarkMode ? '#FFFFFF' : themeStyles.textColor,
@@ -294,9 +295,10 @@ function SidebarFooter({ collapsed, health, edgeLabel, edgeActive, edgeSuffix, o
           not only on an admin screen. */}
       {!collapsed && (
         <p className="flex flex-wrap items-center justify-between gap-x-2 px-1 font-mono text-[10px] text-slate-500 dark:text-slate-400">
-          <span title="Commitul din care a fost construit acest bundle">build {BUILD_SHA}</span>
+          <span data-testid="build-sha" data-sha={BUILD_SHA} title="Commitul din care a fost construit acest bundle">build {BUILD_SHA}</span>
           <a
             href={`${import.meta.env.BASE_URL}NOTICE`}
+            data-testid="notice-link"
             target="_blank"
             rel="noreferrer"
             title="YOLO26n AGPL-3.0 · YuNet MIT · THIRD_PARTY.md"
@@ -430,6 +432,7 @@ export default function Sidebar() {
 
       <aside
         ref={asideRef}
+        data-testid="sidebar"
         aria-label="Navigare"
         style={{
           backgroundColor: isDarkMode ? themeStyles.navBg : '#FFFFFF',

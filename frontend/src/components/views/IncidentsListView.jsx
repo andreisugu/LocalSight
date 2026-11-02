@@ -52,6 +52,10 @@ function IncidentRow({ event, cameraName, onOpen, themeStyles }) {
     <li>
       <button
         onClick={() => onOpen(event.event_id)}
+        data-testid="incident-row"
+        data-event-id={event.event_id}
+        data-severity={event.severity}
+        data-status={event.status}
         aria-label={`Deschide incidentul ${event.event_id}`}
         className={`w-full text-left grid grid-cols-[4.5rem_minmax(0,1fr)_1.25rem] md:grid-cols-[4.5rem_minmax(0,1fr)_12rem_8.5rem_1.25rem] items-center gap-3 px-3 py-2.5 border-l-[3px] transition-colors hover:bg-white/5 ${
           critical ? 'border-l-[#D73833]' : 'border-l-[#FFEB33]'
