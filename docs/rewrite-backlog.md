@@ -108,7 +108,7 @@ frontend 22 364 linii de cod
   logică moștenită: 0
 ```
 
-Restul de 3% este schelet JSX, importuri, chei de context, etichete vizibile și valorile
+Restul de 1,4% este schelet JSX, importuri, chei de context, etichete vizibile și valorile
 de design pe care API-ul trebuie să le păstreze; nu conține funcții, ramuri sau calcule.
 Stack-ul Python (`backend/`, `ml/`, `automation/`) a fost șters din fork (`d205b04`) și
 rămâne în istoric/upstream. `polygon.js` păstrează matematica identică (rescrisă cu teste),
