@@ -22,7 +22,7 @@ export default function FullscreenStage({
     <div className="fixed inset-0 z-50 bg-black flex flex-col select-none">
       <div className="h-14 bg-[#141414]/90 backdrop-blur px-6 flex items-center justify-between border-b border-white/10 z-10">
         <div className="flex items-center gap-3">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#D73833] animate-ping" />
+          <span aria-hidden="true" className="w-2.5 h-2.5 rounded-full bg-[#D73833]" />
           <div>
             <h2 className="text-white font-bold text-sm tracking-wide">{activeCamera?.name}</h2>
             <p className="text-[11px] text-slate-400">

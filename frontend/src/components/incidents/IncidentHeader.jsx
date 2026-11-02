@@ -8,7 +8,7 @@ import { detectionSummary, severityToken, sourceChips, statusToken } from '../..
 function ProvenanceChip({ children, tone, title }) {
   const toneClass = tone === 'local'
     ? 'border-[#33E1FF]/40 bg-[#33E1FF]/10 text-cyan-700 dark:text-[#33E1FF]'
-    : 'border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-[#FFEB33]';
+    : 'border-amber-500/40 bg-amber-500/15 text-amber-900 dark:text-[#FFEB33]';
   return (
     <span
       title={title}

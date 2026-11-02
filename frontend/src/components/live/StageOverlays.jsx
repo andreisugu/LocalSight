@@ -4,11 +4,22 @@ import { Camera, CameraOff, RotateCcw } from 'lucide-react';
 // knows: the label of the source, the HUD resolution, the edge warning and the permission
 // lifecycle of the local camera.
 
-export function HudReadout({ resolution }) {
+export function HudReadout({ resolution, isWebcam }) {
   return (
     <div className="absolute top-2.5 left-2.5 flex items-center gap-2 bg-black/80 px-2.5 py-1 rounded-lg text-[10px] font-mono text-white border border-white/10 shadow">
-      <span className="w-2 h-2 rounded-full bg-[#D73833] animate-ping" />
-      <span className="font-bold text-red-400">LIVE REC</span>
+      {/* "LIVE REC" is only true for the local camera. The stage default is a looping
+          MP4, so claiming a recording indicator on it is a fabricated signal. */}
+      {isWebcam ? (
+        <>
+          <span aria-hidden="true" className="w-2 h-2 rounded-full bg-[#D73833] animate-ping" />
+          <span className="font-bold text-red-400">LIVE REC</span>
+        </>
+      ) : (
+        <>
+          <span aria-hidden="true" className="w-2 h-2 rounded-full bg-slate-500" />
+          <span className="font-bold text-slate-300">CLIP DEMO · LOOP</span>
+        </>
+      )}
       <span className="text-slate-400">|</span>
       <span>{resolution || '4K (3840x2160)'}</span>
     </div>

@@ -1,95 +1,114 @@
 import { Check, Eye } from 'lucide-react';
 import ConfidenceBadge from '../common/ConfidenceBadge';
-import { STATUS_TOKENS } from '../../constants/theme';
 import { canDo } from '../../constants/eventActions';
+import { STATUS_TOKENS } from '../../constants/theme';
 
-// One incident in the Live feed. The whole card is the "open" control, so Tab reaches it
-// and Enter/Space open it; the acknowledgement button stops propagation so confirming
-// never also navigates. The guard itself lives in the feed, next to the press reference.
+// One incident in the Live feed.
+//
+// The card used to be a `div[role=button]` that *contained* the acknowledge button: a
+// nested interactive control (axe `nested-interactive` ×4) whose `aria-label` replaced the
+// whole incident with a raw id. It is now a plain card with two sibling controls — one
+// button that opens the incident and a separate acknowledge button — so Tab reaches both,
+// the open button's name carries the human details, and each "Confirmă" is unique for a
+// screen reader. The double-click guard still lives in the feed (`onAckPress`).
 export default function IncidentFeedCard({ event, isDarkMode, onOpen, onAck, onAckPress }) {
   const critical = event.severity === 'CRITICAL';
   const escalated = event.status === 'escalated';
   const acknowledged = event.status === 'acknowledged';
+  const shortId = event.event_id.slice(-6);
+  const statusText = STATUS_TOKENS[event.status]?.label || event.status;
+
+  // What an operator needs in order to decide, in one sentence. The visible text repeats
+  // the same facts, so the label adds no information the card does not show.
+  const openLabel = `Deschide incidentul: ${[
+    event.report?.what,
+    event.report?.where,
+    event.camera_id,
+    event.severity,
+    statusText,
+  ]
+    .filter(Boolean)
+    .join(' · ')}`;
 
   return (
     <div
-      role="button"
-      tabIndex={0}
-      aria-label={`Deschide incidentul ${event.event_id}`}
-      onClick={onOpen}
-      onKeyDown={(keyEvent) => {
-        // Key events from the inner ack button bubble here; only the card itself may open
-        // the incident.
-        if (keyEvent.target !== keyEvent.currentTarget) return;
-        if (keyEvent.key === 'Enter' || keyEvent.key === ' ') {
-          keyEvent.preventDefault();
-          onOpen();
-        }
-      }}
       style={{ backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF' }}
-      className={`p-2.5 rounded-xl border transition-all hover:scale-[1.01] cursor-pointer space-y-1.5 shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#33E1FF] ${
+      className={`rounded-xl border p-2.5 shadow-sm transition-all ${
         escalated
-          ? 'border-[#D73833] ring-2 ring-[#D73833]/40 animate-pulse'
+          ? 'border-[#D73833] ring-2 ring-[#D73833]/40'
           : critical
             ? 'border-[#D73833]/50 hover:border-[#D73833]'
             : 'border-[#FFEB33]/50 hover:border-[#FFEB33]'
       }`}
     >
-      <div className="flex items-center justify-between gap-1">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span
-            className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${
-              critical
-                ? 'bg-red-50 text-[#D73833] border-red-200 dark:bg-[#D73833]/20 dark:text-[#FF8A80] dark:border-[#D73833]/40'
-                : 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-[#FFEB33]/15 dark:text-[#FFEB33] dark:border-[#FFEB33]/40'
-            }`}
-          >
-            {event.severity}
-          </span>
-
-          <span
-            className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
-              acknowledged
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800'
-                : escalated
-                  ? 'bg-red-100 text-[#D73833] border-red-300 dark:bg-[#D73833]/30 dark:text-[#FF8A80] font-black animate-bounce'
-                  : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300'
-            }`}
-          >
-            {STATUS_TOKENS[event.status]?.label || event.status}
-          </span>
-
-          {event.local && (
+      {/* The escalation cue is a static ring and border. It used to be a whole-card
+          `animate-pulse`, which dropped the card's own text to 3.18:1 (light) for half of
+          every cycle — the emphasis made the content unreadable. */}
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={openLabel}
+        className="block w-full cursor-pointer space-y-1.5 text-left"
+      >
+        <span className="flex items-center justify-between gap-1">
+          <span className="flex flex-wrap items-center gap-1.5">
             <span
-              className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-[#33E1FF]/40 bg-[#33E1FF]/10 text-cyan-700 dark:text-[#33E1FF]"
-              title="Produs de motorul din browser în această sesiune; nu e un fixture demo."
+              className={`rounded border px-1.5 py-0.5 text-[9px] font-black uppercase ${
+                critical
+                  ? 'border-red-200 bg-red-50 text-[#991B1B] dark:border-[#D73833]/40 dark:bg-[#D73833]/20 dark:text-[#FF8A80]'
+                  : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-[#FFEB33]/40 dark:bg-[#FFEB33]/15 dark:text-[#FFEB33]'
+              }`}
             >
-              local
+              {event.severity}
             </span>
-          )}
-        </div>
 
-        <span className="font-mono text-[10px] text-slate-400">{event.event_id.slice(-6)}</span>
-      </div>
+            <span
+              className={`rounded border px-1.5 py-0.5 text-[9px] font-bold ${
+                acknowledged
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400'
+                  : escalated
+                    ? 'border-red-300 bg-red-100 font-black text-[#991B1B] dark:border-[#D73833]/30 dark:bg-[#D73833]/30 dark:text-[#FF8A80]'
+                    : 'border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-800 dark:bg-slate-800 dark:text-slate-300'
+              }`}
+            >
+              {statusText}
+            </span>
 
-      <div>
-        <p className="font-bold text-xs leading-tight text-slate-900 dark:text-slate-100">
-          {event.report?.what}
-        </p>
-        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5">
-          {event.camera_id} • {event.report?.where}
-        </p>
-      </div>
+            {event.local && (
+              <span
+                className="rounded border border-[#33E1FF]/40 bg-[#33E1FF]/10 px-1.5 py-0.5 text-[9px] font-bold text-cyan-700 dark:text-[#33E1FF]"
+                title="Produs de motorul din browser în această sesiune; nu e un fixture demo."
+              >
+                local
+              </span>
+            )}
+          </span>
 
-      <div className="flex items-center justify-between text-[11px] pt-0.5">
-        <ConfidenceBadge confidence={event.confidence} />
-        <span className="font-mono text-[10px] text-slate-400">
-          {new Date(event.detected_at).toLocaleTimeString('ro-RO')}
+          <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">{shortId}</span>
         </span>
-      </div>
 
-      <div className="pt-1 flex items-center justify-between border-t border-slate-500/10">
-        <span className="text-[10px] text-amber-600 dark:text-[#FFEB33] font-semibold hover:underline flex items-center gap-1">
+        <span className="block">
+          <span className="block text-xs font-bold leading-tight text-slate-900 dark:text-slate-100">
+            {event.report?.what}
+          </span>
+          <span className="mt-0.5 block font-mono text-[10px] text-slate-500 dark:text-slate-400">
+            {event.camera_id} • {event.report?.where}
+          </span>
+        </span>
+
+        <span className="flex items-center justify-between pt-0.5 text-[11px]">
+          <ConfidenceBadge confidence={event.confidence} />
+          <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400">
+            {new Date(event.detected_at).toLocaleTimeString('ro-RO')}
+          </span>
+        </span>
+      </button>
+
+      <div className="mt-1 flex items-center justify-between border-t border-slate-500/10 pt-1">
+        <span
+          aria-hidden="true"
+          className="flex items-center gap-1 text-[10px] font-semibold text-amber-700 dark:text-[#FFEB33]"
+        >
           <Eye size={12} /> Detalii Incident
         </span>
 
@@ -98,7 +117,10 @@ export default function IncidentFeedCard({ event, isDarkMode, onOpen, onAck, onA
             type="button"
             onPointerDown={() => onAckPress(event.event_id)}
             onClick={(clickEvent) => onAck(clickEvent, event.event_id)}
-            className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 flex items-center gap-1 shadow-sm transition-colors"
+            // A unique name per card: four buttons called "Confirmă" are indistinguishable
+            // in a screen reader's element list.
+            aria-label={`Confirmă incidentul ${shortId}`}
+            className="flex items-center gap-1 rounded-lg bg-emerald-700 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm transition-colors hover:bg-emerald-800"
             title="Confirmă incidentul și anulează timerul de escaladare"
           >
             <Check size={12} /> Confirmă

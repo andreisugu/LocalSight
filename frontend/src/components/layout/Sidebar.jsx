@@ -126,7 +126,7 @@ function AttentionBadge({ open, escalated, oldestMinutes }) {
       className="flex shrink-0 items-stretch overflow-hidden rounded-full shadow ring-1 ring-[#D73833]/60"
     >
       <Pill tone="danger" shape="plain" className="gap-1 px-1.5 py-0.5 text-[10px]">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+        <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-white" />
         {escalated}
       </Pill>
       {age && (
@@ -200,7 +200,7 @@ function NavButton({ item, active, collapsed, attention, onSelect }) {
             className={`mt-0.5 block truncate text-[10px] font-normal ${
               active
                 ? isDarkMode
-                  ? 'text-white/80'
+                  ? 'text-white'
                   : 'text-[#1F1F1F]/80'
                 : isDarkMode
                   ? 'text-slate-400'
@@ -229,7 +229,7 @@ function NavList({ currentView, collapsed, attention, onSelect }) {
     <nav aria-label="Module" className="flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-2 py-3">
       <div className="space-y-1">
         {!collapsed && (
-          <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          <p className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
             Module Operaționale
           </p>
         )}
@@ -403,6 +403,19 @@ export default function Sidebar() {
 
   const collapseRail = () => setIsSidebarCollapsed(true);
 
+  // A collapsed rail keeps its width at 0 but its buttons stay in the tab order at
+  // negative coordinates (WCAG 2.4.7 / 2.4.3). `inert` removes the whole subtree from
+  // both the tab order and the accessibility tree; the header's rail toggle is the way
+  // back. Set through the DOM because the property is not part of React 18's attribute
+  // list for every browser.
+  const asideRef = useRef(null);
+  useEffect(() => {
+    const node = asideRef.current;
+    if (!node) return;
+    if (isSidebarCollapsed) node.setAttribute('inert', '');
+    else node.removeAttribute('inert');
+  }, [isSidebarCollapsed]);
+
   return (
     <>
       {/* On a phone the rail covers the content, so a backdrop closes it by click: no
@@ -416,6 +429,7 @@ export default function Sidebar() {
       )}
 
       <aside
+        ref={asideRef}
         aria-label="Navigare"
         style={{
           backgroundColor: isDarkMode ? themeStyles.navBg : '#FFFFFF',

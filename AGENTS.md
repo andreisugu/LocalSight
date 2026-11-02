@@ -116,6 +116,25 @@ bash scripts/prepare-demo-media.sh           # scrie în frontend/public/media/
 - Fără nume, fără recunoaștere de emoții, fără upload de cadre. Afirmația „nimic nu
   părăsește tab-ul" trebuie să rămână literală.
 
+## Accesibilitate — reguli pe care UI-ul le respectă azi
+
+- **Inelul de focus e global**, în `frontend/src/styles/base.css`: două tonuri (miez închis
+  `#0F172A` pe tema luminoasă, galben `#FFEB33` pe cea întunecată, fiecare cu halo). Nu
+  adăuga local `focus:ring-[#FFEB33]`: galbenul pe alb are 1,22:1 și nu se vede.
+- **Orice modal trece prin portal în `<body>`** și respectă contractul din
+  `FalsePositiveDialog.jsx`: `role=dialog` + `aria-modal` + `aria-labelledby`, focus în
+  primul control, Tab/Shift+Tab prinse în dialog, Escape închide, focusul se întoarce la
+  declanșator, iar restul documentului devine `inert`.
+- **Metadata pe suprafață albă folosește `text-slate-500`** (4,76:1) cu `dark:text-slate-400`
+  (5,75:1). `text-slate-400` pe alb are 2,56:1 și nu trece AA; `text-amber-700` înlocuiește
+  `amber-500` pentru valori (5,02:1).
+- **Mișcarea infinită se oprește** sub `prefers-reduced-motion` (blocul global din
+  `base.css`), iar accentul de escaladare e un inel static — nu o pulsație de opacitate,
+  care coboară textul sub AA pentru jumătate din ciclu.
+- **Pe ecranele Live, eticheta sursei spune adevărul**: `LIVE REC` există doar pentru
+  camera locală; un clip demo scrie `CLIP DEMO · LOOP`. Starea de eroare a camerei nu păstrează
+  cadrul vechi, HUD-ul sau footerul.
+
 ## Când ești blocat
 
 Citește documentul relevant și fișierele atinse; propune un plan de 3 linii; pune o singură

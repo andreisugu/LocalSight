@@ -43,18 +43,25 @@ export default function MediaStage({
   onVideoError,
 }) {
   const hasFeed = isWebcam || plan.showDemoVideo;
+  // With CAM-LOCAL selected and getUserMedia failing there is no picture, so the stage
+  // must not keep the last frame, a "LIVE REC" badge or a "SURSĂ: camera acestui
+  // dispozitiv" footer. One error state, on an opaque surface, alone.
+  const webcamError = isWebcam && webcam?.state === 'error' && Boolean(webcam?.error);
+  const surfaceClass = webcamError
+    ? 'w-full h-full bg-black relative flex items-center justify-center overflow-hidden'
+    : `w-full h-full bg-gradient-to-br ${
+        activeCamera?.previewBg || 'from-slate-900 to-black'
+      } relative flex items-center justify-center overflow-hidden`;
 
   return (
     <div className={frameClass(displayMode)}>
       {plan.isOffline ? (
         <SignalLost cameraId={activeCamera?.id} />
       ) : (
-        <div
-          className={`w-full h-full bg-gradient-to-br ${
-            activeCamera?.previewBg || 'from-slate-900 to-black'
-          } relative flex items-center justify-center overflow-hidden`}
-        >
-          {plan.noLiveForCamera ? (
+        <div className={surfaceClass}>
+          {webcamError ? (
+            <WebcamErrorCard error={webcam.error} onRetry={onRetryWebcam} />
+          ) : plan.noLiveForCamera ? (
             <NoDemoFeed camera={activeCamera} demoCameraLabel={plan.demoCameraLabel} />
           ) : plan.showStream ? (
             <img
@@ -96,9 +103,6 @@ export default function MediaStage({
               />
               <SourceBadge isWebcam={isWebcam} />
               {isWebcam && webcam.state === 'requesting' && <WebcamRequestCard />}
-              {isWebcam && webcam.state === 'error' && webcam.error && (
-                <WebcamErrorCard error={webcam.error} onRetry={onRetryWebcam} />
-              )}
             </>
           ) : (
             <StreamPlaceholder
@@ -111,14 +115,18 @@ export default function MediaStage({
           {/* The overlay is either the engine's real canvas, or absent. With the engine
               off no person box is drawn: only the configured zone and a note that says
               exactly what the visitor sees. */}
-          {engineSource && !browserEngineOn && <ZoneOutline zone={activeZone} />}
+          {!webcamError && engineSource && !browserEngineOn && <ZoneOutline zone={activeZone} />}
 
-          <HudReadout resolution={activeCamera?.resolution} />
-          {!edgeActive && !plan.noLiveForCamera && !isWebcam && <EdgeWarning />}
-          {plan.demoClip && !plan.noLiveForCamera && !isWebcam && (
-            <DemoClipSource demoClip={plan.demoClip} />
+          {!webcamError && (
+            <>
+              <HudReadout resolution={activeCamera?.resolution} isWebcam={isWebcam} />
+              {!edgeActive && !plan.noLiveForCamera && !isWebcam && <EdgeWarning />}
+              {plan.demoClip && !plan.noLiveForCamera && !isWebcam && (
+                <DemoClipSource demoClip={plan.demoClip} />
+              )}
+              <CameraFooter camera={activeCamera} isWebcam={isWebcam} />
+            </>
           )}
-          <CameraFooter camera={activeCamera} isWebcam={isWebcam} />
         </div>
       )}
     </div>
