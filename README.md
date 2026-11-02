@@ -188,3 +188,7 @@ Proiectul a fost construit la un hackathon ca **SafeSight**, de Andrei, Max, Dal
 Ariana; documentele și run sheet-urile păstrează numele celor care le-au scris. Acest fork
 păstrează pipeline-ul prin portarea lui în browser și scoate din produs backend-ul,
 alertarea și raportarea; stack-ul Python de referință nu mai face parte din repo.
+
+Upstream: [`DaVecTORzzz/craiova-hack-2026`](https://github.com/DaVecTORzzz/craiova-hack-2026)
+(repo privat). Istoria commit-urilor este păstrată integral, iar licența BSL 1.1 și
+creditele de mai sus rămân valabile dacă acest repo iese din rețeaua de fork-uri GitHub.
