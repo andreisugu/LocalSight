@@ -10,6 +10,13 @@
     "preview": "vite preview",
     "test:unit": "node --test src/engine/*.test.mjs src/utils/*.test.mjs src/constants/*.test.mjs src/data/*.test.mjs src/services/*.test.mjs src/context/*.test.mjs src/components/*/*.test.mjs",
     "test:e2e": "playwright test",
+    "serve:test": "node scripts/serve-test.mjs",
+    "e2e:serve": "node scripts/serve-test.mjs --base /LocalSight/",
+    "e2e:smoke": "playwright test",
+    "e2e:pages": "playwright test --config=playwright.pages.config.js",
+    "e2e:persistence": "playwright test --config=playwright.persistence.config.js",
+    "verify:fast": "npm run test:unit && npm run build",
+    "verify": "node scripts/verify.mjs",
     "test:e2e:install": "playwright install chromium"
   },
   "dependencies": {

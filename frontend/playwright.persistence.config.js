@@ -11,9 +11,15 @@ import { defineConfig, devices } from '@playwright/test';
 //
 // The server is `e2e/pages/server.mjs`: same subpath, same 404 fallback, same missing
 // COOP/COEP headers as GitHub Pages.
+//
+// `PW_BASE_URL` is the opt-in fast path, same contract as the Pages config: set it to a
+// running Pages-shaped server (full subpath URL) and this config starts nothing. `npm run
+// verify -- --with-persistence` reuses the build and the server from the Pages step, so the
+// slow suite costs no extra build. Unset keeps the old behaviour: build + server on PW_PORT.
 const PORT = Number(process.env.PW_PORT) || 4352;
 const BASE_PATH = '/LocalSight/';
-const BASE_URL = `http://127.0.0.1:${PORT}${BASE_PATH}`;
+const BASE_URL = process.env.PW_BASE_URL || `http://127.0.0.1:${PORT}${BASE_PATH}`;
+const EXTERNAL_SERVER = Boolean(process.env.PW_BASE_URL);
 
 export default defineConfig({
   testDir: './persistence-e2e',
@@ -34,16 +40,21 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'npm run build && node e2e/pages/server.mjs',
-    url: BASE_URL,
-    timeout: 240_000,
-    reuseExistingServer: false,
-    env: {
-      ...process.env,
-      VITE_USE_MOCK: 'true',
-      VITE_BASE: BASE_PATH,
-      PW_PAGES_PORT: String(PORT),
-    },
-  },
+  // No server when PW_BASE_URL names one: the caller owns the build and the port.
+  ...(EXTERNAL_SERVER
+    ? {}
+    : {
+        webServer: {
+          command: 'npm run build && node e2e/pages/server.mjs',
+          url: BASE_URL,
+          timeout: 240_000,
+          reuseExistingServer: false,
+          env: {
+            ...process.env,
+            VITE_USE_MOCK: 'true',
+            VITE_BASE: BASE_PATH,
+            PW_PAGES_PORT: String(PORT),
+          },
+        },
+      }),
 });

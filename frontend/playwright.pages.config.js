@@ -8,9 +8,16 @@ import { defineConfig, devices } from '@playwright/test';
 // e2e/pages/server.mjs mirrors those three properties, and the suite asserts them.
 //
 // The build is the same command as pages.yml (VITE_USE_MOCK=true VITE_BASE=/LocalSight/).
+//
+// `PW_BASE_URL` is the opt-in fast path: set it to an already-running server that has the
+// Pages shape (the full subpath URL, e.g. http://127.0.0.1:53941/LocalSight/) and this
+// config starts nothing. `npm run e2e:serve` is that server, and `npm run verify` uses the
+// same path. Unset keeps the old behaviour: one build, one Pages-shaped server on
+// PW_PAGES_PORT, never reused.
 const PORT = Number(process.env.PW_PAGES_PORT) || 4317;
 const BASE_PATH = '/LocalSight/';
-const BASE_URL = `http://127.0.0.1:${PORT}${BASE_PATH}`;
+const BASE_URL = process.env.PW_BASE_URL || `http://127.0.0.1:${PORT}${BASE_PATH}`;
+const EXTERNAL_SERVER = Boolean(process.env.PW_BASE_URL);
 
 export default defineConfig({
   testDir: './e2e/pages',
@@ -35,15 +42,20 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    // VITE_USE_MOCK and VITE_BASE are build-time values, so they belong to this command.
-    // server.mjs also writes the 404.html fallback Pages expects, then serves dist/ under
-    // /LocalSight/ with the same cache headers and no COOP/COEP.
-    command: 'npm run build && node e2e/pages/server.mjs',
-    url: BASE_URL,
-    timeout: 240_000,
-    // Never reuse: a leftover server would test a dist that no longer exists.
-    reuseExistingServer: false,
-    env: { ...process.env, VITE_USE_MOCK: 'true', VITE_BASE: BASE_PATH },
-  },
+  // No server when PW_BASE_URL names one: the caller owns the build and the port.
+  ...(EXTERNAL_SERVER
+    ? {}
+    : {
+        webServer: {
+          // VITE_USE_MOCK and VITE_BASE are build-time values, so they belong to this command.
+          // server.mjs also writes the 404.html fallback Pages expects, then serves dist/ under
+          // /LocalSight/ with the same cache headers and no COOP/COEP.
+          command: 'npm run build && node e2e/pages/server.mjs',
+          url: BASE_URL,
+          timeout: 240_000,
+          // Never reuse: a leftover server would test a dist that no longer exists.
+          reuseExistingServer: false,
+          env: { ...process.env, VITE_USE_MOCK: 'true', VITE_BASE: BASE_PATH },
+        },
+      }),
 });
