@@ -1,6 +1,6 @@
 # Proveniență — cine a scris codul rămas
 
-Generat cu `python3 scripts/provenance.py --write` la commit `5bb2baa`.
+Generat cu `python3 scripts/provenance.py --write` la commit `d6ec48e`.
 Măsoară **ultima atingere a fiecărei linii** (`git blame -w`), nu commit-urile.
 Un rând rescris de tine apare ca al tău chiar dacă ideea era a altcuiva; un rând
 copiat dintr-un fișier al colegilor rămâne al lor până îl atingi. `-w` ignoră
@@ -8,7 +8,7 @@ schimbările doar de whitespace. Fișierele binare, lockfile-urile și asset-uri
 excluse. Codul scris de agenți în această sesiune e comis sub identitatea ta, deci
 intră la „tu”.
 
-**Total: 42295 linii** — tu 41760, colegi 535, necunoscut 0.
+**Total: 43028 linii** — tu 42491, colegi 535, necunoscut 2.
 
 | Fișier | Linii | Tu | Colegi | ? | Colegi % |
 |---|---:|---:|---:|---:|---:|
@@ -26,18 +26,18 @@ intră la „tu”.
 | `frontend/src/utils/print.js` | 23 | 19 | 4 | 0 | 17.4% |
 | `frontend/src/main.jsx` | 61 | 51 | 10 | 0 | 16.4% |
 | `frontend/src/constants/eventActions.js` | 19 | 16 | 3 | 0 | 15.8% |
-| `frontend/src/components/views/LiveView.jsx` | 305 | 268 | 37 | 0 | 12.1% |
+| `frontend/src/components/views/LiveView.jsx` | 308 | 271 | 37 | 0 | 12.0% |
 | `frontend/src/components/layout/Header.jsx` | 536 | 473 | 63 | 0 | 11.8% |
 | `frontend/src/utils/sound.js` | 46 | 41 | 5 | 0 | 10.9% |
 | `frontend/src/components/views/ZoneEditorView.jsx` | 393 | 357 | 36 | 0 | 9.2% |
 | `frontend/src/components/views/ReportsView.jsx` | 630 | 574 | 56 | 0 | 8.9% |
-| `frontend/src/components/views/SettingsView.jsx` | 856 | 792 | 64 | 0 | 7.5% |
-| `frontend/src/components/layout/Sidebar.jsx` | 464 | 437 | 27 | 0 | 5.8% |
+| `frontend/src/components/views/SettingsView.jsx` | 941 | 877 | 64 | 0 | 6.8% |
+| `frontend/src/components/layout/Sidebar.jsx` | 465 | 438 | 27 | 0 | 5.8% |
 | `frontend/src/services/api.js` | 54 | 51 | 3 | 0 | 5.6% |
 | `frontend/src/context/SecurityContext.jsx` | 224 | 214 | 10 | 0 | 4.5% |
-| `frontend/src/engine/worker.js` | 1219 | 1219 | 0 | 0 | 0.0% |
+| `frontend/src/engine/worker.js` | 1251 | 1251 | 0 | 0 | 0.0% |
 | `frontend/src/components/views/LabView.jsx` | 1034 | 1034 | 0 | 0 | 0.0% |
-| `frontend/src/components/views/BenchView.jsx` | 764 | 764 | 0 | 0 | 0.0% |
+| `frontend/src/components/views/BenchView.jsx` | 765 | 765 | 0 | 0 | 0.0% |
 | `frontend/src/engine/features.js` | 739 | 739 | 0 | 0 | 0.0% |
 | `frontend/src/services/evidencePersistence.js` | 697 | 697 | 0 | 0 | 0.0% |
 | `frontend/src/engine/align.js` | 663 | 663 | 0 | 0 | 0.0% |
@@ -48,61 +48,63 @@ intră la „tu”.
 | `frontend/src/engine/align.test.mjs` | 565 | 565 | 0 | 0 | 0.0% |
 | `frontend/src/utils/coverage.js` | 563 | 563 | 0 | 0 | 0.0% |
 | `frontend/src/engine/backgroundCameras.test.mjs` | 561 | 561 | 0 | 0 | 0.0% |
-| `frontend/src/engine/useEngine.js` | 490 | 490 | 0 | 0 | 0.0% |
+| `frontend/src/engine/useEngine.js` | 501 | 501 | 0 | 0 | 0.0% |
 | `frontend/src/components/live/LiveEngineCard.jsx` | 486 | 486 | 0 | 0 | 0.0% |
 | `frontend/src/utils/zoneDraft.js` | 460 | 460 | 0 | 0 | 0.0% |
 | `frontend/src/services/evidencePersistence.test.mjs` | 457 | 457 | 0 | 0 | 0.0% |
 | `frontend/src/engine/zones.test.mjs` | 445 | 445 | 0 | 0 | 0.0% |
 | `frontend/src/components/live/TriageRow.jsx` | 438 | 438 | 0 | 0 | 0.0% |
-| `frontend/src/engine/createBackgroundEngine.js` | 409 | 409 | 0 | 0 | 0.0% |
+| `frontend/src/engine/createBackgroundEngine.js` | 418 | 418 | 0 | 0 | 0.0% |
 | `frontend/src/engine/vest.js` | 383 | 383 | 0 | 0 | 0.0% |
 | `frontend/src/engine/zones.js` | 380 | 380 | 0 | 0 | 0.0% |
+| `frontend/src/engine/decode.test.mjs` | 378 | 378 | 0 | 0 | 0.0% |
 | `frontend/src/components/reports/CoverageRibbon.jsx` | 371 | 371 | 0 | 0 | 0.0% |
 | `frontend/src/utils/coverage.test.mjs` | 370 | 370 | 0 | 0 | 0.0% |
 | `frontend/src/utils/groundCalibration.js` | 353 | 353 | 0 | 0 | 0.0% |
+| `frontend/src/engine/detectors.js` | 352 | 352 | 0 | 0 | 0.0% |
 | `frontend/src/components/live/GroundCalibration.jsx` | 351 | 351 | 0 | 0 | 0.0% |
+| `frontend/src/components/live/liveMedia.js` | 349 | 349 | 0 | 0 | 0.0% |
 | `frontend/src/engine/events.js` | 346 | 346 | 0 | 0 | 0.0% |
-| `frontend/src/components/live/liveMedia.js` | 344 | 344 | 0 | 0 | 0.0% |
+| `frontend/src/components/live/liveMedia.test.mjs` | 341 | 341 | 0 | 0 | 0.0% |
 | `frontend/src/components/live/TriageQueue.jsx` | 333 | 333 | 0 | 0 | 0.0% |
 | `frontend/src/utils/groundCalibration.test.mjs` | 332 | 332 | 0 | 0 | 0.0% |
 | `frontend/src/engine/vest.test.mjs` | 328 | 328 | 0 | 0 | 0.0% |
 | `frontend/src/engine/pipeline.test.mjs` | 326 | 326 | 0 | 0 | 0.0% |
 | `frontend/public/coi-serviceworker.js` | 325 | 325 | 0 | 0 | 0.0% |
 | `frontend/src/engine/groundPlane.js` | 325 | 325 | 0 | 0 | 0.0% |
-| `frontend/src/components/live/liveMedia.test.mjs` | 317 | 317 | 0 | 0 | 0.0% |
 | `frontend/persistence-e2e/persistence.spec.js` | 308 | 308 | 0 | 0 | 0.0% |
 | `frontend/src/engine/groundPlane.test.mjs` | 299 | 299 | 0 | 0 | 0.0% |
 | `frontend/src/components/zones/ZoneCanvas.jsx` | 296 | 296 | 0 | 0 | 0.0% |
 | `frontend/src/engine/tracker.js` | 296 | 296 | 0 | 0 | 0.0% |
-| `frontend/src/engine/decode.test.mjs` | 291 | 291 | 0 | 0 | 0.0% |
 | `frontend/scripts/serve-test.mjs` | 289 | 289 | 0 | 0 | 0.0% |
 | `frontend/src/utils/incidentDetail.test.mjs` | 287 | 287 | 0 | 0 | 0.0% |
+| `frontend/src/engine/pipeline.js` | 284 | 284 | 0 | 0 | 0.0% |
 | `frontend/src/context/useIncidentStore.js` | 283 | 283 | 0 | 0 | 0.0% |
-| `frontend/src/engine/pipeline.js` | 283 | 283 | 0 | 0 | 0.0% |
-| `frontend/src/context/useBackgroundCameras.js` | 277 | 277 | 0 | 0 | 0.0% |
+| `frontend/src/utils/engineSettings.test.mjs` | 283 | 283 | 0 | 0 | 0.0% |
+| `frontend/src/context/useBackgroundCameras.js` | 281 | 281 | 0 | 0 | 0.0% |
 | `frontend/src/engine/zoneLabels.test.mjs` | 275 | 275 | 0 | 0 | 0.0% |
 | `frontend/src/data/incidents.js` | 272 | 272 | 0 | 0 | 0.0% |
-| `frontend/src/engine/detectors.js` | 268 | 268 | 0 | 0 | 0.0% |
 | `scripts/provenance.py` | 267 | 267 | 0 | 0 | 0.0% |
 | `scripts/prepare-demo-media.sh` | 266 | 266 | 0 | 0 | 0.0% |
+| `frontend/src/engine/decode.js` | 260 | 260 | 0 | 0 | 0.0% |
 | `frontend/src/utils/polygon.test.mjs` | 259 | 259 | 0 | 0 | 0.0% |
 | `.github/workflows/ci.yml` | 258 | 258 | 0 | 0 | 0.0% |
 | `frontend/src/engine/events.test.mjs` | 254 | 254 | 0 | 0 | 0.0% |
+| `frontend/src/utils/systemView.test.mjs` | 251 | 251 | 0 | 0 | 0.0% |
 | `frontend/src/components/live/IncidentFeed.jsx` | 247 | 247 | 0 | 0 | 0.0% |
 | `frontend/src/utils/incidentDetail.js` | 244 | 244 | 0 | 0 | 0.0% |
-| `frontend/scripts/verify.mjs` | 231 | 231 | 0 | 0 | 0.0% |
+| `frontend/scripts/verify.mjs` | 231 | 229 | 0 | 2 | 0.0% |
 | `scripts/agent-cleanup.sh` | 231 | 231 | 0 | 0 | 0.0% |
-| `frontend/src/utils/systemView.test.mjs` | 227 | 227 | 0 | 0 | 0.0% |
 | `frontend/src/constants/shiftReport.js` | 225 | 225 | 0 | 0 | 0.0% |
 | `frontend/src/engine/zoneLabels.js` | 223 | 223 | 0 | 0 | 0.0% |
 | `frontend/src/constants/shiftReport.test.mjs` | 221 | 221 | 0 | 0 | 0.0% |
 | `frontend/src/engine/tracker.test.mjs` | 220 | 220 | 0 | 0 | 0.0% |
-| `frontend/e2e/smoke.spec.js` | 215 | 215 | 0 | 0 | 0.0% |
-| `frontend/src/components/live/useLiveMedia.js` | 207 | 207 | 0 | 0 | 0.0% |
+| `frontend/e2e/smoke.spec.js` | 218 | 218 | 0 | 0 | 0.0% |
+| `frontend/src/components/live/useLiveMedia.js` | 209 | 209 | 0 | 0 | 0.0% |
 | `frontend/src/engine/perf.test.mjs` | 202 | 202 | 0 | 0 | 0.0% |
-| `frontend/src/utils/engineSettings.test.mjs` | 200 | 200 | 0 | 0 | 0.0% |
+| `frontend/scripts/prepare-models.py` | 200 | 200 | 0 | 0 | 0.0% |
+| `frontend/src/utils/systemView.js` | 197 | 197 | 0 | 0 | 0.0% |
 | `frontend/src/services/backendMappers.test.mjs` | 189 | 189 | 0 | 0 | 0.0% |
-| `frontend/src/utils/systemView.js` | 189 | 189 | 0 | 0 | 0.0% |
 | `frontend/src/components/zones/ZoneToolbar.jsx` | 186 | 186 | 0 | 0 | 0.0% |
 | `frontend/src/services/backendApi.js` | 186 | 186 | 0 | 0 | 0.0% |
 | `frontend/src/services/backendMappers.js` | 186 | 186 | 0 | 0 | 0.0% |
@@ -111,14 +113,14 @@ intră la „tu”.
 | `frontend/src/utils/incidentState.test.mjs` | 176 | 176 | 0 | 0 | 0.0% |
 | `frontend/src/data/report.js` | 173 | 173 | 0 | 0 | 0.0% |
 | `frontend/e2e/pages/server.mjs` | 170 | 170 | 0 | 0 | 0.0% |
+| `frontend/src/utils/engineSettings.js` | 169 | 169 | 0 | 0 | 0.0% |
 | `frontend/src/utils/incidentState.js` | 167 | 167 | 0 | 0 | 0.0% |
 | `frontend/e2e/helpers.mjs` | 163 | 163 | 0 | 0 | 0.0% |
 | `frontend/src/components/live/MediaStage.jsx` | 163 | 163 | 0 | 0 | 0.0% |
-| `frontend/src/engine/decode.js` | 163 | 163 | 0 | 0 | 0.0% |
 | `frontend/src/context/useBackgroundCameras.test.mjs` | 162 | 162 | 0 | 0 | 0.0% |
 | `frontend/src/engine/blur.test.mjs` | 161 | 161 | 0 | 0 | 0.0% |
 | `frontend/src/components/live/CameraToolbar.jsx` | 158 | 158 | 0 | 0 | 0.0% |
-| `frontend/scripts/prepare-models.py` | 157 | 157 | 0 | 0 | 0.0% |
+| `frontend/e2e/pages/pages.spec.js` | 157 | 157 | 0 | 0 | 0.0% |
 | `frontend/src/data/report.test.mjs` | 156 | 156 | 0 | 0 | 0.0% |
 | `frontend/src/components/incidents/FalsePositiveDialog.jsx` | 155 | 155 | 0 | 0 | 0.0% |
 | `frontend/src/context/useEvidencePersistence.js` | 152 | 152 | 0 | 0 | 0.0% |
@@ -132,7 +134,6 @@ intră la „tu”.
 | `frontend/src/context/useZoneStore.js` | 137 | 137 | 0 | 0 | 0.0% |
 | `frontend/src/components/common/ErrorBoundary.jsx` | 135 | 135 | 0 | 0 | 0.0% |
 | `frontend/src/services/http.test.mjs` | 135 | 135 | 0 | 0 | 0.0% |
-| `frontend/src/utils/engineSettings.js` | 133 | 133 | 0 | 0 | 0.0% |
 | `frontend/src/components/live/triageRows.test.mjs` | 131 | 131 | 0 | 0 | 0.0% |
 | `frontend/src/utils/reportExport.js` | 131 | 131 | 0 | 0 | 0.0% |
 | `frontend/src/services/mockApi.js` | 129 | 129 | 0 | 0 | 0.0% |
@@ -141,7 +142,6 @@ intră la „tu”.
 | `frontend/src/components/live/KpiStrip.jsx` | 122 | 122 | 0 | 0 | 0.0% |
 | `.github/workflows/pages.yml` | 120 | 120 | 0 | 0 | 0.0% |
 | `frontend/src/data/cameras.js` | 120 | 120 | 0 | 0 | 0.0% |
-| `frontend/e2e/pages/pages.spec.js` | 119 | 119 | 0 | 0 | 0.0% |
 | `frontend/src/utils/kpi.test.mjs` | 118 | 118 | 0 | 0 | 0.0% |
 | `frontend/src/context/useConnectionHealth.js` | 116 | 116 | 0 | 0 | 0.0% |
 | `frontend/src/components/incidents/IncidentHeader.jsx` | 115 | 115 | 0 | 0 | 0.0% |
@@ -228,10 +228,12 @@ intră la „tu”.
 | `frontend/src/styles/print.css` | 33 | 33 | 0 | 0 | 0.0% |
 | `frontend/src/context/useToast.js` | 32 | 32 | 0 | 0 | 0.0% |
 | `frontend/src/engine/zones.default.js` | 32 | 32 | 0 | 0 | 0.0% |
+| `frontend/src/engine/webgpu.js` | 31 | 31 | 0 | 0 | 0.0% |
 | `frontend/src/components/incidents/IncidentEmptyState.jsx` | 30 | 30 | 0 | 0 | 0.0% |
-| `frontend/src/engine/webgpu.js` | 29 | 29 | 0 | 0 | 0.0% |
 | `frontend/src/data/media.js` | 28 | 28 | 0 | 0 | 0.0% |
 | `frontend/src/services/shift.js` | 28 | 28 | 0 | 0 | 0.0% |
+| `frontend/src/engine/detectorFlag.js` | 25 | 25 | 0 | 0 | 0.0% |
+| `frontend/src/engine/detectorFlag.test.mjs` | 25 | 25 | 0 | 0 | 0.0% |
 | `frontend/src/test/factories.mjs` | 25 | 25 | 0 | 0 | 0.0% |
 | `frontend/src/data/eventIds.js` | 24 | 24 | 0 | 0 | 0.0% |
 | `frontend/src/components/ui/tone.test.mjs` | 23 | 23 | 0 | 0 | 0.0% |

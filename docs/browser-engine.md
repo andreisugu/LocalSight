@@ -82,7 +82,7 @@ Modulele din `frontend/src/engine/` (spike-ul):
 | Fișier | Rol |
 |---|---|
 | `worker.js` | bucla de cadre, un singur cadru în zbor, detector de persoane + YuNet + blur, mesaje |
-| `detectors.js` | încărcare ORT-web (`webgpu` cu fallback WASM), letterbox, `runEfficientDet` / `runYuNet`, `rgbaToNchw` |
+| `detectors.js` | încărcare ORT-web pe WASM, letterbox, `runEfficientDet` / `runYuNet`; WebGPU doar în `/bench` |
 | `decode.js` | decodare EfficientDet (25 detecții, normalizate, clasa 0) și YuNet (stride 8/16/32, NMS 0.3) |
 | `useEngine.js` | hook React: worker, `requestVideoFrameCallback`, canvas, statistici |
 
@@ -158,8 +158,9 @@ letterbox-ul. Pragul de încredere e al aplicației, nu al grafului.
 greutățile fiecărui vizitator — AGPL §13 se aplică și la găzduire, deci fiecare demo public
 era o distribuție de greutăți copyleft. EfficientDet-Lite are greutăți Apache-2.0 (Google) și
 o conversie ONNX CC BY 3.0 (Namas Bhandari): ambele permit uz comercial, cu atribuire.
-Prețul e viteza, și se spune: ~8,8 fps (Lite0) și ~4,8 fps (Lite2), față de 5,2–6,0 fps
-măsurat pe YOLO26n la cadru 1280, pe aceeași mașină. Lanțul complet de proveniență și
+Prețul nu e viteza: Lite0 e chiar mai rapid decât YOLO26n în aceeași măsurătoare
+(8,8 vs 6,9 fps la cadru 1280), iar Lite2 coboară la 4,8 fps. Prețul real e recall-ul pe
+oamenii mici/îndepărtați; de aceea Lite2 există ca opțiune. Lanțul complet de proveniență și
 ce rămâne deschis (filmările demo): [`legal/model-provenance.md`](legal/model-provenance.md).
 
 **De ce patch-ul dinamic e obligatoriu la YuNet.** Graful YuNet are straturi de fuziune care cer
@@ -184,13 +185,13 @@ dintr-un release extern ar adăuga o dependență de rețea în calea critică d
 ## 5. Runtime
 
 - `onnxruntime-web`, două sesiuni în același worker: `detector` și `privacy`.
-- Provideri în ordine: `['webgpu', 'wasm']`. Se decide o singură dată, la pornire, după
-  `navigator.gpu` și după ce `requestAdapter()` întoarce un adaptor real (nu software).
-  Alegerea se afișează în UI: „WebGPU” sau „WASM (fără accelerare)”.
-- Un warm-up obligatoriu: o inferență pe un tensor zero înainte de primul cadru real;
-  prima rulare include compilarea shader-elor și nu reprezintă performanța.
-- WebGPU cere build-ul `jsep` al ORT-web (îl include pe cel WASM); mărimea livrată e de
-  verificat, nu presupusă. `executionMode: 'parallel'` nu ajută fără fire.
+- Calea livrată folosește **WASM** (`preferredProviders()` întoarce `['wasm']`). EfficientDet
+  nu rulează pe WebGPU: pe adapterul software din Chromium 156 a ieșit ~0,1 fps, deci
+  providerul a fost scos din Live/background. `/bench` poate cere WebGPU explicit și
+  raportează fallback-ul sau eroarea; nu se ascunde.
+- Prima inferență include inițializarea grafului și nu reprezintă performanța de regim.
+- Build-ul ORT-web rămâne cel `webgpu` (include și WASM); `executionMode: 'parallel'` nu
+  ajută fără fire.
 
 **Cum se obțin firele WASM pe Pages.** `onnxruntime-web` folosește `SharedArrayBuffer`
 pentru `numThreads > 1`, iar `SharedArrayBuffer` cere `crossOriginIsolated === true`,
@@ -202,8 +203,9 @@ Nu cachează nimic, ca un deploy să nu rămână ascuns în spatele unui shell 
 încărcare nu e izolată; după ce worker-ul preia pagina, `main.jsx` face **un singur reload**
 (guard în `sessionStorage`). Măsurat în browser pe clipul de 1080p: **~8,8 fps** cu
 EfficientDet-Lite0 (320 px) și **~4,8 fps** cu Lite2 (448 px). Pentru comparație, YOLO26n —
-detectorul dinainte, scos din build — măsura 5,2–6,0 fps în Chromium și 5,2 fps în Firefox,
-cu cadrul procesat la 1280 px, față de 1,5–1,8 fps pe un fir și ~3,7 fps la 1920×1080. Capul la 1280 nu schimbă porțile PPE: acestea se calculează în pixeli ai
+detectorul dinainte, scos din build — măsura 6,9 fps în aceeași măsurătoare (și 5,2–6,0 fps
+pe build-ul anterior), cu cadrul procesat la 1280 px. Lite0 e deci peste YOLO, Lite2 sub el;
+diferența reală e recall-ul, nu fps-ul. Capul la 1280 nu schimbă porțile PPE: acestea se calculează în pixeli ai
 cadrului sursă, ca în `ppe.py`. Dacă service worker-ul nu e disponibil, aplicația
 rulează identic, doar pe un fir; izolarea e o optimizare, nu o dependență.
 
@@ -223,11 +225,11 @@ YOLO26n, nu detectorul de azi: nu se compară 1:1 cu un motor care rulează Effi
 
 Ținte de verificat în browser — **ipoteze, nu fapte**:
 
-| Măsurătoare | Ipoteză | De ce ar putea să nu țină |
+| Măsurătoare | Rezultat | De ce ar putea să nu țină |
 |---|---|---|
 | EfficientDet-Lite0 320, WASM (măsurat) | ~8,8 fps cu cadru 1280 | cifra de azi; scade cu rezoluția cadrului și fără `crossOriginIsolated` |
 | EfficientDet-Lite2 448, WASM (măsurat) | ~4,8 fps cu cadru 1280 | inputul de 448 px costă ~2× față de 320 px; de ales când oamenii din cadru sunt mici |
-| EfficientDet-Lite0 320, WebGPU | 5–15 ms | intrarea `uint8` 320×320×3 e ~0,3 MB, deci transferul nu mai domină; câștigul depinde de driver |
+| EfficientDet-Lite0 320, WebGPU (experiment) | ~0,1 fps pe adapter software | nu se livrează; de retestat doar pe un GPU real, cu fallback vizibil în `/bench` |
 | YuNet 1080p, WebGPU | 20–50 ms | intrare fp32 1920×1080 = ~8.3 MB per cadru; modelul e mic, transferul domină (aceeași concluzie ca la iGPU + ncnn în `docs/performance.md`) |
 | YuNet 1080p, WASM | 80–200 ms | depinde de fire; 4 fire prin service worker-ul COOP/COEP |
 | primul cadru după încărcare | < 3 s | depinde de cache; rece: 13,2 MB (Lite0) sau 21,9 MB (Lite2) + runtime |
@@ -261,16 +263,16 @@ Reguli de buget care decurg din referință:
 (`getCameras`, `getZones`, `getEvents`, `acknowledgeEvent`, `getKPIs`, `getShiftReport`),
 implementate de `store.js` în loc de `fetch`. `connectEventsSocket` devine un abonament la
 bus. Astfel componentele nu se rescriu, iar build-ul mock (`VITE_USE_MOCK=true`) rămâne al
-treilea mod de rulare, util când WebGPU lipsește.
+treilea mod de rulare, util pentru teste și pentru un host fără ONNX Runtime.
 
 ## 8. Riscuri și întrebări deschise
 
-1. **WebGPU pe mașina privitorului.** Cel mai probabil mod de eșec al demonstrației.
-   Fallback-ul WASM pe un fir coboară la 1,5–1,8 fps; cu service worker-ul COOP/COEP urcă
-   la ~8,8 fps cu Lite0 (320 px) și ~4,8 fps cu Lite2 (448 px) la cadru 1280, suficient
-   pentru demo. De decis pragul de „mod lent”: dacă inferența depășește ~80 ms, UI-ul scrie
-   explicit că rulează încet — și dacă demo-ul oficial cere Chrome/Edge pe desktop. De
-   măsurat pe o placă integrată, una dedicată și un Mac.
+1. **Fps pe mașina privitorului.** Calea livrată e WASM; cu service worker-ul COOP/COEP
+   urcă la ~8,8 fps cu Lite0 (320 px) și ~4,8 fps cu Lite2 (448 px) la cadru 1280, suficient
+   pentru demo. Fără izolare coboară pe un fir. WebGPU nu e o speranță de rezervă pentru
+   EfficientDet: pe adapterul software a ieșit ~0,1 fps, deci nu se livrează. De decis
+   pragul de „mod lent”: dacă inferența depășește ~80 ms, UI-ul scrie explicit că rulează
+   încet.
 2. **Costul YuNet la 1080p.** Ipoteza 20–50 ms poate fi optimistă dacă transferul domină;
    alternative dacă nu ține: blur pe banda de cap a cutiei de persoană ca mecanism
    principal (există deja ca plasă de siguranță, `privacy.py:225-231`) și YuNet doar pe

@@ -55,7 +55,8 @@ Aplicația încarcă **un singur** graf, în funcție de setarea detectorului; a
 **De ce două fișiere.** Lite0 la 320 px e varianta implicită: ~8,8 fps măsurat în browser pe
 clipul demo, la cadru procesat 1280 px. Lite2 la 448 px coboară la ~4,8 fps, dar ține mai
 bine oamenii mici în cadru — util pe un apron filmat larg, costisitor pe un laptop modest.
-Ambele sunt sub YOLO26n la viteză (5,2–6,0 fps), dar licența e curată, iar diferența se
+Lite0 e peste YOLO26n la viteză în aceeași măsurătoare (8,8 vs 6,9 fps), iar Lite2 e sub
+(4,8 fps); prețul real e recall-ul pe oamenii mici/îndepărtați, nu fps-ul. Diferența se
 spune în UI, nu se ascunde. Cifrele și contextul: `docs/browser-engine.md` §4 și §6.
 
 ## `yunet.onnx` — de ce input dinamic

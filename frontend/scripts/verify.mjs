@@ -3,7 +3,7 @@
  * The local feature loop, in one command: unit tests, the real static builds, and both
  * browser suites, with a timing table at the end.
  *
- *   npm run verify                     # unit + build + smoke (5) + Pages (5)
+ *   npm run verify                     # unit + build + smoke (5) + Pages (6)
  *   npm run verify -- --with-persistence   # ... plus the slow durable-store suite
  *   npm run verify:fast                # unit + build only, no browser
  *
@@ -190,7 +190,7 @@ async function main() {
     run('npm', ['run', 'build'], { VITE_USE_MOCK: 'true', VITE_BASE: PAGES_BASE })
   );
   await step('404.html fallback', async () => writeFallback());
-  await step('pages e2e (5)', () =>
+  await step('pages e2e (6)', () =>
     withServer(PAGES_BASE, (info) =>
       run('npx', ['playwright', 'test', '--config=playwright.pages.config.js'], playwrightEnv(info.url))
     )

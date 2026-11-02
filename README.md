@@ -1,62 +1,75 @@
 # LocalSight
 
-Pipeline-ul de siguranță de pe platformă, mutat în browser: detecția persoanelor, zonele,
-regulile, blur-ul pe fețe și incidentele rulează într-un singur tab, fără server, iar
-cadrele nu pleacă pe rețea. LocalSight este forkul proiectului SafeSight, construit la un
-hackathon: în loc de un edge box care trimite evenimente unui backend, tot traseul devine
-cod de frontend.
+**Airport apron safety in a browser tab.** EfficientDet-Lite0/Lite2 person detection, YuNet face blur, zones, PPE, triage and incident reports — all local, no server, no frame leaving the tab.
 
-Linkul public este un **showcase static** — UI-ul React rulează pe date mock
-(`VITE_USE_MOCK=true`), dar poate rula și motorul real pe clipul demo sau pe camera
-browserului. Motorul e scris în [`frontend/src/engine/`](frontend/src/engine/): YOLO26n +
-YuNet + tracker + zone + reguli + blur + vestă hi-vis. Pe browsere fără WebGPU (inclusiv
-Firefox, intenționat) pornește doar la cerere, pe WASM; un service worker aduce anteturile
-COOP/COEP, deci rulează pe 4 thread-uri (`~5–6 fps` cu cadrul procesat la 1280).
-Fork-ul nu mai conține stack-ul Python de referință: `backend/`, `ml/` și `automation/` au
-fost șterse din acest repo, iar tot ce livrează produsul e în `frontend/`. Codul Python
-vechi rămâne disponibil în istoricul git și în repo-ul upstream SafeSight.
+[![CI](https://github.com/andreisugu/LocalSight/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/andreisugu/LocalSight/actions/workflows/ci.yml)
+[![Deploy](https://github.com/andreisugu/LocalSight/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/andreisugu/LocalSight/actions/workflows/pages.yml)
+[![License: BSL 1.1](https://img.shields.io/badge/license-BSL%201.1-1f6feb.svg)](LICENSE)
+[![Model weights: Apache 2.0](https://img.shields.io/badge/model%20weights-Apache%202.0-2ea44f.svg)](docs/legal/model-provenance.md)
 
-Demo static: <https://andreisugu.github.io/LocalSight/>
+[Build public](https://andreisugu.github.io/LocalSight/) · [Documentație](docs/README.md) · [Proveniența modelului](docs/legal/model-provenance.md)
+
+![LocalSight: EfficientDet-Lite0 rulează în browser, cu zone, PPE și coada de triaj](docs/assets/localsight-demo.gif)
+
+LocalSight duce pipeline-ul de siguranță al proiectului SafeSight în browser: în loc de un
+edge box care trimite evenimente unui backend, tot traseul devine cod de frontend. Pipeline-ul — detecție, tracking, zone, reguli, blur pe fețe, PPE, incidente —
+rulează într-un singur tab, iar cadrele nu pleacă pe rețea.
+
+Linkul public este un **build static**: UI-ul React rulează pe date mock
+(`VITE_USE_MOCK=true`) și poate porni motorul real pe clipurile demo sau pe camera
+browserului. YOLO26n (AGPL-3.0) a fost scos din build; detectorul implicit este
+**EfficientDet-Lite0** (Apache-2.0), cu **EfficientDet-Lite2** ca opțiune mai precisă din
+Setări.
+
+## Model
+
+| | EfficientDet-Lite0 (implicit) | EfficientDet-Lite2 (opțiune) |
+|---|---|---|
+| Input | 320×320 | 448×448 |
+| FPS pe hardware-ul de dezvoltare, 4 fire WASM, cadru 1280 | **~8,8** | **~4,8** |
+| COCO mAP | 25,7 | 34,0 |
+| ONNX | 13,8 MB | 22,9 MB |
+| Licență weights | Apache-2.0 | Apache-2.0 |
+
+Acuratețea nu e maximă; am ales licența permissivă și fluiditatea. Lite2 recuperează o
+parte din recall, cu ~45% mai lent. Cifrele sunt măsurate pe hardware-ul de dezvoltare;
+pe un laptop mic scad. Detaliile și lanțul de licențe: [`docs/legal/model-provenance.md`](docs/legal/model-provenance.md).
 
 ## Stare
 
 | Ce | Stare | Unde se vede |
 |---|---|---|
 | UI React + Vite pe date mock | funcționează | [`frontend/`](frontend/), linkul de sus |
-| Showcase static cu clipurile demo | funcționează, fără backend | linkul de sus |
+| Build static cu clipurile demo | funcționează, fără backend; clipurile au provenance necompletată | linkul de sus |
 | Build și deploy static (GitHub Pages) | funcționează, doar după un CI verde pe `main` (`workflow_run`) | [`.github/workflows/pages.yml`](.github/workflows/pages.yml) |
 | Identificarea build-ului live | footer-ul sidebar-ului: `build <sha>` (sau `build dev` local) | [`Sidebar.jsx`](frontend/src/components/layout/Sidebar.jsx) |
-| Modele ONNX servite din repo | funcționează | [`frontend/public/models/`](frontend/public/models/) (9,9 MB + 232 KB) |
-| Motor browser: YOLO + YuNet + tracker + zone + evenimente | funcționează în Live, `/lab` și `/bench` | [`frontend/src/engine/`](frontend/src/engine/) |
+| Model detecție | EfficientDet-Lite0 implicit; Lite2 din Setări; ambele Apache-2.0 | [`frontend/public/models/`](frontend/public/models/), [`SettingsView.jsx`](frontend/src/components/views/SettingsView.jsx) |
+| Motor browser: detector + YuNet + tracker + zone + evenimente | funcționează în Live, `/lab` și `/bench` | [`frontend/src/engine/`](frontend/src/engine/) |
 | WASM pe 4 fire pe Pages | funcționează prin service worker COOP/COEP, cu cache versionat pe build | [`frontend/public/coi-serviceworker.js`](frontend/public/coi-serviceworker.js) |
 | Raport de tură | calculat din incidentele vizibile, marcat `șablon` | `/reports` |
 | Detecție de vestă hi-vis (PPE) | funcționează; badge `VESTĂ` / `FĂRĂ VESTĂ` / `PPE ?` pe canvas | [`frontend/src/engine/vest.js`](frontend/src/engine/vest.js); `NO_PPE` cere un om de ≥150 px în cadru |
 | Camere | 3 clipuri demo + camera browser (getUserMedia) | selectorul de cameră din Live |
 | Blur pe fețe înainte de desenare | funcționează pe cadrul din canvas și în snapshot | `worker.js`; JPEG 960 px, fețele blurate, URL deținut de pagină |
-| Motor browser în Live | opt-in, ~1,8–3 fps pe WASM | comutatorul „Procesează în browser” |
 | Backend, Slack, MJPEG, SQLite | în afara scopului | stack-ul Python a fost scos din acest fork; vezi istoricul git |
 
 Cifrele de browser sunt măsurate pe hardware-ul de dezvoltare, pe clipul de 1080p:
-**5,2–6,0 fps** în Chromium și **5,2 fps** în Firefox, pe WASM cu 4 fire și cadrul
-procesat la 1280 px. Fără cap, la 1920×1080, aceleași fire dau ~3,7 fps. Firele vin din
+**8,8 fps** cu Lite0 și **4,8 fps** cu Lite2 în Chromium, pe WASM cu 4 fire și cadrul
+procesat la 1280 px. Fără cap, la 1920×1080, aceleași fire sunt mai lente. Firele vin din
 `frontend/public/coi-serviceworker.js`: un service worker care re-servește navigările cu
 COOP/COEP (GitHub Pages nu poate trimite antete custom) și ține un cache versionat pe SHA-ul
 build-ului: HTML-ul rămâne network-first, iar fișierele imuabile (assets hash-uite, modele,
 clipuri, still-uri) sunt cache-first. Un deploy nou activează alt worker și șterge cache-ul
-vechi. Fără el (dev, browser fără service worker) motorul cade pe un singur fir:
-1,5–1,8 fps. Firefox este ținut intenționat pe WASM — WebGPU în workeri dădea 0,4–0,7 fps și
-putea bloca sesiunea ONNX Runtime. Chrome/Edge folosesc WebGPU când există adapter; cifra
-depinde de GPU. Sub 2 fps, panoul din Live avertizează după 10 s de rulare.
+vechi. Fără el (dev, browser fără service worker) motorul cade pe un singur fir.
 
-Teste: 730 Node (`node --test`, motor, utilitare, date, servicii, componente și raport), 5 E2E Playwright la baza
-`/`, 5 E2E pe forma de deploy (`/LocalSight/`, COI + motor pornit) și 3 E2E de persistență; CI rulează unit,
-build-ul de frontend, ambele suite e2e și o gardă pentru subpath-ul de Pages. Comenzile
-canonice sunt în [`RUNNING.md`](RUNNING.md#teste).
+Teste: **741 Node** (`node --test`, motor, utilitare, date, servicii, componente și raport),
+5 E2E Playwright la baza `/`, 6 E2E pe forma de deploy (`/LocalSight/`, COI + motor pornit,
+plus cardul de model) și 3 E2E de persistență; CI rulează unit, build-ul de frontend, ambele suite e2e și o gardă
+pentru subpath-ul de Pages. Comenzile canonice sunt în [`RUNNING.md`](RUNNING.md#teste).
 
 ## Pagini
 
 Toate rutele sunt client-side, definite în `VIEW_PATHS` din
-[`frontend/src/context/SecurityContext.jsx`](frontend/src/context/SecurityContext.jsx).
+[`frontend/src/utils/appRoute.js`](frontend/src/utils/appRoute.js).
 
 | Rută | Ce face |
 |---|---|
@@ -64,13 +77,17 @@ Toate rutele sunt client-side, definite în `VIEW_PATHS` din
 | `/incidents` | lista de incidente, cu severitate, status și dovadă |
 | `/zones` | editorul de zone, poligon desenat pe cadrul de referință |
 | `/reports` | raportul de tură: KPI, rezumat și acoperirea camerei din sesiune |
+| `/settings` | Sistem & Audit: model detecție, thread-uri WASM, blur, camere în fundal, date demo |
 | `/lab` | motorul pe un clip ales sau pe webcam: fps, persoane, fețe, incidente |
 | `/bench` | fps/p50/p95 pe provider și mărime de intrare, istoric în `localStorage` |
 
 ## Capturi
 
-![Live: feed-ul camerei CAM-01 cu zona motorului și incidentele detectate](docs/assets/localsight-live.png)
-*Live: motorul din browser pe CAM-01, zonele pe sol și un incident real; fixturile demo sunt oprite.*
+![Live: motorul EfficientDet-Lite0, zonele pe sol și coada de triaj](docs/assets/localsight-live.png)
+*Live: motorul din browser pe CAM-01, zonele pe sol, coada de triaj și un incident real; fixture-urile demo sunt oprite.*
+
+![Setări: alegerea modelului EfficientDet-Lite0 sau Lite2](docs/assets/localsight-model.png)
+*Setări: EfficientDet-Lite0 implicit, Lite2 pentru acuratețe; ambele Apache-2.0, fără AGPL.*
 
 ![Incidente: lista completă, cu severitate, status și dovada foto](docs/assets/localsight-incidents.png)
 *Incidente: doar detecția reală, cu severitate, status și dovadă; datele demo sunt ascunse implicit.*
@@ -97,43 +114,27 @@ eveniment → UI React. Nu există proces de server, nici coadă, nici bază de 
 măsurate în browser sunt în [`docs/browser-engine.md`](docs/browser-engine.md); cele ale
 vechii referințe CPU, în [`docs/performance.md`](docs/performance.md) (istoric).
 
-Traseul, așa cum e scris azi:
-
-```text
-<video> (clip în buclă sau getUserMedia)
-   └─ ImageBitmap ─► Web Worker: ONNX Runtime Web (WebGPU, fallback WASM)
-                        YOLO → YuNet → tracker → vestă → zone/reguli
-                        → blur (fețe + banda capului) → eveniment
-                     ├─ cadru adnotat (ImageBitmap) ─► canvas 2D
-                     └─ evenimente în memorie ─► UI React
+```mermaid
+flowchart TD
+  A[Camera / clip demo] --> B[Web Worker]
+  B --> C[EfficientDet-Lite0/2 ONNX]
+  B --> D[YuNet face detector]
+  C --> E[Tracker + zone + PPE]
+  D --> F[Blur pe fețe înainte de desenare]
+  E --> G[Incident + snapshot]
+  G --> H[React UI: Live, coadă, rapoarte]
 ```
 
-Nimic nu urcă pe rețea: se descarcă doar fișierele statice (JS, `yolo26n.onnx`,
-`yunet.onnx`, clipul). Starea trăiește în tab și se pierde la reload. Deciziile, inclusiv
-cum se obțin firele WASM pe un host fără antete custom, sunt în
+Nimic nu urcă pe rețea: se descarcă doar fișierele statice (JS, modelul ONNX, `yunet.onnx`,
+clipul). Starea trăiește în tab și se pierde la reload. Deciziile, inclusiv cum se obțin
+firele WASM pe un host fără antete custom, sunt în
 [`docs/browser-engine.md`](docs/browser-engine.md).
-
-## Harta repo-ului
-
-| Folder | Rol |
-|---|---|
-| [`frontend/`](frontend/) | produsul: UI React + Vite, motorul din browser, modelele statice, build-ul de Pages |
-| [`docs/`](docs/) | contract, nota motorului de browser, media, rapoarte QA/arhitectură/ops și documente istorice marcate |
-| [`scripts/`](scripts/) | pregătirea clipurilor și raportul de proveniență |
-| [`data/`](data/) | README-urile de proveniență ale clipurilor și adnotărilor; fișierele mari nu sunt în git |
-| [`demo/`](demo/) | scenariul demo-ului curent și run sheet-urile istorice |
-
-Modelele se regenerează cu [`frontend/scripts/prepare-models.py`](frontend/scripts/prepare-models.py)
-(sursele au fost în stack-ul Python șters; vezi istoricul git), iar clipurile web cu
-[`scripts/prepare-demo-media.sh`](scripts/prepare-demo-media.sh). Comenzile exacte și
-avertismentele sunt în [`RUNNING.md`](RUNNING.md#modele-și-media) și
-[`docs/media.md`](docs/media.md).
 
 ## Ce e real, ce e demo
 
 | Real, în tab | Demo / fixture |
 |---|---|
-| YOLO26n + YuNet + tracker + zone + reguli | Incidentele din fixtures și KPI-urile derivate din ele — **ascunse implicit**, se activează din Setări → Date demo |
+| EfficientDet-Lite0/Lite2 + YuNet + tracker + zone + reguli | Incidentele din fixtures și KPI-urile derivate din ele — **ascunse implicit**, se activează din Setări → Date demo |
 | Blur pe fețe înainte de desenare, fail-closed | Raportul de incident (șablon, nu LLM) |
 | Detecția de vestă hi-vis și starea PPE | Escaladarea din fixture-uri |
 | Coada de triaj: deadline, episoade, hold doar pe WARNING | Pragurile și starea vin din evenimentele reale; acțiunile trăiesc în memorie |
@@ -143,44 +144,40 @@ avertismentele sunt în [`RUNNING.md`](RUNNING.md#modele-și-media) și
 
 Scenariul de prezentare, pas cu pas: [`demo/run_sheet_browser.md`](demo/run_sheet_browser.md).
 
-## Licență
+## Licențe
 
-**Business Source License 1.1**, textul integral în [`LICENSE`](LICENSE).
+| Componentă | Licență | Notă |
+|---|---|---|
+| Codul LocalSight | **BSL 1.1** | uz neproductiv liber; producție/găzduire cu licență comercială; Apache 2.0 din 2030-11-02 |
+| EfficientDet-Lite0/Lite2 (weights) | **Apache 2.0** | © Google; uz comercial cu notice |
+| Conversia ONNX | **CC BY 3.0** | Namas Bhandari; atribuire obligatorie |
+| YuNet | MIT | © Shiqi Yu / OpenCV Zoo |
+| ONNX Runtime Web | MIT | © Microsoft |
+| Clipuri și still-uri demo | **nespecificat** | provenance necompletată; nu sunt acoperite pentru redistribuire comercială |
 
-- copiere, modificare și uz neproductiv: permise;
-- uz în producție, inclusiv găzduire sau încorporare într-un serviciu: necesită licență
-  comercială de la Licensor;
-- la **2 noiembrie 2030** licența devine Apache 2.0.
+> **Gap cunoscut:** build-ul curent nu conține AGPL, dar blob-ul `yolo26n.onnx` rămâne în
+> istoricul git public. Pentru un repo complet curat e nevoie fie de un repo nou cu istoric
+> filtrat, fie de o rescriere de istoric cu aprobare explicită; ambele sunt descrise în
+> [`docs/legal/model-provenance.md`](docs/legal/model-provenance.md) §5. Clipurile demo au
+> același statut: nu sunt acoperite până nu au sursă/licență/consimțământ.
 
-## Third-party
-
-- **Ultralytics YOLO este AGPL-3.0.** `yolo26n.onnx` din repo provine din greutățile
-  Ultralytics, iar build-ul static îl distribuie ca fișier descărcabil. Un produs
-  proprietar sau găzduit are nevoie de licență enterprise Ultralytics ori de conformare
-  AGPL pe tot ansamblul. BSL-ul acestui repo nu schimbă asta.
-- **YuNet este MIT** (OpenCV Zoo); se redistribuie cu nota de copyright.
-- **Clipurile demo**: sursele 4K din `data/videos/` nu sunt în git; versiunile web din
-  `frontend/public/media/` sunt comise (excepție țintită în `.gitignore`) și nu fac parte
-  din opera licențiată.
-- **Capturile demo** din `frontend/public/media/stills/`: Unsplash (apron), CC BY-SA 2.0
-  © Derek Harper (taxiway), CC0 (bagaj); cele trei `zone-*.jpg` sunt cadre din clipurile
-  demo, cu aceeași proveniență necompletată. Detalii în [`THIRD_PARTY.md`](THIRD_PARTY.md).
-- **Notificări în artefact:** build-ul publică [`frontend/public/NOTICE`](frontend/public/NOTICE)
-  ca `dist/NOTICE`, linkat din footer-ul sidebar-ului („Licențe”); conține nota AGPL-3.0
-  Ultralytics, copyright-ul MIT YuNet și trimiterea la `THIRD_PARTY.md`.
+Nu este consultanță juridică. Auditul complet, lanțul de proveniență, SHA-256-urile și
+checklist-ul comercial sunt în [`THIRD_PARTY.md`](THIRD_PARTY.md) și
+[`docs/legal/model-provenance.md`](docs/legal/model-provenance.md). Notificările servite în
+build sunt în [`frontend/public/NOTICE`](frontend/public/NOTICE), linkate din footer-ul
+sidebar-ului („Licențe”).
 
 ## Proveniență
 
 Istoricul git al fork-ului păstrează toată istoria SafeSight; nimic nu a fost squash-uit.
-Ce cod a rămas de la fiecare autor se măsoară pe linii cu
-`python3 scripts/provenance.py` (`git blame -w`), iar `--audit <fișier>` listează exact
-liniile rămase. Standardul de „înlocuit" — implementare nouă, logică testată, nu doar clase
-schimbate — și lista a ce s-a amânat sunt în
-[`docs/rewrite-backlog.md`](docs/rewrite-backlog.md); raportul generat este
-[`docs/provenance.md`](docs/provenance.md). La 2 noiembrie 2026: **98,7%** din liniile de
-cod de produs sunt ale noastre, **1,3%** sunt schelet JSX/etichete/importuri, iar
-auditul nu mai găsește **nicio linie de logică** moștenită. Stack-ul Python a fost scos din
-fork; rămâne în istoricul git și în upstream.
+Ce cod a rămas de la fiecare autor se măsoară pe linii cu `python3 scripts/provenance.py`
+(`git blame -w`), iar `--audit <fișier>` listează exact liniile rămase. Standardul de
+„înlocuit” — implementare nouă, logică testată, nu doar clase schimbate — și lista a ce s-a
+amânat sunt în [`docs/rewrite-backlog.md`](docs/rewrite-backlog.md); raportul generat este
+[`docs/provenance.md`](docs/provenance.md). La 3 noiembrie 2026: **98,7%** din liniile de
+cod de produs sunt ale noastre, **1,3%** sunt schelet JSX/etichete/importuri, iar auditul
+nu mai găsește **nicio linie de logică** moștenită. Stack-ul Python a fost scos din fork;
+rămâne în istoricul git și în upstream.
 
 ## Credite
 

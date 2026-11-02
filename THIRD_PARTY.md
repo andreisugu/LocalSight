@@ -21,11 +21,11 @@ instead of trusting us.
    Google LLC); the **ONNX conversion is a separate work under CC BY 3.0** (Namas Bhandari).
    Apache-2.0 and CC BY 3.0 both allow commercial use; both require attribution, and this
    repository ships it. Nothing in the shipped bundle is copyleft.
-2. **YOLO26n is removed by the detector swap.** The code change that adds EfficientDet
-   deletes `frontend/public/models/yolo26n.onnx`; `origin/main` at `968200c` still carried it,
-   so a build of *that* commit still served AGPL weights. The Ultralytics section below is
-   kept as **history**, not as current state. The blob stays reachable in the public git
-   history either way — a separate, real gap; see [Remaining gaps](#remaining-gaps).
+2. **YOLO26n is removed by the detector swap.** The current tree and build delete
+   `frontend/public/models/yolo26n.onnx`; a build of an older commit still served AGPL
+   weights. The Ultralytics section below is kept as **history**, not as current state. The
+   blob stays reachable in the public git history — a separate, real gap; see
+   [Remaining gaps](#remaining-gaps).
 3. **The demo clips and the stills re-encoded from them still have no recorded provenance.**
    `data/videos/README.md` still says `de completat` for source, licence and camera operator
    on all six clips. No licence is claimed for them, they are not part of the BSL-licensed
@@ -58,8 +58,8 @@ needs a notice, an EULA check or a legal read, but does not force you to open-so
 
 ## Main table — what this fork ships
 
-The two EfficientDet rows describe the build after the detector swap merges; at audit time
-the tree at `origin/main@968200c` still contained `yolo26n.onnx`.
+The two EfficientDet rows describe the current build; the detector swap removed
+`yolo26n.onnx` from the tree and the engine.
 
 | Component | Version | License (SPDX) | Commercial impact |
 |---|---|---|---|
@@ -80,7 +80,7 @@ the tree at `origin/main@968200c` still contained `yolo26n.onnx`.
 | EfficientDet-Lite2 `efficientdet_lite2.onnx` | 448×448 ONNX export · 22 948 355 B (21,9 MiB) · SHA-256 `ae663a7cb537b6a5eca0f2c45d39b10563993d84aadcc52d19e0fb345442cde6` | Apache-2.0 (weights, © 2020 Google LLC) **+** CC BY 3.0 (ONNX conversion, © Namas Bhandari) | OK — same two notices |
 | YuNet `yunet.onnx` | 2023mar · 232 598 B · SHA-256 `d1cd25851fba0e96d59f25548f072db7d114182c952605f509d14af502438dfb` | MIT (© 2020 Shiqi Yu) | OK — include the MIT notice when you redistribute the `.onnx` |
 | **Assets** | | | |
-| `docs/assets/*.png` (3 UI screenshots) | — | project-produced | OK — re-check that no unblurred face is visible; they contain frames of the demo footage, so the footage question applies |
+| `docs/assets/*.png` (5 UI screenshots, including the model selector) | — | project-produced | OK — re-check that no unblurred face is visible; they contain frames of the demo footage, so the footage question applies |
 | `frontend/public/media/*.mp4` (3 web cuts) | — | derived from the clips above | **requires action** — unresolved provenance, same question as their sources |
 | `frontend/public/media/stills/apron-stand.jpg` | — | Unsplash License | OK — no attribution required; credit Unsplash in the demo |
 | `frontend/public/media/stills/taxiway-heathrow.jpg` | — | CC BY-SA 2.0, © Derek Harper (Geograph) | **attribution required**; the file stays CC BY-SA, the code is unaffected |
@@ -283,18 +283,22 @@ document does not clear them.
 Deleting `frontend/public/models/yolo26n.onnx` from the current tree stops the build from
 serving it, but the object is still in the history of a **public** repository: anyone can
 fetch the blob by commit. A public repo that once contained AGPL weights — even a repo whose
-current build is AGPL-free — is not the same thing as a clean distribution. Two ways out:
+current build is AGPL-free — is not the same thing as a clean distribution. Three ways out:
 
-1. **Fresh repository (recommended).** Publish the current tree into a new repository with
-   no imported history. Nothing is rewritten, nothing is force-pushed, no cached object
-   survives, and the old repository can be archived with a pointer to the new one. Cost: the
-   contribution history (`scripts/provenance.py` output) does not travel; take a
-   `docs/provenance.md` snapshot and the old repo's URL with you.
-2. **History rewrite.** `git filter-repo` or BFG to drop the blob from every commit, then a
-   force-push of **all** refs and tags, then a request to GitHub Support to garbage-collect
-   unreachable objects (forked copies and caches can outlive the rewrite). This rewrites
-   commit hashes, breaks every existing clone and link, and `AGENTS.md` forbids a force push
-   without explicit owner approval. **Not performed, and not to be performed by an agent.**
+1. **New repository with filtered history (recommended).** Clone the repo as a mirror,
+   `git filter-repo` to remove the AGPL blob (and the clips if they are being replaced), and
+   push the filtered history into a **new, empty** repository. Nothing is force-pushed, no
+   cached object survives, authorship and most history are preserved, but every commit hash
+   changes. The old repository is archived with a pointer to the new one.
+2. **New repository from the current tree.** Publish only the current tree with no imported
+   history. Simplest and cleanest operationally; the contribution history
+   (`scripts/provenance.py` output) does not travel, so keep a `docs/provenance.md` snapshot
+   and the old repo's URL.
+3. **History rewrite in place.** `git filter-repo` or BFG to drop the blob from every commit,
+   then a force-push of **all** refs and tags, then a request to GitHub Support to
+   garbage-collect unreachable objects (forks and caches can outlive the rewrite). This
+   breaks every existing clone and link, and `AGENTS.md` forbids a force push without
+   explicit owner approval. **Not performed, and not to be performed by an agent.**
 
 Which one is right is a business call, not a technical one. What is not a call: the current
 build being AGPL-free is necessary but not sufficient for a clean public repository.
@@ -339,8 +343,9 @@ repository serves them.
    the licence URL, the YuNet MIT notice, the ONNX Runtime Web MIT notice, and the CC BY-SA
    attribution for the Heathrow still. If you reuse the model files outside this repository,
    carry the two licence texts with them.
-5. **Decide the history question** (fresh repository vs documented risk) before calling a
-   repository "clean". See [Remaining gaps](#remaining-gaps) §2.
+5. **Decide the history question** (new repo with filtered history vs new repo from the
+   current tree vs in-place rewrite) before calling a repository "clean". See
+   [Remaining gaps](#remaining-gaps) §2.
 6. **Get a lawyer to read this file.** It is an engineering audit with sources attached, not
    a legal opinion.
 

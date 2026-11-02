@@ -1,6 +1,6 @@
 # Model provenance and licence dossier
 
-**Status:** current for the detector swap that replaces YOLO26n with EfficientDet-Lite0/Lite2.
+**Status:** current; the detector swap is in `main` as of 2026-11-03 (EfficientDet-Lite0/Lite2 replace YOLO26n).
 **Audit date:** 2026-11-03.
 **Not legal advice.** This is an engineering dossier with sources attached: every claim names
 the file, URL or hash it comes from, so counsel can verify it rather than trust it. We are not
@@ -187,18 +187,22 @@ object is still fetchable by commit, and forks and caches may hold copies. A rep
 once distributed AGPL weights is not the same thing as a repository that never did.
 
 The current build being AGPL-free is **necessary but not sufficient** for a fully clean public
-repository. Two options, and they are not equivalent:
+repository. Three options, and they are not equivalent:
 
-1. **Fresh repository without the AGPL blob — recommended.** Publish the current tree into a
-   new repository with no imported history. Nothing is rewritten, nothing is force-pushed, no
-   cached object survives, and the old repository can be archived with a pointer to the new
-   one. Cost: contribution history does not travel — keep a `docs/provenance.md` snapshot and
-   the old URL. The AGPL question ends here; the footage question does not (see §4).
-2. **History rewrite.** `git filter-repo` or BFG to drop the blob from every commit, then a
-   force-push of **all** refs and tags, then a request to GitHub Support to garbage-collect
-   unreachable objects (forks and caches can outlive the rewrite). This rewrites commit
-   hashes, breaks every clone, link and review thread, and needs explicit owner approval:
-   `AGENTS.md` forbids a force push without it.
+1. **New repository with filtered history — recommended.** Clone the repo as a mirror,
+   `git filter-repo` to remove the AGPL blob (and the clips if they are being replaced), and
+   push the filtered history into a **new, empty** repository. Nothing is force-pushed, no
+   cached object survives, authorship and most history are preserved, but every commit hash
+   changes. Archive the old repository with a pointer to the new one. The AGPL question ends
+   here; the footage question does not (see §4).
+2. **New repository from the current tree.** Publish only the current tree with no imported
+   history. Simplest operationally; contribution history does not travel — keep a
+   `docs/provenance.md` snapshot and the old URL.
+3. **History rewrite in place.** `git filter-repo` or BFG to drop the blob from every commit,
+   then a force-push of **all** refs and tags, then a request to GitHub Support to
+   garbage-collect unreachable objects (forks and caches can outlive the rewrite). This
+   rewrites commit hashes, breaks every clone, link and review thread, and needs explicit
+   owner approval: `AGENTS.md` forbids a force push without it.
 
 **No history rewrite and no force push has been performed for this change, and an agent must
 not perform one.** Which option to take is a business decision; that it must be decided is

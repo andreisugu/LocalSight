@@ -2,7 +2,7 @@
 
 LocalSight pornește de la SafeSight (detecție pe edge, API FastAPI, UI React, construit la
 un hackathon) și merge într-o direcție diferită: pipeline-ul întreg — detecție, zone,
-blur de fețe, incidente — trebuie să ruleze **în browser**, cu `onnxruntime-web` pe WebGPU,
+blur de fețe, incidente — trebuie să ruleze **în browser**, cu `onnxruntime-web` pe WASM,
 publicat static pe GitHub Pages. Nicio imagine nu pleacă din tab.
 
 **Starea de azi:** site-ul static e live
@@ -12,8 +12,8 @@ YuNet (MIT) + tracker + zone + reguli + blur + detectarea de vestă hi-vis, prin
 Web. Build-ul servit de `pages.yml` nu are backend. **Stack-ul Python de referință
 (`backend/`, `ml/`, `automation/`) a fost șters din acest fork**; produsul e aplicația
 statică din `frontend/`, iar codul Python vechi rămâne în istoricul git și în repo-ul
-upstream SafeSight. Pe Firefox motorul alege intenționat WASM (WebGPU încă nu e stabil
-acolo); pe Chrome/Edge folosește WebGPU când există adapter.
+upstream SafeSight. Toate browserele folosesc WASM pentru EfficientDet; WebGPU rămâne un
+experiment explicit în `/bench` (0,1 fps pe adapterul software din CI), nu calea livrată.
 
 Acest fișier e sursa de adevăr pentru agenți. `CLAUDE.md` doar trimite aici. Citește-l
 înainte să modifici ceva și actualizează-l în același commit când o regulă durabilă se
@@ -21,7 +21,7 @@ schimbă.
 
 ## Harta repo-ului
 
-- `frontend/` — **produsul**. React 19 + Vite + Tailwind, JavaScript, servit static.
+- `frontend/` — **produsul**. React 18 + Vite + Tailwind, JavaScript, servit static.
   Aici crește motorul din browser (`docs/browser-engine.md` descrie `frontend/src/engine/`).
   Build-ul static ia modelele din `frontend/public/models/` și clipurile din
   `frontend/public/media/`.
