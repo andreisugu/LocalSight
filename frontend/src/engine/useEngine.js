@@ -10,6 +10,7 @@ const INITIAL_STATS = {
   status: 'idle',
   message: '',
   providers: [],
+  actualProviders: [],
 };
 
 // The worker can return a frame every 16 ms; re-rendering the overlay that often is waste.
@@ -27,11 +28,23 @@ const LOOP_WATCHDOG_MS = 1000;
 /**
  * @param {{ videoRef: import('react').RefObject<HTMLVideoElement>,
  *           canvasRef: import('react').RefObject<HTMLCanvasElement>,
- *           enabled?: boolean }} options
+ *           enabled?: boolean,
+ *           provider?: 'webgpu'|'wasm',
+ *           inputSize?: number,
+ *           onSample?: (sample: {ms: number, fps: number, persons: number, faces: number,
+ *                               error?: string|null, at: number}) => void }} options
+ *
+ * `provider`/`inputSize` are bench-only knobs. Omitting both sends the same init message
+ * the spike always sent, so `/lab` is untouched. `onSample` sees every result frame; the
+ * 250 ms state throttle above is for overlays, not for measurement.
  */
-export function useEngine({ videoRef, canvasRef, enabled = true }) {
+export function useEngine({ videoRef, canvasRef, enabled = true, provider, inputSize, onSample }) {
   const [stats, setStats] = useState(INITIAL_STATS);
   const lastStatsRef = useRef(0);
+  // The callback changes on every render; keeping it in a ref avoids restarting the worker
+  // (and reloading the graphs) just because the caller re-rendered.
+  const onSampleRef = useRef(onSample);
+  onSampleRef.current = onSample;
 
   useEffect(() => {
     if (!enabled) {
@@ -89,6 +102,15 @@ export function useEngine({ videoRef, canvasRef, enabled = true }) {
       if (message.type === 'result') {
         inFlight = false;
         draw(message.bitmap);
+        const at = performance.now();
+        onSampleRef.current?.({
+          ms: message.ms,
+          fps: message.fps,
+          persons: message.persons,
+          faces: message.faces,
+          error: message.error || null,
+          at,
+        });
         const now = performance.now();
         if (now - lastStatsRef.current >= STATS_INTERVAL_MS) {
           lastStatsRef.current = now;
@@ -111,6 +133,7 @@ export function useEngine({ videoRef, canvasRef, enabled = true }) {
           ...previous,
           status: 'loading',
           providers: message.providers || [],
+          actualProviders: message.actualProviders || [],
         }));
         return;
       }
@@ -218,7 +241,14 @@ export function useEngine({ videoRef, canvasRef, enabled = true }) {
       if (video.videoWidth && video.readyState >= 2) startLoop();
     }, LOOP_WATCHDOG_MS);
 
-    worker.postMessage({ type: 'init' });
+    const init = { type: 'init' };
+    if (provider) {
+      // A single provider is a demand, not a preference: if ORT refuses it, the engine
+      // falls back to wasm and says so through `actualProviders`.
+      init.providers = [provider];
+    }
+    if (Number.isFinite(inputSize) && inputSize > 0) init.inputSize = inputSize;
+    worker.postMessage(init);
     startLoop();
 
     return () => {
@@ -232,7 +262,7 @@ export function useEngine({ videoRef, canvasRef, enabled = true }) {
       // from the video that was just detached.
       setStats((previous) => ({ ...INITIAL_STATS, providers: previous.providers }));
     };
-  }, [enabled, videoRef, canvasRef]);
+  }, [enabled, provider, inputSize, videoRef, canvasRef]);
 
   return stats;
 }

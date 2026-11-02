@@ -120,12 +120,17 @@ async function createSession(url, providers) {
   const bytes = await fetchModelBytes(url);
   const options = { executionProviders: providers, graphOptimizationLevel: 'all' };
   try {
-    return await ort.InferenceSession.create(bytes, options);
+    const session = await ort.InferenceSession.create(bytes, options);
+    // The first requested provider is the one ORT picked; a silent internal fallback is
+    // not observable from the session object, so callers that need proof pass a single
+    // provider (`['webgpu']`) instead of a preference list.
+    return { session, provider: providers[0], fallback: false };
   } catch (error) {
     if (providers[0] !== 'webgpu') throw error;
     // A GPU session can still be refused (driver blocklist, out of memory); wasm is the
     // documented fallback and is what the Python edge uses anyway.
-    return ort.InferenceSession.create(bytes, { ...options, executionProviders: ['wasm'] });
+    const session = await ort.InferenceSession.create(bytes, { ...options, executionProviders: ['wasm'] });
+    return { session, provider: 'wasm', fallback: true };
   }
 }
 
@@ -140,11 +145,17 @@ function inputShape(session) {
 
 /**
  * Load both sessions. Resolves with plain objects so the worker can pass them around.
+ *
  * @param {(stage: string) => void} [onProgress]
+ * @param {{providers?: string[]}} [options] explicit execution providers. Omitting this
+ *   keeps the spike behaviour: probe WebGPU and ask for `['webgpu', 'wasm']`. The bench
+ *   page passes a single provider so the returned `actualProviders` says what really ran.
  */
-export async function loadModels(onProgress = () => {}) {
+export async function loadModels(onProgress = () => {}, options = {}) {
   configureOrt();
-  const providers = await preferredProviders();
+  const providers = Array.isArray(options.providers) && options.providers.length
+    ? options.providers
+    : await preferredProviders();
   onProgress(providers[0] === 'webgpu' ? 'loading (webgpu)' : 'loading (wasm)');
 
   const [yolo, yunet] = await Promise.all([
@@ -152,20 +163,25 @@ export async function loadModels(onProgress = () => {}) {
     createSession(YUNET_MODEL_URL, providers),
   ]);
 
-  const yoloInput = inputShape(yolo);
-  const yunetInput = inputShape(yunet);
+  const yoloInput = inputShape(yolo.session);
+  const yunetInput = inputShape(yunet.session);
+  const actualProviders = [...new Set([yolo.provider, yunet.provider])];
 
   return {
-    yolo,
-    yunet,
+    yolo: yolo.session,
+    yunet: yunet.session,
+    // What was asked for: `/lab` prints this list exactly as before.
     providers,
+    // What ORT actually created. `fallback` marks a WebGPU request that ended on wasm.
+    actualProviders,
+    fallback: yolo.fallback || yunet.fallback,
     yoloInput,
     yunetInput,
     // A graph with symbolic height/width accepts the whole frame padded to multiples of
     // 32 (exactly what the Python edge feeds); a frozen 640x640 graph needs a letterbox.
     yunetDynamic: !yunetInput.width || !yunetInput.height,
     async close() {
-      await Promise.allSettled([yolo.release?.(), yunet.release?.()]);
+      await Promise.allSettled([yolo.session.release?.(), yunet.session.release?.()]);
     },
   };
 }
