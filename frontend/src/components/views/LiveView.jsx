@@ -22,6 +22,7 @@ import { useSecurity } from '../../context/SecurityContext';
 import { STATUS_TOKENS } from '../../constants/theme';
 import ConfidenceBadge from '../common/ConfidenceBadge';
 import { canDo } from '../../constants/eventActions';
+import { USE_MOCK } from '../../services/api';
 import { useEngine } from '../../engine/useEngine';
 import EnginePanel from '../live/EnginePanel';
 
@@ -40,6 +41,22 @@ function readLiveEnginePreference() {
     // Private mode or blocked storage: fall through to the WebGPU probe.
   }
   return null;
+}
+
+// The static Pages build ships fixture KPIs and fixture incidents; the clip is a
+// recording and only the opt-in browser engine produces real detections. One quiet chip
+// marks the blocks a visitor could otherwise read as live telemetry, so the numbers never
+// pass for telemetry. It is rendered only in the mock build: with a real API the data is
+// genuine and needs no label.
+function DemoDataChip({ title }) {
+  return (
+    <span
+      title={title}
+      className="shrink-0 text-[10px] font-mono font-bold normal-case px-1.5 py-0.5 rounded border bg-amber-50 text-amber-800 border-amber-200 dark:bg-[#FFEB33]/15 dark:text-[#FFEB33] dark:border-[#FFEB33]/40"
+    >
+      date demo
+    </span>
+  );
 }
 
 // The zone outline is configuration, not a detection: it is drawn from the zone editor's
@@ -338,6 +355,13 @@ export default function LiveView() {
     <div className="min-h-full w-full p-3 md:p-4 space-y-3 select-none">
       {/* 1. Cele 4 KPI din Live */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 shrink-0">
+        {/* Rândul e static în build-ul mock, deci nu produce shift: doar spune că cifrele
+            de dedesubt vin din fixtures, nu din detecție. */}
+        {USE_MOCK && (
+          <div className="col-span-full flex justify-end">
+            <DemoDataChip title="Cifrele KPI vin din fixtures (date demo), nu din detecția live." />
+          </div>
+        )}
         <div
           style={{ backgroundColor: themeStyles.panelBg, borderColor: themeStyles.panelBorder }}
           className="p-3 rounded-xl border shadow-sm flex items-center justify-between"
@@ -603,7 +627,7 @@ export default function LiveView() {
 
                 {browserEngineOn && (
                   <div className="absolute bottom-12 right-2.5 px-2 py-1 rounded bg-black/80 text-[#33E1FF] text-[10px] font-mono border border-[#33E1FF]/40">
-                    procesat local · {engine.fps ? engine.fps.toFixed(1) : '—'} fps
+                    {USE_MOCK ? 'detecție reală · ' : ''}procesat local · {engine.fps ? engine.fps.toFixed(1) : '—'} fps
                   </div>
                 )}
 
@@ -725,10 +749,16 @@ export default function LiveView() {
             displayMode === 'split' ? 'w-full' : 'w-full xl:w-96 min-h-[460px]'
           }`}
         >
-          <div className="flex items-center justify-between pb-2 border-b border-slate-500/15 shrink-0">
+          <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-500/15 shrink-0">
             <h2 className="font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
-              <ShieldAlert size={15} className="text-[#D73833]" />
-              Incidente Detectate
+              <ShieldAlert size={15} className="text-[#D73833] shrink-0" />
+              <span>Incidente Detectate</span>
+              {USE_MOCK && (
+                <>
+                  <span aria-hidden="true" className="text-slate-400">·</span>
+                  <DemoDataChip title="Cardurile sunt date demo din fixtures, nu detecție din clip. Detecția reală apare doar în motorul din browser, când îl pornești." />
+                </>
+              )}
             </h2>
             <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-[#FFEB33] text-[#1F1F1F] font-bold">
               {filteredEvents.length}
