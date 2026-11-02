@@ -24,7 +24,9 @@ Demo static: <https://andreisugu.github.io/LocalSight/>
 | Build și deploy static (GitHub Pages) | funcționează, la fiecare push pe `main` | [`.github/workflows/pages.yml`](.github/workflows/pages.yml) |
 | Modele ONNX servite din repo | funcționează | [`frontend/public/models/`](frontend/public/models/) (9,9 MB + 232 KB) |
 | Implementare de referință CPU | funcționează | [`ml/`](ml/) + [`backend/`](backend/) |
-| Motor browser: YOLO + YuNet + tracker + zone + evenimente | funcționează în `/lab` și `/bench` | [`frontend/src/engine/`](frontend/src/engine/) |
+| Motor browser: YOLO + YuNet + tracker + zone + evenimente | funcționează în Live, `/lab` și `/bench` | [`frontend/src/engine/`](frontend/src/engine/) |
+| Detecție de vestă hi-vis (PPE) | funcționează; starea intră în regulile de zonă | [`frontend/src/engine/vest.js`](frontend/src/engine/vest.js), apelat din `worker.js` |
+| Camere | 3 clipuri demo + camera browser (getUserMedia) | selectorul de cameră din Live |
 | Blur pe fețe înainte de desenare | funcționează pe cadrul din canvas | `worker.js`; snapshot-ul de incident nu e conectat |
 | Motor browser în Live | opt-in, ~1,8–3 fps pe WASM | comutatorul „Procesează în browser” |
 | Backend, Slack, MJPEG, SQLite | în afara scopului | rămân în repo ca referință |
@@ -34,8 +36,8 @@ fire, din cauza anteturilor lipsă de pe Pages): ~1,8 fps la intrare de 640 px �
 960 px. WebGPU nu a fost testat pe această mașină, deci nu are cifră. Sub 2 fps, panoul din
 Live avertizează după 10 s de rulare.
 
-Teste: 57 Node în `frontend/src/engine/*.test.mjs` (`node --test`) și 5 E2E Playwright; CI
-rulează backend, ml, build-ul de frontend și e2e.
+Teste: 82 Node în `frontend/src/engine/*.test.mjs` (`node --test`) și 5 E2E Playwright; CI
+rulează backend, ml, build-ul de frontend, e2e și o gardă pentru subpath-ul de Pages.
 
 ## Pagini
 
@@ -44,7 +46,7 @@ Toate rutele sunt client-side, definite în `VIEW_PATHS` din
 
 | Rută | Ce face |
 |---|---|
-| `/` | Live: feed-ul camerei demo, panoul de incidente și comutatorul „Procesează în browser” |
+| `/` | Live: 3 clipuri demo sau camera locală, panoul de incidente și comutatorul „Procesează în browser” |
 | `/incidents` | lista de incidente, cu severitate, status și dovadă |
 | `/zones` | editorul de zone, poligon desenat pe cadrul de referință |
 | `/reports` | raportul de tură: KPI și rezumat |
