@@ -407,13 +407,17 @@ function vestRatio(ctx, bbox, width, height) {
 // tracker, fed the same detections in the same order every frame, produces the same ids
 // (tracker.js matches greedily on IoU, nothing there is random); both start empty when
 // the pipeline is built, so they cannot drift apart over a session.
-function measureVests(detections, width, height, nowS) {
+// The colour is read from the capped canvas, but the size gates (the 80 px sample gate and
+// `MIN_PERSON_PX_NO_VEST`) are in SOURCE-frame pixels, exactly like `ppe.py`, which runs on
+// the camera frame. Otherwise capping 1080p to 1280 would silently make every person
+// "small" and block `no_vest` again.
+function measureVests(detections, width, height, nowS, sourceHeight = height) {
   if (!vests || !vestTracks) resetVestState();
   vests.prune(nowS);
   // Pixels first, tracker state second: a failed read leaves both trackers exactly where
   // they were, so skipping `step` on the error keeps them on the same frame.
   const ratios = detections.map((detection) =>
-    frameCountsForVest(detection.bbox, height)
+    frameCountsForVest(detection.bbox, sourceHeight)
       ? vestRatio(frameCtx, detection.bbox, width, height)
       : null,
   );
@@ -422,7 +426,7 @@ function measureVests(detections, width, height, nowS) {
   const summary = { vest: 0, noVest: 0, unknown: 0 };
   for (let index = 0; index < detections.length; index += 1) {
     const { bbox, confidence } = detections[index];
-    const personPx = (bbox[3] - bbox[1]) * height;
+    const personPx = (bbox[3] - bbox[1]) * sourceHeight;
     const state = vests.update(tracked[index].trackId, ratios[index], confidence, nowS, personPx);
     states.push(state);
     if (state === 'vest') summary.vest += 1;
@@ -676,7 +680,7 @@ async function handleFrame(message) {
   let vestFailed = false;
   if (pipeline) {
     try {
-      const measured = measureVests(detections, width, height, nowS);
+      const measured = measureVests(detections, width, height, nowS, sourceHeight);
       vestStates = measured.states;
       vest = measured.summary;
     } catch (caught) {

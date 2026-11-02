@@ -11,7 +11,7 @@ Linkul public este un **showcase static** — UI-ul React rulează pe date mock
 browserului. Motorul e scris în [`frontend/src/engine/`](frontend/src/engine/): YOLO26n +
 YuNet + tracker + zone + reguli + blur + vestă hi-vis. Pe browsere fără WebGPU (inclusiv
 Firefox, intenționat) pornește doar la cerere, pe WASM; un service worker aduce anteturile
-COOP/COEP, deci rulează pe 4 thread-uri (`~2,5–3,6 fps` pe clipul de 1080p).
+COOP/COEP, deci rulează pe 4 thread-uri (`~5–6 fps` cu cadrul procesat la 1280).
 Pipeline-ul Python din `ml/` + `backend/` rămâne implementarea de referință pe care portul
 o urmează.
 
@@ -36,7 +36,8 @@ Demo static: <https://andreisugu.github.io/LocalSight/>
 | Backend, Slack, MJPEG, SQLite | în afara scopului | rămân în repo ca referință |
 
 Cifrele de browser sunt măsurate pe hardware-ul de dezvoltare, pe clipul de 1080p:
-**2,5–3,6 fps** în Chromium și **2,9 fps** în Firefox, pe WASM cu 4 fire. Firele vin din
+**5,2–6,0 fps** în Chromium și **5,2 fps** în Firefox, pe WASM cu 4 fire și cadrul
+procesat la 1280 px. Fără cap, la 1920×1080, aceleași fire dau ~3,7 fps. Firele vin din
 `frontend/public/coi-serviceworker.js`: un service worker care re-servește navigările cu
 COOP/COEP (GitHub Pages nu poate trimite antete custom), fără să cacheze nimic. Fără el
 (dev, browser fără service worker) motorul cade pe un singur fir: 1,5–1,8 fps. Firefox este

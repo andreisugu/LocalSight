@@ -445,14 +445,14 @@ export default function LiveView() {
     [zones, activeCamera?.id]
   );
   // Why the engine starts on or off: the visitor must be able to tell a fast path from the
-  // ~2 fps WASM fallback before they press the button.
+  // WASM fallback before they press the button.
   const engineReason = gpuAvailable === null
     ? 'se verifică WebGPU…'
     : gpuAvailable
       ? isWebcamCamera
         ? 'WebGPU disponibil — detecția reală rulează pe fluxul camerei locale.'
         : 'WebGPU disponibil — detecția reală rulează pe acest clip.'
-      : 'rulează pe WASM single-thread; ~2 fps';
+      : 'rulează pe WASM cu 4 fire când izolarea e activă; ~5–6 fps';
 
   // The engine runs on the local clip fallback or on the live webcam stream, and only while
   // the viewer asked for it. Fullscreen renders the raw clip in a separate tree, so the
@@ -466,6 +466,10 @@ export default function LiveView() {
     zones: engineZones,
     engineOn: Boolean(activeCamera?.engine_on),
     cameraId: activeCamera?.id,
+    // Cap the processed frame at 1280 on the long side. The YOLO graph is fixed 640 and
+    // faces/blur do not need 1920; the bench measures ~5 fps at 1280 versus ~3.7 at 1080p
+    // on the same 4 threads. `/bench` still lets a visitor compare sizes explicitly.
+    inputSize: 1280,
   });
 
   // Incidentele motorului sunt incidente reale pentru aplicație: intră în lista comună,

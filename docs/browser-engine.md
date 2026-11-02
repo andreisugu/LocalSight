@@ -178,8 +178,10 @@ navigările și scripturile de worker și le reconstruiește cu
 `Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: require-corp`.
 Nu cachează nimic, ca un deploy să nu rămână ascuns în spatele unui shell vechi. Prima
 încărcare nu e izolată; după ce worker-ul preia pagina, `main.jsx` face **un singur reload**
-(guard în `sessionStorage`). Măsurat pe clipul de 1080p: 2,5–3,6 fps în Chromium, 2,9 fps în
-Firefox, față de 1,5–1,8 fps pe un fir. Dacă service worker-ul nu e disponibil, aplicația
+(guard în `sessionStorage`). Măsurat pe clipul de 1080p: **5,2–6,0 fps** în Chromium și
+**5,2 fps** în Firefox, cu cadrul procesat la 1280 px — față de 1,5–1,8 fps pe un fir și
+~3,7 fps la 1920×1080. Capul la 1280 nu schimbă porțile PPE: acestea se calculează în pixeli ai
+cadrului sursă, ca în `ppe.py`. Dacă service worker-ul nu e disponibil, aplicația
 rulează identic, doar pe un fir; izolarea e o optimizare, nu o dependență.
 
 ## 6. Buget de performanță
@@ -200,7 +202,7 @@ OpenCV 5.0, YOLO26n, YuNet 2023mar), o cameră la 1080p:
 | Măsurătoare | Ipoteză | De ce ar putea să nu țină |
 |---|---|---|
 | YOLO26n 640, WebGPU | 5–15 ms | upload fp32 640×640 (~4.9 MB) + readback; drivere care serializează |
-| YOLO26n 640, WASM 4 fire (măsurat) | 2,5–3,6 fps pe clip 1080p | cu `crossOriginIsolated`; fără el, 1,5–1,8 fps |
+| YOLO26n 640, WASM 4 fire (măsurat) | 5,2–6,0 fps cu cadru 1280 | ~3,7 fps la 1920×1080; fără `crossOriginIsolated`, 1,5–1,8 fps |
 | YuNet 1080p, WebGPU | 20–50 ms | intrare fp32 1920×1080 = ~8.3 MB per cadru; modelul e mic, transferul domină (aceeași concluzie ca la iGPU + ncnn în `docs/performance.md`) |
 | YuNet 1080p, WASM | 80–200 ms | depinde de fire; 4 fire prin service worker-ul COOP/COEP |
 | primul cadru după încărcare | < 3 s | depinde de cache; rece: 9,9 MB + runtime |
@@ -240,7 +242,7 @@ treilea mod de rulare, util când WebGPU lipsește.
 
 1. **WebGPU pe mașina privitorului.** Cel mai probabil mod de eșec al demonstrației.
    Fallback-ul WASM pe un fir coboară la 1,5–1,8 fps; cu service worker-ul COOP/COEP urcă
-   la 2,5–3,6 fps, dar tot sub un demo fluid. De decis pragul de „mod lent”.
+   la 5,2–6,0 fps (cadru 1280), suficient pentru demo. De decis pragul de „mod lent”.
    De decis: prag minim (dacă YOLO > 80 ms, se afișează explicit „rulează în mod lent”) și
    dacă demo-ul oficial cere Chrome/Edge pe desktop. De măsurat pe o placă integrată, una
    dedicată și un Mac.

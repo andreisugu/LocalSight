@@ -587,8 +587,9 @@ export default function BenchView() {
               merge din instalare.
             </p>
             <p>
-              WebGPU folosește GPU-ul pentru inferență; pe WASM rulează un singur thread, pentru
-              că GitHub Pages nu poate trimite antetele COOP/COEP cerute de <code>SharedArrayBuffer</code>.
+              WebGPU folosește GPU-ul pentru inferență. Pe WASM rulează 4 fire când service
+              worker-ul COOP/COEP e activ (GitHub Pages nu poate trimite antetele, dar worker-ul
+              le adaugă); fără el, un singur fir.
             </p>
           </div>
         </div>
