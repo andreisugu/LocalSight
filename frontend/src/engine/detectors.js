@@ -7,7 +7,13 @@
 //
 // The wasm binary is bundled by Vite (`?url`) instead of being fetched from a CDN, so
 // the page works offline and from a static Pages build with no extra copy step.
-import * as ort from 'onnxruntime-web/webgpu';
+//
+// Only the asset *URL* is imported at module scope: it is a short string and fetching the
+// 28.7 MB binary is what ORT does later, on the first session. The runtime itself is
+// loaded on demand in `loadOrt`, so a visitor who never starts the engine (Live toggle
+// off, /lab never opened) does not download or parse it. The worker is built as an ES
+// module (see `worker.format` in vite.config.js), which is what allows the dynamic import
+// below to become its own chunk; an IIFE worker cannot code-split and would inline ORT.
 import ortWasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?url';
 
 const MODEL_BASE = `${import.meta.env.BASE_URL}models`;
@@ -19,8 +25,25 @@ export const YOLO_INPUT_SIZE = 640;
 export const LETTERBOX_PAD = 114;
 
 let configured = false;
+// Resolved once per module instance; a rejected import clears it so a retry can work.
+let ortPromise = null;
 
-function configureOrt() {
+/**
+ * Fetch and evaluate onnxruntime-web. Vite emits it as its own chunk, so the cost is paid
+ * on the first `loadModels` of a session, not when the worker module loads.
+ * @returns {Promise<typeof import('onnxruntime-web/webgpu')>}
+ */
+function loadOrt() {
+  if (!ortPromise) {
+    ortPromise = import('onnxruntime-web/webgpu').catch((error) => {
+      ortPromise = null;
+      throw new Error(`cannot load onnxruntime-web: ${error.message}`);
+    });
+  }
+  return ortPromise;
+}
+
+function configureOrt(ort) {
   if (configured) return;
   // The webgpu bundle embeds the asyncify glue, so it asks for the asyncify .wasm file.
   ort.env.wasm.wasmPaths = { wasm: ortWasmUrl };
@@ -116,7 +139,7 @@ async function fetchModelBytes(url) {
   return new Uint8Array(await response.arrayBuffer());
 }
 
-async function createSession(url, providers) {
+async function createSession(ort, url, providers) {
   const bytes = await fetchModelBytes(url);
   const options = { executionProviders: providers, graphOptimizationLevel: 'all' };
   try {
@@ -152,15 +175,16 @@ function inputShape(session) {
  *   page passes a single provider so the returned `actualProviders` says what really ran.
  */
 export async function loadModels(onProgress = () => {}, options = {}) {
-  configureOrt();
+  const ort = await loadOrt();
+  configureOrt(ort);
   const providers = Array.isArray(options.providers) && options.providers.length
     ? options.providers
     : await preferredProviders();
   onProgress(providers[0] === 'webgpu' ? 'loading (webgpu)' : 'loading (wasm)');
 
   const [yolo, yunet] = await Promise.all([
-    createSession(YOLO_MODEL_URL, providers),
-    createSession(YUNET_MODEL_URL, providers),
+    createSession(ort, YOLO_MODEL_URL, providers),
+    createSession(ort, YUNET_MODEL_URL, providers),
   ]);
 
   const yoloInput = inputShape(yolo.session);
@@ -191,7 +215,8 @@ export async function loadModels(onProgress = () => {}, options = {}) {
  * @returns {Promise<Float32Array>} raw [1, 84, 8400] scores
  */
 export async function runYolo(models, blob, size = YOLO_INPUT_SIZE) {
-  const tensor = new ort.Tensor('float32', blob, [1, 3, size, size]);
+  const { Tensor } = await loadOrt();
+  const tensor = new Tensor('float32', blob, [1, 3, size, size]);
   const results = await models.yolo.run({ [models.yoloInput.name]: tensor });
   const output = results[Object.keys(results)[0]];
   return output.data;
@@ -202,7 +227,8 @@ export async function runYolo(models, blob, size = YOLO_INPUT_SIZE) {
  * @returns {Promise<Float32Array[]>} cls[3], obj[3], bbox[3], kps[3] in graph order
  */
 export async function runYuNet(models, blob, width, height) {
-  const tensor = new ort.Tensor('float32', blob, [1, 3, height, width]);
+  const { Tensor } = await loadOrt();
+  const tensor = new Tensor('float32', blob, [1, 3, height, width]);
   const results = await models.yunet.run({ [models.yunetInput.name]: tensor });
   const names = models.yunet.outputNames?.length
     ? models.yunet.outputNames
