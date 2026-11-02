@@ -193,7 +193,7 @@ function Brand() {
         className="h-8 w-8 shrink-0 rounded-full border border-slate-400 object-cover shadow-md dark:border-white/20 sm:h-10 sm:w-10"
       />
       <div className="min-w-0">
-        <h1 className="truncate text-base font-black uppercase leading-none tracking-tight drop-shadow-sm sm:text-xl">
+        <h1 data-testid="app-title" className="truncate text-base font-black uppercase leading-none tracking-tight drop-shadow-sm sm:text-xl">
           LocalSight
         </h1>
         <p className={`mt-0.5 hidden truncate text-xs font-medium tracking-wide sm:block ${META_TEXT}`}>

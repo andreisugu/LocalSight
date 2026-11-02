@@ -67,6 +67,7 @@ export default function CameraToolbar({
         </span>
         <select
           id="live-camera-select"
+          data-testid="camera-select"
           value={activeCamera?.id || ''}
           onChange={(event) => onSelectCamera(event.target.value)}
           style={{
@@ -123,6 +124,7 @@ export default function CameraToolbar({
         {engineSource && browserEngineOn && (
           <button
             type="button"
+            data-testid="engine-stop"
             onClick={onToggleBrowserEngine}
             aria-pressed={browserEngineOn}
             className="px-2.5 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 shadow transition-all bg-[#33E1FF] text-[#1F1F1F] hover:bg-[#7EEBFF]"

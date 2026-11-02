@@ -9,6 +9,7 @@ export default function IncidentEmptyState({ onBack }) {
   return (
     <div className="flex-1 h-full flex items-center justify-center p-6">
       <div
+        data-testid="incident-empty"
         style={{ backgroundColor: themeStyles.panelBg, borderColor: themeStyles.panelBorder }}
         className="w-full max-w-sm rounded-xl border p-6 text-center space-y-3 shadow-lg"
       >

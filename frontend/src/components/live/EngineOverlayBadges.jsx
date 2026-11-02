@@ -37,6 +37,7 @@ export default function EngineOverlayBadges({
         )}
         <button
           type="button"
+          data-testid="engine-start"
           onClick={onStartEngine}
           className="mt-1.5 px-3 py-1.5 rounded-lg bg-[#33E1FF] hover:bg-[#7EEBFF] text-[#1F1F1F] text-[11px] font-bold inline-flex items-center gap-1.5 shadow"
         >
@@ -71,6 +72,7 @@ export default function EngineOverlayBadges({
       <canvas
         ref={canvasRef}
         aria-hidden="true"
+        data-testid="engine-canvas"
         // Fail-closed at the display: a broken engine must never leave the worker's
         // unblurred passthrough frame on screen.
         className={`absolute inset-0 w-full h-full object-cover pointer-events-none${

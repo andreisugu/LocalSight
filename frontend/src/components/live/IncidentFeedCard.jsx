@@ -32,6 +32,11 @@ export default function IncidentFeedCard({ event, isDarkMode, onOpen, onAck, onA
 
   return (
     <div
+      data-testid="incident-card"
+      data-event-id={event.event_id}
+      data-severity={event.severity}
+      data-status={event.status}
+      data-local={event.local ? 'true' : undefined}
       style={{ backgroundColor: isDarkMode ? '#2A2A2A' : '#FFFFFF' }}
       className={`rounded-xl border p-2.5 shadow-sm transition-all ${
         escalated
@@ -47,6 +52,7 @@ export default function IncidentFeedCard({ event, isDarkMode, onOpen, onAck, onA
       <button
         type="button"
         onClick={onOpen}
+        data-testid="incident-open"
         aria-label={openLabel}
         className="block w-full cursor-pointer space-y-1.5 text-left"
       >
@@ -115,6 +121,7 @@ export default function IncidentFeedCard({ event, isDarkMode, onOpen, onAck, onA
         {canDo('ack', event.status) && (
           <button
             type="button"
+            data-testid="incident-ack"
             onPointerDown={() => onAckPress(event.event_id)}
             onClick={(clickEvent) => onAck(clickEvent, event.event_id)}
             // A unique name per card: four buttons called "Confirmă" are indistinguishable

@@ -410,7 +410,13 @@ export default function SettingsView() {
           </ul>
         </section>
 
-        <section aria-labelledby="local-data-heading" style={surface} className="space-y-3 rounded-xl border p-4">
+        <section
+          data-testid="local-data"
+          data-supported={localEvidence.supported ? 'true' : 'false'}
+          aria-labelledby="local-data-heading"
+          style={surface}
+          className="space-y-3 rounded-xl border p-4"
+        >
           <h3 id="local-data-heading" className="flex flex-wrap items-center gap-2 text-sm font-bold uppercase">
             <HardDrive size={16} aria-hidden="true" className="text-[#0284C7] dark:text-[#FFEB33]" />
             Date locale
@@ -432,6 +438,7 @@ export default function SettingsView() {
                 Stocare
               </dt>
               <dd
+                data-testid="local-storage"
                 className={`font-semibold ${
                   localEvidence.supported ? TONE_TEXT.ok : TONE_TEXT.warn
                 }`}
@@ -440,7 +447,7 @@ export default function SettingsView() {
                   ? 'IndexedDB disponibil'
                   : 'IndexedDB indisponibil'}
               </dd>
-              <p className="text-[11px] leading-snug" style={muted}>
+              <p data-testid="local-storage-note" className="text-[11px] leading-snug" style={muted}>
                 {localEvidence.supported
                   ? 'Incidentele supraviețuiesc reîncărcării paginii.'
                   : 'Mod privat, stocare blocată sau alt tab ține baza deschisă: incidentele nu supraviețuiesc reîncărcării.'}
@@ -451,12 +458,12 @@ export default function SettingsView() {
               <dt className="text-[10px] font-bold uppercase tracking-wider" style={muted}>
                 Incidente salvate
               </dt>
-              <dd className="font-mono font-bold tabular-nums">
+              <dd data-testid="local-incidents" className="font-mono font-bold tabular-nums">
                 {localEvidence.hydrated
                   ? `${localEvidence.stats.count} / ${localEvidence.retention.maxEvents}`
                   : 'se citește…'}
               </dd>
-              <p className="text-[11px] leading-snug" style={muted}>
+              <p data-testid="local-snapshots" className="text-[11px] leading-snug" style={muted}>
                 {localEvidence.stats.evidenceCount}{' '}
                 {localEvidence.stats.evidenceCount === 1 ? 'snapshot' : 'snapshot-uri'} ·{' '}
                 {formatBytes(localEvidence.stats.bytes)} aproximativ
@@ -467,7 +474,7 @@ export default function SettingsView() {
               <dt className="text-[10px] font-bold uppercase tracking-wider" style={muted}>
                 Confirmări salvate
               </dt>
-              <dd className="font-mono font-bold tabular-nums">
+              <dd data-testid="local-acks" className="font-mono font-bold tabular-nums">
                 {localEvidence.hydrated ? localEvidence.stats.ackCount : 'se citește…'}
               </dd>
               <p className="text-[11px] leading-snug" style={muted}>
@@ -493,7 +500,7 @@ export default function SettingsView() {
           <div className="border-t pt-3" style={{ borderColor: themeStyles.panelBorder }}>
             {confirmingClear ? (
               <div role="group" aria-label="Confirmare ștergere date locale" className="space-y-2">
-                <p role="alert" className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                <p data-testid="local-clear-warning" role="alert" className="text-xs font-semibold text-amber-700 dark:text-amber-400">
                   Ștergi {localEvidence.stats.count}{' '}
                   {localEvidence.stats.count === 1 ? 'incident salvat' : 'incidente salvate'} și
                   snapshot-urile lor? Fixture-urile demo rămân.
@@ -501,6 +508,7 @@ export default function SettingsView() {
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
+                    data-testid="local-clear-confirm"
                     onClick={removeLocalData}
                     disabled={clearing}
                     className="rounded-lg border border-[#D73833]/50 bg-[#D73833]/15 px-3 py-1.5 text-xs font-bold text-[#D73833] transition-colors hover:bg-[#D73833]/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFEB33] disabled:opacity-60"
@@ -522,6 +530,7 @@ export default function SettingsView() {
             ) : (
               <button
                 type="button"
+                data-testid="local-clear"
                 onClick={() => setConfirmingClear(true)}
                 className="rounded-lg border border-[#D73833]/50 bg-[#D73833]/15 px-3 py-1.5 text-xs font-bold text-[#D73833] transition-colors hover:bg-[#D73833]/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFEB33]"
               >

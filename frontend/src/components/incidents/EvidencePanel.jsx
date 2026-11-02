@@ -48,6 +48,7 @@ export default function EvidencePanel({ event }) {
       </div>
 
       <figure
+        data-testid="incident-snapshot"
         aria-labelledby={captionId}
         className="relative flex-1 min-h-[260px] rounded-lg overflow-hidden bg-black border border-slate-700"
       >
