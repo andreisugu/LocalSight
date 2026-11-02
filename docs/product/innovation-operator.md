@@ -1,10 +1,15 @@
 # LocalSight — operator features worth building
 
-**Proposal, not implemented.** 2 November 2026 · branch `prep/innovation-operator` · worktree
+**Initial proposal; the queue parts are implemented.** 2 November 2026 · branch `prep/innovation-operator` · worktree
 `LocalSight-prep/innovation-operator` · base `63551a1`.
 
 Read-only analysis: this branch adds this file and nothing else. No application code, test,
 configuration or other worktree was touched.
+
+**Status (2 November 2026).** The triage queue, episode grouping, WARNING-only holds and the
+coverage receipt are now implemented in the product: `frontend/src/components/live/TriageQueue.jsx`
+and `TriageRow.jsx` read the tested `utils/triage.js` core, and `CoverageRibbon` is mounted in
+Rapoarte. The rest of this document remains a proposal.
 
 **Question.** The pipeline is proven; the demo works. What would a shift supervisor actually use
 on a real apron, and which of those ideas would make a 60-second demo visibly better without

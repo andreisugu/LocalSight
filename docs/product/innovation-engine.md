@@ -12,6 +12,11 @@ constraints are non-negotiable: **no backend** and **nothing leaves the tab**. A
 needs a server, a secret, a 300 MB download or a new event type is either out or explicitly
 deferred.
 
+**Status (2 November 2026).** The metric ground plane is implemented as an optional per-camera
+calibration in Live (`components/live/GroundCalibration.jsx`, `utils/groundCalibration.js`): four
+ground points plus the patch dimensions produce indicative track speeds, with no number when the
+camera is uncalibrated. The rest of this document remains a proposal.
+
 ---
 
 ## 0. Verdict

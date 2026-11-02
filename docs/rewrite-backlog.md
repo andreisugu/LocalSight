@@ -102,13 +102,13 @@ tracker, vest, blur, report, webgpu, decode), `LiveEngineCard`, `SafeImage`, `Er
 ## Rezultat final (2026-11-02)
 
 ```text
-frontend 38 191 linii de cod
-  tu       37 656 (98,6%)
-  colegi      535 (1,4%)
+frontend 40 817 linii de cod
+  tu       40 282 (98,7%)
+  colegi      535 (1,3%)
   logică moștenită: 0
 ```
 
-Restul de 1,4% este schelet JSX, importuri, chei de context, etichete vizibile și valorile
+Restul de 1,3% este schelet JSX, importuri, chei de context, etichete vizibile și valorile
 de design pe care API-ul trebuie să le păstreze; nu conține funcții, ramuri sau calcule.
 Stack-ul Python (`backend/`, `ml/`, `automation/`) a fost șters din fork (`d205b04`) și
 rămâne în istoric/upstream. `polygon.js` păstrează matematica identică (rescrisă cu teste),

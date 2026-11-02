@@ -48,7 +48,7 @@ vechi. Fără el (dev, browser fără service worker) motorul cade pe un singur 
 putea bloca sesiunea ONNX Runtime. Chrome/Edge folosesc WebGPU când există adapter; cifra
 depinde de GPU. Sub 2 fps, panoul din Live avertizează după 10 s de rulare.
 
-Teste: 690 Node (`node --test`, motor, utilitare, date, servicii, componente și raport), 5 E2E Playwright la baza
+Teste: 730 Node (`node --test`, motor, utilitare, date, servicii, componente și raport), 5 E2E Playwright la baza
 `/`, 5 E2E pe forma de deploy (`/LocalSight/`, COI + motor pornit) și 3 E2E de persistență; CI rulează unit,
 build-ul de frontend, ambele suite e2e și o gardă pentru subpath-ul de Pages. Comenzile
 canonice sunt în [`RUNNING.md`](RUNNING.md#teste).
@@ -60,10 +60,10 @@ Toate rutele sunt client-side, definite în `VIEW_PATHS` din
 
 | Rută | Ce face |
 |---|---|
-| `/` | Live: 3 clipuri demo sau camera locală, panoul de incidente și comutatorul „Procesează în browser” |
+| `/` | Live: 3 clipuri demo sau camera locală, motorul în browser, coada de triaj (Coadă/Flux) și feed-ul de incidente |
 | `/incidents` | lista de incidente, cu severitate, status și dovadă |
 | `/zones` | editorul de zone, poligon desenat pe cadrul de referință |
-| `/reports` | raportul de tură: KPI și rezumat |
+| `/reports` | raportul de tură: KPI, rezumat și acoperirea camerei din sesiune |
 | `/lab` | motorul pe un clip ales sau pe webcam: fps, persoane, fețe, incidente |
 | `/bench` | fps/p50/p95 pe provider și mărime de intrare, istoric în `localStorage` |
 
@@ -77,6 +77,9 @@ Toate rutele sunt client-side, definite în `VIEW_PATHS` din
 
 ![Configurare zone: poligonul pe canvas și parametrii regulii](docs/assets/localsight-zones.png)
 *Configurare zone: poligonul pe canvas și parametrii regulii.*
+
+![Rapoarte: acoperirea camerei în sesiunea curentă](docs/assets/localsight-coverage.png)
+*Rapoarte: acoperirea se calculează din eșantioanele motorului din acest tab — segmente live, tab ascuns și pauze; fără eșantioane afișează „fără date”.*
 
 ## Pornire rapidă
 
@@ -133,6 +136,9 @@ avertismentele sunt în [`RUNNING.md`](RUNNING.md#modele-și-media) și
 | YOLO26n + YuNet + tracker + zone + reguli | Incidentele din fixtures și KPI-urile derivate din ele — **ascunse implicit**, se activează din Setări → Date demo |
 | Blur pe fețe înainte de desenare, fail-closed | Raportul de incident (șablon, nu LLM) |
 | Detecția de vestă hi-vis și starea PPE | Escaladarea din fixture-uri |
+| Coada de triaj: deadline, episoade, hold doar pe WARNING | Pragurile și starea vin din evenimentele reale; acțiunile trăiesc în memorie |
+| Calibrarea solului și viteza per track | Viteza e indicatorie, pe cadrul de referință; fără calibrare scrie „necalibrat” |
+| Acoperirea camerei din eșantioanele sesiunii | Doar cât a rulat motorul în tab; nu se salvează și nu pleacă din browser |
 | Incidentele motorului, marcate `local`, cu dovada procesată | Camera locală (flux propriu, doar cu permisiune) |
 
 Scenariul de prezentare, pas cu pas: [`demo/run_sheet_browser.md`](demo/run_sheet_browser.md).
@@ -171,8 +177,8 @@ Ce cod a rămas de la fiecare autor se măsoară pe linii cu
 liniile rămase. Standardul de „înlocuit" — implementare nouă, logică testată, nu doar clase
 schimbate — și lista a ce s-a amânat sunt în
 [`docs/rewrite-backlog.md`](docs/rewrite-backlog.md); raportul generat este
-[`docs/provenance.md`](docs/provenance.md). La 2 noiembrie 2026: **98,6%** din liniile de
-cod de produs sunt ale noastre, **1,4%** sunt schelet JSX/etichete/importuri, iar
+[`docs/provenance.md`](docs/provenance.md). La 2 noiembrie 2026: **98,7%** din liniile de
+cod de produs sunt ale noastre, **1,3%** sunt schelet JSX/etichete/importuri, iar
 auditul nu mai găsește **nicio linie de logică** moștenită. Stack-ul Python a fost scos din
 fork; rămâne în istoricul git și în upstream.
 

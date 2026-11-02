@@ -273,3 +273,19 @@ treilea mod de rulare, util când WebGPU lipsește.
 9. **Fallback-ul de blur.** `ctx.filter` nu e garantat identic peste tot; dacă lipsește,
    blur-ul de rezervă trebuie să fie cel puțin la fel de puternic, nu doar „ceva”. Regula
    din `privacy.py:179` se păstrează: mai bine fără imagine decât cu o față clară.
+
+## 9. Stratul de operator peste motor
+
+Motorul produce `tracks`, `result` și evenimente; trei consumatori adaugă context fără să
+schimbe contractul:
+
+| Modul | Sursă | Ce calculează | Limită spusă în UI |
+|---|---|---|---|
+| Coada de triaj | evenimentele vizibile + un tick de 1 s | ordine escaladat → severitate → termen → vechime, episoade, hold doar pe WARNING (maximum 15 min) | starea și acțiunile sunt în memorie; un reload le pierde |
+| Calibrarea solului | 4 puncte pe cadrul de referință + lățime/înălțime în metri | homografie și viteză per track din punctul de sprijin `(x1+x2)/2, y2` | viteza e indicatorie; fără calibrare afișează „necalibrat”, nu 0 |
+| Acoperirea camerei | un eșantion pe secundă cât rulează motorul + `visibilitychange` | segmente live / tab ascuns / motor în pauză și procentul ferestrei | doar sesiunea din tab, maximum 5000 de eșantioane, nimic persistat |
+
+Coada citește exact lista filtrată de `real-only`, deci nu poate inventa un rând din fixtures.
+Calibrarea se salvează per cameră în `localStorage` (`localsight.groundCalibration.<id>`) și
+se validează la citire; punctele coliniare sunt respinse. Acoperirea nu e o metrică de
+disponibilitate a camerei, ci o dovadă a cât a procesat acest tab.
