@@ -25,6 +25,7 @@ import { createTracker } from './tracker.js';
 import { EDGE, MIN_PERSON_PX, VestTracker, hivisRatio } from './vest.js';
 import { zoneActive } from './zones.js';
 import { DEFAULT_LAB_ZONE } from './zones.default.js';
+import { layoutZoneLabels, topVertex, zoneLabelFont, zoneLabelFontPx } from './zoneLabels.js';
 
 const PERSON_CONF = 0.35;
 const PERSON_NMS = 0.45;
@@ -774,8 +775,10 @@ function drawZones(ctx, zones, engineOn) {
   const height = ctx.canvas.height;
   if (!width || !height) return;
 
-  const fontPx = Math.max(10, Math.round(width / 64));
-  const padding = 4;
+  // Polygons first, labels second: a later polygon must never stroke over an earlier
+  // label. Same geometry and per-zone save/restore as before, so a malformed zone still
+  // cannot leak a dash pattern or a dim alpha into the next frame.
+  const labelZones = [];
   for (const zone of zones) {
     const points = zonePoints(zone);
     if (!points) continue;
@@ -797,31 +800,60 @@ function drawZones(ctx, zones, engineOn) {
       });
       ctx.closePath();
       ctx.stroke();
-
-      // Label on the polygon's top vertex: the corner a reader scans first, and the one
-      // least likely to sit under a person box.
-      let top = points[0];
-      for (const point of points) {
-        if (point[1] < top[1] || (point[1] === top[1] && point[0] < top[0])) top = point;
-      }
-      const name = String(zone.name || zone.id || '?');
-      ctx.font = `bold ${fontPx}px ui-monospace, SFMono-Regular, Menlo, monospace`;
-      ctx.textBaseline = 'top';
-      const label = fitText(ctx, `ZONĂ: ${name}${active ? '' : ' (inactiv)'}`, Math.max(40, width - padding * 4));
-      const boxWidth = Math.min(width, Math.ceil(ctx.measureText(label).width) + padding * 2);
-      const boxHeight = fontPx + padding * 2;
-      const labelX = Math.max(0, Math.min(width - boxWidth, top[0] * width));
-      let labelY = top[1] * height - boxHeight - 3;
-      if (labelY < 0) labelY = Math.min(height - boxHeight, top[1] * height + 3);
-
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.72)';
-      ctx.fillRect(labelX, labelY, boxWidth, boxHeight);
-      ctx.fillStyle = ZONE_STROKE;
-      ctx.fillText(label, labelX + padding, labelY + padding);
     } finally {
       // A malformed zone must not leak a dash pattern or a dim alpha into the next frame.
       ctx.restore();
     }
+
+    // Label on the polygon's top vertex: the corner a reader scans first, and the one
+    // least likely to sit under a person box. `zoneLabels.js` owns the size, the
+    // ellipsis and the collision ladder, so the worker only draws the boxes it returns.
+    const top = topVertex(points);
+    labelZones.push({
+      name: zone?.name,
+      id: zone?.id,
+      active,
+      topX: top[0],
+      topY: top[1],
+    });
+  }
+
+  if (labelZones.length === 0) return;
+  const fontPx = zoneLabelFontPx(width);
+  if (!fontPx) return;
+
+  ctx.save();
+  try {
+    ctx.font = zoneLabelFont(fontPx);
+    ctx.textBaseline = 'middle';
+    const labels = layoutZoneLabels({
+      width,
+      height,
+      zones: labelZones,
+      measure: (text) => ctx.measureText(text).width,
+    });
+    // A thin zone-coloured border keeps the dark plate readable over the pale apron
+    // without adding a second label colour. It scales with the font, so it survives the
+    // downscale to a 375 px viewport (≈1 px on screen) instead of vanishing.
+    const border = Math.max(1, Math.round(fontPx / 24));
+    for (const label of labels) {
+      ctx.globalAlpha = label.active ? 1 : ZONE_INACTIVE_ALPHA;
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.78)';
+      ctx.fillRect(label.x, label.y, label.width, label.height);
+      ctx.strokeStyle = ZONE_STROKE;
+      ctx.lineWidth = border;
+      const inset = border / 2;
+      ctx.strokeRect(
+        label.x + inset,
+        label.y + inset,
+        Math.max(0, label.width - border),
+        Math.max(0, label.height - border),
+      );
+      ctx.fillStyle = ZONE_STROKE;
+      ctx.fillText(label.text, label.x + label.padding, label.y + label.height / 2);
+    }
+  } finally {
+    ctx.restore();
   }
 }
 
