@@ -4,6 +4,10 @@ import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { USE_MOCK } from '../../services/api';
 
+// Public assets are prefixed with the Vite base so the build also works from a
+// repo subpath (GitHub Pages); same pattern as src/engine/detectors.js.
+const LOGO_SRC = `${import.meta.env.BASE_URL}logo.svg`;
+
 export default function Header() {
   const { isDarkMode, toggleTheme, themeStyles } = useTheme();
   const {
@@ -54,8 +58,8 @@ export default function Header() {
           <Menu size={18} />
         </button>
         <img
-          src="/logo.png"
-          alt="LocalSight Logo"
+          src={LOGO_SRC}
+          alt="LocalSight"
           className="w-10 h-10 rounded-full object-cover shadow-md border border-white/20 shrink-0"
         />
         <div>

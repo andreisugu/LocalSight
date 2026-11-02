@@ -1,8 +1,9 @@
 {
-  "name": "safesight-command-center",
+  "name": "localsight",
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "description": "Browser-only airport apron safety pipeline: in-browser detection, zone rules, face blur and incident reports, with no server.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
