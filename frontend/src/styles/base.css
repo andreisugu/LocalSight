@@ -1,0 +1,9 @@
+/* Base typography and the app-wide interaction policy. Kept inside Tailwind's base layer
+   so a utility class on the same element still wins. */
+@layer base {
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    user-select: none;
+  }
+}

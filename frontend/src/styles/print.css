@@ -1,0 +1,33 @@
+/* Export PDF (utils/print.js): only the page content, dark text on white, no app chrome.
+   The header, the sidebar and the action panels opt out with `.no-print`. */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  .no-print {
+    display: none !important;
+  }
+  html,
+  body,
+  #root {
+    height: auto !important;
+    background: #fff !important;
+  }
+  * {
+    overflow: visible !important;
+    max-height: none !important;
+    color: #111 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    border-color: #d1d5db !important;
+  }
+  .h-screen,
+  .h-full {
+    height: auto !important;
+  }
+  img {
+    max-width: 100% !important;
+    break-inside: avoid;
+  }
+}
