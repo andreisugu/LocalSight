@@ -178,7 +178,7 @@ export default function Header() {
           />
           <input
             ref={searchRef}
-            type="search"
+            type="text"
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             onKeyDown={(event) => {
