@@ -131,8 +131,22 @@ bash scripts/prepare-demo-media.sh           # scrie în frontend/public/media/
   capturi pentru docs. Blur-ul rulează înainte de salvare sau afișare, cu plasă de
   siguranță pe banda capului; dacă modelul de fețe nu se încarcă, nu se produce imagine
   (fail-closed).
-- Fără nume, fără recunoaștere de emoții, fără upload de cadre. Afirmația „nimic nu
-  părăsește tab-ul" trebuie să rămână literală.
+- Fără nume, fără recunoaștere de emoții, fără upload de cadre. **Cadrele nu părăsesc
+  tab-ul.** Textul incidentului poate pleca doar prin webhook-ul opt-in, prin relay-ul
+  self-hosted, fără imagini, snapshot-uri sau fețe.
+- **Webhook-ul e opt-in, text-only, prin relay.** Providerii (Slack/Discord/Telegram/ntfy)
+  țin secretele în env-ul `scripts/webhook-relay.mjs`, nu în bundle; token-ul releului e
+  opțional. Nu trimite imagini, snapshot-uri, fețe sau linkuri către un incident local.
+  `connect-src` se extinde doar cu `VITE_WEBHOOK_ORIGIN`/localhost; nu deschide CSP-ul la
+  `https:` generic. Livrarea e best-effort cât timp tab-ul e deschis.
+- **Arhiva e locală.** `/archive` exportă/importă JSON din IndexedDB; nicio încărcare.
+  Importul e replace-only, cu confirmare explicită; nu îl face automat sau parțial.
+- **Șabloanele de zone sunt configurație locală**, nu contract; păstrează schema zonelor și
+  confirmă replace-ul. ID-urile globale se re-emit dacă sunt deja folosite.
+- **Camera WHEP e opțională.** Browserul nu ia RTSP; gateway-ul MediaMTX e local, iar pentru
+  producție cere TLS/auth/CORS/segmentare. Nu adăuga WHEP în build-ul implicit.
+- **License guard:** `npm run check:licenses` trebuie să rămână verde; nu adăuga GPL/AGPL/LGPL
+  sau licențe necunoscute, iar notice-urile din `frontend/public/` rămân în build.
 - **Fixture-urile demo sunt ascunse implicit.** Lista, feed-ul Live, raportul de tură,
   jurnalul și cifrele KPI citesc aceeași listă vizibilă: detecțiile motorului din browser
   (mereu), evenimentele din meniul Simulare (marcate `simulat`) și fixture-urile doar când

@@ -584,7 +584,7 @@ function DetectorChoice({ value, active, onSelect }) {
           {lite2 ? '' : ' (recomandat)'}
         </span>
         <span className="block font-mono text-[11px] leading-snug" style={muted}>
-          {lite2 ? '448 px · ~4.8 fps' : '320 px · ~8.8 fps'} · Apache-2.0
+          {lite2 ? '448 px · ~3.5–5 fps' : '320 px · ~6–9 fps'} · Apache-2.0
         </span>
         <span className="block text-[11px] leading-snug" style={muted}>
           {lite2

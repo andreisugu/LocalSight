@@ -26,7 +26,7 @@ Setări.
 | | EfficientDet-Lite0 (implicit) | EfficientDet-Lite2 (opțiune) |
 |---|---|---|
 | Input | 320×320 | 448×448 |
-| FPS pe hardware-ul de dezvoltare, 4 fire WASM, cadru 1280 | **~8,8** | **~4,8** |
+| FPS pe hardware-ul de dezvoltare, 4 fire WASM, cadru 1280 | **~6–9** | **~3,5–5** |
 | COCO mAP | 25,7 | 34,0 |
 | ONNX | 13,8 MB | 22,9 MB |
 | Licență weights | Apache-2.0 | Apache-2.0 |
@@ -48,23 +48,32 @@ pe un laptop mic scad. Detaliile și lanțul de licențe: [`docs/legal/model-pro
 | WASM pe 4 fire pe Pages | funcționează prin service worker COOP/COEP, cu cache versionat pe build | [`frontend/public/coi-serviceworker.js`](frontend/public/coi-serviceworker.js) |
 | Raport de tură | calculat din incidentele vizibile, marcat `șablon` | `/reports` |
 | Detecție de vestă hi-vis (PPE) | funcționează; badge `VESTĂ` / `FĂRĂ VESTĂ` / `PPE ?` pe canvas | [`frontend/src/engine/vest.js`](frontend/src/engine/vest.js); `NO_PPE` cere un om de ≥150 px în cadru |
-| Camere | 3 clipuri demo generate din still-uri licențiate + camera browser (getUserMedia) | selectorul de cameră din Live |
+| HUD pe regulă | cutie **roșie** la `CRITICAL`, **ambră** la `WARNING`, când picioarele sunt în zona activă | [`frontend/src/engine/hud.js`](frontend/src/engine/hud.js) |
+| Camere | 3 clipuri demo generate din still-uri licențiate + camera browser (getUserMedia); opțional WHEP pentru RTSP | selectorul de cameră din Live; [`gateway/README.md`](gateway/README.md) |
+| Notificări webhook | opțional, **OFF** implicit; text-only; Slack/Discord/Telegram/ntfy prin relay; best-effort cât timp tab-ul e deschis | Setări → Notificări; [`scripts/webhook-relay.mjs`](scripts/webhook-relay.mjs) |
+| Arhivă & Backup | export/import JSON local al incidentelor, snapshot-urilor și ack-urilor; replace explicit | `/archive` |
+| Șabloane de zone | export/import JSON; template per cameră sau global | `/zones` |
+| Firefox mobil | autoplay-ul clipului e numit, iar un tap pornește motorul; test dedicat | [`e2e/firefox-mobile`](frontend/e2e/firefox-mobile/autoplay.spec.js) |
 | Blur pe fețe înainte de desenare | funcționează pe cadrul din canvas și în snapshot | `worker.js`; JPEG 960 px, fețele blurate, URL deținut de pagină |
-| Backend, Slack, MJPEG, SQLite | în afara scopului | stack-ul Python a fost scos din acest fork; vezi istoricul git |
+| Acuratețe | benchmark Lite0/Lite2; CAM-01/02 nu detectează muncitorii, CAM-03 da | [`docs/qa/detector-benchmark.md`](docs/qa/detector-benchmark.md) |
+| Backend, MJPEG, SQLite | în afara scopului | stack-ul Python a fost scos din acest fork; webhook-urile sunt prin relay, fără backend |
 
-Cifrele de browser sunt măsurate pe hardware-ul de dezvoltare, pe clipul de 1080p:
-**8,8 fps** cu Lite0 și **4,8 fps** cu Lite2 în Chromium, pe WASM cu 4 fire și cadrul
-procesat la 1280 px. Fără cap, la 1920×1080, aceleași fire sunt mai lente. Firele vin din
+Cifrele de browser sunt măsurate pe hardware-ul de dezvoltare, pe clipurile generate:
+**6–9 fps** cu Lite0 și **3,5–5 fps** cu Lite2 în Chromium, pe WASM cu 4 fire și cadrul
+procesat la 1280 px; 8,8/4,8 au fost vârfurile într-o rulare liniștită. Raportul complet:
+[`docs/qa/detector-benchmark.md`](docs/qa/detector-benchmark.md). Fără cap, la 1920×1080, aceleași fire sunt mai lente. Firele vin din
 `frontend/public/coi-serviceworker.js`: un service worker care re-servește navigările cu
 COOP/COEP (GitHub Pages nu poate trimite antete custom) și ține un cache versionat pe SHA-ul
 build-ului: HTML-ul rămâne network-first, iar fișierele imuabile (assets hash-uite, modele,
 clipuri, still-uri) sunt cache-first. Un deploy nou activează alt worker și șterge cache-ul
 vechi. Fără el (dev, browser fără service worker) motorul cade pe un singur fir.
 
-Teste: **741 Node** (`node --test`, motor, utilitare, date, servicii, componente și raport),
-5 E2E Playwright la baza `/`, 6 E2E pe forma de deploy (`/LocalSight/`, COI + motor pornit,
-plus cardul de model) și 3 E2E de persistență; CI rulează unit, build-ul de frontend, ambele suite e2e și o gardă
-pentru subpath-ul de Pages. Comenzile canonice sunt în [`RUNNING.md`](RUNNING.md#teste).
+Teste: **871 Node** (`node --test`, motor, utilitare, date, servicii, componente, arhivă, zone,
+webhook, licențe și raport), 5 E2E Playwright la baza `/`, 6 E2E pe forma de deploy
+(`/LocalSight/`, COI + motor pornit, plus cardul de model), 8 E2E de persistență (3 motor +
+5 arhivă) și 1 E2E Firefox mobil pentru autoplay (explicit; CI instalează doar Chromium).
+CI rulează licențele, unit, build-ul de frontend, smoke + Pages + persistență și garda pentru
+subpath-ul de Pages. Comenzile canonice sunt în [`RUNNING.md`](RUNNING.md#teste).
 
 ## Pagini
 
@@ -73,21 +82,28 @@ Toate rutele sunt client-side, definite în `VIEW_PATHS` din
 
 | Rută | Ce face |
 |---|---|
-| `/` | Live: 3 clipuri demo sau camera locală, motorul în browser, coada de triaj (Coadă/Flux) și feed-ul de incidente |
+| `/` | Live: 3 clipuri demo, camera locală sau WHEP, motorul în browser, HUD colorat pe regulă, coada de triaj (Coadă/Flux) și feed-ul |
 | `/incidents` | lista de incidente, cu severitate, status și dovadă |
-| `/zones` | editorul de zone, poligon desenat pe cadrul de referință |
+| `/zones` | editorul de zone, poligon desenat pe cadrul de referință, export/import și șabloane |
 | `/reports` | raportul de tură: KPI, rezumat și acoperirea camerei din sesiune |
-| `/settings` | Sistem & Audit: model detecție, thread-uri WASM, blur, camere în fundal, date demo |
+| `/archive` | export/import local al incidentelor, snapshot-urilor și confirmărilor |
+| `/settings` | Sistem & Audit: model detecție, thread-uri WASM, blur, camere în fundal, notificări webhook, date demo |
 | `/lab` | motorul pe un clip ales sau pe webcam: fps, persoane, fețe, incidente |
 | `/bench` | fps/p50/p95 pe provider și mărime de intrare, istoric în `localStorage` |
 
 ## Capturi
 
-![Live: motorul EfficientDet-Lite0 pe CAM-03, zona restricționată și coada de triaj](docs/assets/localsight-live.png)
-*Live: motorul din browser pe CAM-03 (clip demo generat din still licențiat), zona restricționată, coada de triaj și un incident real; fixture-urile demo sunt oprite.*
+![Live: HUD-ul persoanei devine ambră în zona restricționată](docs/assets/localsight-live.png)
+*Live: motorul din browser pe CAM-03 (clip demo generat din still licențiat); HUD-ul urmează regula zonei — ambră pentru `WARNING`, roșu pentru `CRITICAL` — iar coada și incidentul sunt reale; fixture-urile demo sunt oprite.*
 
 ![Setări: alegerea modelului EfficientDet-Lite0 sau Lite2](docs/assets/localsight-model.png)
 *Setări: EfficientDet-Lite0 implicit, Lite2 pentru acuratețe; ambele Apache-2.0, fără AGPL.*
+
+![Setări: notificări webhook text-only prin relay](docs/assets/localsight-webhook.png)
+*Setări: webhook opțional, OFF implicit; text-only prin relay, fără imagini sau secrete în bundle.*
+
+![Arhivă & Backup: export/import local al dovezilor](docs/assets/localsight-archive.png)
+*Arhivă: export/import JSON local al incidentelor, snapshot-urilor și confirmărilor; nimic nu pleacă în rețea.*
 
 ![Incidente: lista completă, cu severitate, status și dovada foto](docs/assets/localsight-incidents.png)
 *Incidente: doar detecția reală de pe clipul generat, cu severitate, status și dovadă; datele demo sunt ascunse implicit.*
@@ -110,24 +126,30 @@ Regulile de lucru pentru autori sunt în [`AGENTS.md`](AGENTS.md); ghidul de con
 ## Arhitectură
 
 Tot pipeline-ul rulează în tab: camera → detecție → tracking → reguli de zonă → blur →
-eveniment → UI React. Nu există proces de server, nici coadă, nici bază de date. Cifrele
-măsurate în browser sunt în [`docs/browser-engine.md`](docs/browser-engine.md); cele ale
-vechii referințe CPU, în [`docs/performance.md`](docs/performance.md) (istoric).
+eveniment → UI React. Pipeline-ul nu are backend, coadă sau bază de date. Opțional, în afara
+tab-ului: un **relay Node** pentru webhook-uri și un **gateway MediaMTX** pentru RTSP → WHEP;
+niciunul nu e necesar pentru demo. Cifrele măsurate în browser sunt în
+[`docs/browser-engine.md`](docs/browser-engine.md); benchmark-ul detectorului în
+[`docs/qa/detector-benchmark.md`](docs/qa/detector-benchmark.md); referința CPU istorică în
+[`docs/performance.md`](docs/performance.md).
 
 ```mermaid
 flowchart TD
   A[Camera / clip demo] --> B[Web Worker]
+  A2[RTSP] --> G2[MediaMTX WHEP opțional] --> B
   B --> C[EfficientDet-Lite0/2 ONNX]
   B --> D[YuNet face detector]
   C --> E[Tracker + zone + PPE]
   D --> F[Blur pe fețe înainte de desenare]
   E --> G[Incident + snapshot]
-  G --> H[React UI: Live, coadă, rapoarte]
+  G --> H[React UI: Live, coadă, rapoarte, arhivă]
+  G -. opțional .-> W[Relay webhook] --> N[Slack/Discord/Telegram/ntfy]
 ```
 
-Nimic nu urcă pe rețea: se descarcă doar fișierele statice (JS, modelul ONNX, `yunet.onnx`,
-clipul). Starea trăiește în tab și se pierde la reload. Deciziile, inclusiv cum se obțin
-firele WASM pe un host fără antete custom, sunt în
+Pipeline-ul nu urcă nimic pe rețea: se descarcă doar fișierele statice (JS, modelul ONNX,
+`yunet.onnx`, clipul). Webhook-ul, dacă e activat, trimite **text** către relay-ul configurat;
+gateway-ul WHEP e local. Starea pipeline-ului trăiește în tab; arhiva JSON e copia explicită.
+Deciziile, inclusiv cum se obțin firele WASM pe un host fără antete custom, sunt în
 [`docs/browser-engine.md`](docs/browser-engine.md).
 
 ## Ce e real, ce e demo
@@ -138,6 +160,10 @@ firele WASM pe un host fără antete custom, sunt în
 | Blur pe fețe înainte de desenare, fail-closed | Raportul de incident (șablon, nu LLM) |
 | Detecția de vestă hi-vis și starea PPE | Escaladarea din fixture-uri |
 | Coada de triaj: deadline, episoade, hold doar pe WARNING | Pragurile și starea vin din evenimentele reale; acțiunile trăiesc în memorie |
+| HUD colorat după regula zonei (`hud.js`) | Culorile sunt prezentare, nu detecție; regula/incidentul rămân ale pipeline-ului |
+| Webhook text-only prin relay | Fără imagini/fețe; livrarea e best-effort cât timp tab-ul e deschis |
+| Arhivă locală JSON | Fișierul e singura copie în afara tab-ului; nimic nu se încarcă |
+| Șabloane de zone | Template-urile sunt configurație locală, nu detecții |
 | Calibrarea solului și viteza per track | Viteza e indicatorie, pe cadrul de referință; fără calibrare scrie „necalibrat” |
 | Acoperirea camerei din eșantioanele sesiunii | Doar cât a rulat motorul în tab; nu se salvează și nu pleacă din browser |
 | Incidentele motorului, marcate `local`, cu dovada procesată | Camera locală (flux propriu, doar cu permisiune) |
@@ -157,6 +183,7 @@ Scenariul de prezentare, pas cu pas: [`demo/run_sheet_browser.md`](demo/run_shee
 | Still-uri stock: apron / baggage | Unsplash / CC0 | atribuite în [`frontend/public/NOTICE`](frontend/public/NOTICE); clipurile demo sunt derivate din ele. Apron poate conține livery/airport marks — trademark separat, de curățat pentru uz comercial |
 | Contribuții upstream | **cod: 100% al nostru** | ultimele 535 de linii au fost rescrise pe 3 nov; docs/design rămân creditate |
 | Clipuri demo generate + zone stills | proiect (din Unsplash/CC0) | fără footage necunoscut în build; clipurile vechi rămân doar în istoricul git |
+| Gateway WHEP opțional (MediaMTX) | MIT | serviciu local, nu e distribuit în build; vezi [`gateway/README.md`](gateway/README.md) |
 
 > **Gap cunoscut:** build-ul curent nu conține AGPL și nu mai folosește clipurile vechi, dar
 > blob-ul `yolo26n.onnx` și clipurile vechi rămân în istoricul git public. Un repo nou cu
@@ -179,6 +206,24 @@ checklist-ul comercial sunt în [`THIRD_PARTY.md`](THIRD_PARTY.md) și
 build sunt în [`frontend/public/NOTICE`](frontend/public/NOTICE), linkate din footer-ul
 sidebar-ului („Licențe”).
 
+## Limite cunoscute
+
+- **Acuratețea**: benchmark-ul arată Lite0 rapid, dar CAM-01/02 nu au muncitori detectabili;
+  doar CAM-03 declanșează incidentul. Nu există fine-tuning pe apron real; vezi
+  [`docs/qa/detector-benchmark.md`](docs/qa/detector-benchmark.md).
+- **Persistență**: incidentele, snapshot-urile și ack-urile sunt în IndexedDB, per browser.
+  Arhiva JSON e backup local, nu sincronizare între utilizatori; nu există multi-user/audit central.
+- **Webhook**: text-only, prin relay self-hosted, best-effort cât timp tab-ul e deschis. Nu e
+  alertare 24/7 și nu trimite imagini sau linkuri către un incident local.
+- **Cameră reală**: browserul nu ia RTSP direct; gateway-ul MediaMTX/WHEP e local, fără TLS/auth
+  în demo. Pentru producție: TLS, auth, CORS restrâns, segmentare.
+- **Firefox mobil**: politica de autoplay e numită în card, iar un tap pornește clipul; test
+  dedicat. Nu înseamnă că toate capabilitățile mobil sunt validate.
+- **ONNX Runtime/Eigen**: notice-ul oficial e livrat, dar manifestul exact al WASM-ului
+  (MPL2/Eigen, notice Intel MKL) trebuie confirmat de avocat.
+- **Docs/design și istoric**: codul e 100% al nostru; docs/design-ul rămâne creditat echipei,
+  iar istoricul public încă are AGPL/clipuri vechi. Un repo nou/CLA rezolvă aceste goluri.
+
 ## Proveniență
 
 Istoricul git al fork-ului păstrează toată istoria SafeSight; nimic nu a fost squash-uit.
@@ -195,8 +240,9 @@ rămâne în istoricul git și în upstream.
 
 Proiectul a fost construit la un hackathon ca **SafeSight**, de Andrei, Max, Dalina și
 Ariana; documentele și run sheet-urile păstrează numele celor care le-au scris. Acest fork
-păstrează pipeline-ul prin portarea lui în browser și scoate din produs backend-ul,
-alertarea și raportarea; stack-ul Python de referință nu mai face parte din repo.
+păstrează pipeline-ul prin portarea lui în browser și scoate din produs backend-ul și
+raportarea centralizată; alertarea rămâne opțională, prin relay. Stack-ul Python de referință
+nu mai face parte din repo.
 
 Upstream: [`DaVecTORzzz/craiova-hack-2026`](https://github.com/DaVecTORzzz/craiova-hack-2026)
 (repo public). Istoria commit-urilor este păstrată integral, iar licența BSL 1.1 și

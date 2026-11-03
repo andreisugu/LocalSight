@@ -16,6 +16,7 @@ o dată în tabelul de mai jos. Comenzile de rulare, testare și deploy sunt doa
 
 | Fișier | Stare | Ce conține | Ce faci cu el |
 |---|---|---|---|
+| [STATUS.md](STATUS.md) | actual | Handoff: ce funcționează, ce e demo, limite, goluri legale și pașii de reluare | Îl citești primul după o pauză; nu înlocuiește README-ul |
 | [browser-engine.md](browser-engine.md) | actual | Nota de proiect a motorului din browser: module JS, active de model (EfficientDet-Lite0/Lite2 + YuNet), runtime, buget de performanță, riscuri | Punctul de plecare; se actualizează când se schimbă arhitectura |
 | [legal/contributor-assignment-template.md](legal/contributor-assignment-template.md) | actual | Template de cesiune/licență pentru contribuitorii din hackathon: cesiune, licență inversă, drepturi morale, reprezentări | Îl dai avocatului și contribuitorilor; nu e sfat juridic |
 | [legal/model-provenance.md](legal/model-provenance.md) | actual | Dossier legal (EN): ce se livrează și cu ce licențe, lanțul de proveniență Google → TFLite → ONNX cu SHA-256, ce acoperă BSL-ul, golul de proveniență al filmărilor și blobul AGPL rămas în istoricul git | Îl dai avocatului sau cumpărătorului; liste de verificare pentru release comercial; nu e sfat juridic |
@@ -23,6 +24,7 @@ o dată în tabelul de mai jos. Comenzile de rulare, testare și deploy sunt doa
 | [architecture/review.md](architecture/review.md) | actual | Audit de arhitectură și cod: verdict, constatări prioritizate P0–P2, dovezi și anexe pe `frontend/`, `docs/` și CI | Îl folosești ca listă de priorități; cifrele lui sunt snapshot-ul commitului `ad05128`, nu starea de azi |
 | [ops/release-audit.md](ops/release-audit.md) | actual | Audit de release și operațiuni: stare live, gate de CI, artefact, riscuri și goluri de runbook | Citește-l înainte de un demo public; spune ce e verificat și ce rămâne deschis |
 | [ops/ci-speed.md](ops/ci-speed.md) | actual | CI înainte/după: cache Playwright, job unit+build, paths-ignore, concurrency | Verifică cifrele după ~10 rulări; rollback prin revert |
+| [ops/webhook-relay.md](ops/webhook-relay.md) | actual | Relay self-hosted pentru Slack/Discord/Telegram/ntfy, env, CSP `VITE_WEBHOOK_ORIGIN`, limite | Îl pornești doar dacă vrei notificări; text-only, best-effort |
 | [ops/agent-workflow.md](ops/agent-workflow.md) | actual | SOP pentru agenți paraleli: audit worktrees, un worktree per agent, porturi, matrice de test, bucla rapidă, ordine de merge, curățenie | Îl citești înainte să pornești un worktree; scripturile `scripts/agent-*.sh` îl aplică |
 | [agents/prompt-template.md](agents/prompt-template.md) | actual | Prompt reutilizabil pentru un val de agenți: context, ownership, interfețe înghețate, verificare, livrare | Îl copiezi și completezi pentru fiecare task nou |
 | [product/feature-gaps.md](product/feature-gaps.md) | actual | Analiză de produs: ce lipsește între demo și un pilot de apron, efort, riscuri și non-scop | Îl folosești pentru prioritizare de produs; nu adaugă backend sau upload |

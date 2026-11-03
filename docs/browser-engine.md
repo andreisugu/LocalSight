@@ -159,7 +159,7 @@ greutățile fiecărui vizitator — AGPL §13 se aplică și la găzduire, deci
 era o distribuție de greutăți copyleft. EfficientDet-Lite are greutăți Apache-2.0 (Google) și
 o conversie ONNX CC BY 3.0 (Namas Bhandari): ambele permit uz comercial, cu atribuire.
 Prețul nu e viteza: Lite0 e chiar mai rapid decât YOLO26n în aceeași măsurătoare
-(8,8 vs 6,9 fps la cadru 1280), iar Lite2 coboară la 4,8 fps. Prețul real e recall-ul pe
+(8,8 vs 6,9 fps în vârful unei rulări liniștite; 6–9 pe clipurile curente), iar Lite2 coboară la 3,5–5 fps. Prețul real e recall-ul pe
 oamenii mici/îndepărtați; de aceea Lite2 există ca opțiune. Lanțul complet de proveniență și
 ce rămâne deschis (filmările demo): [`legal/model-provenance.md`](legal/model-provenance.md).
 
@@ -201,8 +201,9 @@ navigările și scripturile de worker și le reconstruiește cu
 `Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: require-corp`.
 Nu cachează nimic, ca un deploy să nu rămână ascuns în spatele unui shell vechi. Prima
 încărcare nu e izolată; după ce worker-ul preia pagina, `main.jsx` face **un singur reload**
-(guard în `sessionStorage`). Măsurat în browser pe clipul de 1080p: **~8,8 fps** cu
-EfficientDet-Lite0 (320 px) și **~4,8 fps** cu Lite2 (448 px). Pentru comparație, YOLO26n —
+(guard în `sessionStorage`). Măsurat în browser pe clipurile generate: **6–9 fps** cu
+EfficientDet-Lite0 (320 px) și **3,5–5 fps** cu Lite2 (448 px); 8,8/4,8 au fost vârfurile
+într-o rulare liniștită. Pentru comparație, YOLO26n —
 detectorul dinainte, scos din build — măsura 6,9 fps în aceeași măsurătoare (și 5,2–6,0 fps
 pe build-ul anterior), cu cadrul procesat la 1280 px. Lite0 e deci peste YOLO, Lite2 sub el;
 diferența reală e recall-ul, nu fps-ul. Capul la 1280 nu schimbă porțile PPE: acestea se calculează în pixeli ai
@@ -227,8 +228,8 @@ YOLO26n, nu detectorul de azi: nu se compară 1:1 cu un motor care rulează Effi
 
 | Măsurătoare | Rezultat | De ce ar putea să nu țină |
 |---|---|---|
-| EfficientDet-Lite0 320, WASM (măsurat) | ~8,8 fps cu cadru 1280 | cifra de azi; scade cu rezoluția cadrului și fără `crossOriginIsolated` |
-| EfficientDet-Lite2 448, WASM (măsurat) | ~4,8 fps cu cadru 1280 | inputul de 448 px costă ~2× față de 320 px; de ales când oamenii din cadru sunt mici |
+| EfficientDet-Lite0 320, WASM (măsurat) | 6–9 fps cu cadru 1280 | vârf 8,8 într-o rulare liniștită; scade cu rezoluția cadrului și fără `crossOriginIsolated` |
+| EfficientDet-Lite2 448, WASM (măsurat) | 3,5–5 fps cu cadru 1280 | vârf 4,8 într-o rulare liniștită; inputul de 448 px costă ~2× față de 320 px |
 | EfficientDet-Lite0 320, WebGPU (experiment) | ~0,1 fps pe adapter software | nu se livrează; de retestat doar pe un GPU real, cu fallback vizibil în `/bench` |
 | YuNet 1080p, WebGPU | 20–50 ms | intrare fp32 1920×1080 = ~8.3 MB per cadru; modelul e mic, transferul domină (aceeași concluzie ca la iGPU + ncnn în `docs/performance.md`) |
 | YuNet 1080p, WASM | 80–200 ms | depinde de fire; 4 fire prin service worker-ul COOP/COEP |
@@ -268,7 +269,7 @@ treilea mod de rulare, util pentru teste și pentru un host fără ONNX Runtime.
 ## 8. Riscuri și întrebări deschise
 
 1. **Fps pe mașina privitorului.** Calea livrată e WASM; cu service worker-ul COOP/COEP
-   urcă la ~8,8 fps cu Lite0 (320 px) și ~4,8 fps cu Lite2 (448 px) la cadru 1280, suficient
+   urcă la 6–9 fps cu Lite0 (320 px) și 3,5–5 fps cu Lite2 (448 px) la cadru 1280, suficient
    pentru demo. Fără izolare coboară pe un fir. WebGPU nu e o speranță de rezervă pentru
    EfficientDet: pe adapterul software a ieșit ~0,1 fps, deci nu se livrează. De decis
    pragul de „mod lent”: dacă inferența depășește ~80 ms, UI-ul scrie explicit că rulează
@@ -312,6 +313,8 @@ schimbe contractul:
 | Coada de triaj | evenimentele vizibile + un tick de 1 s | ordine escaladat → severitate → termen → vechime, episoade, hold doar pe WARNING (maximum 15 min) | starea și acțiunile sunt în memorie; un reload le pierde |
 | Calibrarea solului | 4 puncte pe cadrul de referință + lățime/înălțime în metri | homografie și viteză per track din punctul de sprijin `(x1+x2)/2, y2` | viteza e indicatorie; fără calibrare afișează „necalibrat”, nu 0 |
 | Acoperirea camerei | un eșantion pe secundă cât rulează motorul + `visibilitychange` | segmente live / tab ascuns / motor în pauză și procentul ferestrei | doar sesiunea din tab, maximum 5000 de eșantioane, nimic persistat |
+| HUD pe regulă | aceleași detecții normalizate + zona activă | culoarea cutiei: roșu `CRITICAL`, ambră `WARNING`; piciorul în poligon | prezentare, nu detecție; regulile rămân în pipeline |
+| Playback/autoplay | `video.paused`, `play()` rejection, `readyState` | mesajul „politica de autoplay” + retry la primul tap | Firefox Android blochează și clipurile mute; test dedicat |
 
 Coada citește exact lista filtrată de `real-only`, deci nu poate inventa un rând din fixtures.
 Calibrarea se salvează per cameră în `localStorage` (`localsight.groundCalibration.<id>`) și
