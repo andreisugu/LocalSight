@@ -4,10 +4,12 @@ Demo-ul din browser rulează clipuri în buclă. Clipurile originale sunt 4K și
 cântăresc 4–42 MB fiecare, așa că **nu pot fi urcate în repo ca atare**. Aici e
 rețeta care le face mici, unde ajung fișierele și cum le publicăm.
 
-**Stare (2 nov 2026):** repo-ul conține deja cele trei clipuri web folosite de
-mock data — `stand12.mp4`, `taxiway-b.mp4`, `baggage-area.mp4`, 10,6 MB în total.
-Nu sunt sursele 4K, ci exact ieșirea `scripts/prepare-demo-media.sh` (vezi
-[Clipurile din repo](#clipurile-din-repo)).
+**Stare (3 nov 2026):** clipurile demo livrate sunt **generate de proiect** din
+still-uri licențiate — `apron-stand.jpg` (Unsplash) pentru CAM-01/CAM-02 și
+`baggage-hall.jpg` (CC0) pentru CAM-03. Sunt derivate pan/zoom, nu footage de aeroport
+cu provenance necunoscută. Vechiul flux 4K descris mai jos rămâne **istoric**; nu
+re-introduce clipurile vechi fără sursă/licență/consimțământ. Vezi
+[Clipurile din repo](#clipurile-din-repo).
 
 ## De ce nu urcăm sursele
 
@@ -111,28 +113,32 @@ python3 -c "import sys;d=open(sys.argv[1],'rb').read(2_000_000);print(d.find(b'm
 `frontend/public/media/` este servit de Vite la `/media/<clip>.mp4` și copiat
 în `dist/` la build.
 
-## Clipurile din repo (2 nov 2026)
+## Clipurile din repo (3 nov 2026)
 
-Cele trei clipuri cerute de Live când nu există backend sunt **versionate în
-git**, prin excepția țintită din `.gitignore`:
+Cele trei clipuri cerute de Live când nu există backend sunt **generate de proiect**
+și versionate în git, prin excepția țintită din `.gitignore`:
 
-| Fișier | Cameră (`mockData.js`) | Dimensiune | Durată | Rezoluție |
-|---|---|---|---|---|
-| `frontend/public/media/stand12.mp4` | `stand12` — CAM-01 Stand 12 | 3.4 MB | 8.8 s | 1920x1080 |
-| `frontend/public/media/taxiway-b.mp4` | `taxiway-b` — CAM-02 Taxiway B | 1.2 MB | 12.2 s | 1280x720 |
-| `frontend/public/media/baggage-area.mp4` | `baggage-area` — CAM-03 Bagaje | 6.0 MB | 13.3 s | 1920x1080 |
+| Fișier | Cameră (`mockData.js`) | Dimensiune | Durată | Rezoluție | Sursă |
+|---|---|---|---|---|---|
+| `frontend/public/media/stand12.mp4` | `stand12` — CAM-01 Stand 12 | ~1.0 MB | 10 s | 1280x720 | Unsplash `apron-stand.jpg` |
+| `frontend/public/media/taxiway-b.mp4` | `taxiway-b` — CAM-02 | ~0.7 MB | 8 s | 1280x720 | Unsplash `apron-stand.jpg`, alt crop |
+| `frontend/public/media/baggage-area.mp4` | `baggage-area` — CAM-03 | ~2.1 MB | 10 s | 1280x720 | CC0 `baggage-hall.jpg` |
 
-**Total: 10,6 MB** (11 084 055 bytes), H.264 `yuv420p`, fără audio, `+faststart`.
-Toate trei sunt generate de `scripts/prepare-demo-media.sh` și redenumite după
-ID-ul camerei; nu sunt surse 4K și nu trebuie înlocuite cu ele.
+Vechiul tabel 4K (Drive) rămâne istoric în `data/videos/README.md`; nu mai face parte din
+build. `scripts/prepare-demo-media.sh` rămâne util doar pentru un clip nou cu sursă
+documentată.
+
+**Total: ~3,8 MB**, H.264 `yuv420p`, fără audio, `+faststart`.
+Toate trei sunt generate de proiect din still-urile licențiate și poartă ID-ul camerei;
+nu sunt surse 4K și nu trebuie înlocuite cu ele.
 
 Excepția din `.gitignore` (liniile 48–53):
 
 ```gitignore
 # Excepție țintită: clipurile web din demo-ul static (Live fără backend le joacă
-# direct din frontend/public/media/<camera-id>.mp4). Sunt mici (~11 MB total, sub
-# 15 MB per fișier), fără audio, max 1920 px; se regenerează cu
-# scripts/prepare-demo-media.sh. Sursele 4K din data/videos rămân ignorate.
+# direct din frontend/public/media/<camera-id>.mp4). Sunt mici (~4 MB total, sub
+# 15 MB per fișier), fără audio, 1280x720. Sursele vechi 4K rămân ignorate; vezi
+# data/videos/README.md pentru proveniență.
 !frontend/public/media/
 !frontend/public/media/*.mp4
 ```

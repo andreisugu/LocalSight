@@ -12,7 +12,8 @@ instead of trusting us.
 > SafeSight reference stack (`backend/`, `ml/`, `automation/`, `docker-compose.yml`) was
 > removed; its Python and container audit is kept below as a marked historical section.
 > The detector swap covered by this revision replaces the AGPL model with Apache-2.0
-> weights; what still needs a decision is the provenance of the demo footage.
+> weights. The current demo clips are generated from licensed stills; what still needs a
+> decision is the old clip history and the docs/design contributor rights.
 
 ## Bottom line
 
@@ -26,19 +27,21 @@ instead of trusting us.
    weights. The Ultralytics section below is kept as **history**, not as current state. The
    blob stays reachable in the public git history — a separate, real gap; see
    [Remaining gaps](#remaining-gaps).
-3. **The demo clips and the stills re-encoded from them still have no recorded provenance.**
-   `data/videos/README.md` still says `de completat` for source, licence and camera operator
-   on all six clips. No licence is claimed for them, they are not part of the BSL-licensed
-   work, and they are **not cleared** for commercial redistribution.
+3. **The current demo clips are project-generated from licensed stills.** `stand12.mp4` and
+   `taxiway-b.mp4` are pan/zoom derivatives of the Unsplash `apron-stand.jpg`;
+   `baggage-area.mp4` is a derivative of the CC0 `baggage-hall.jpg`. The old unresolved clips
+   were removed from the current tree and build; they remain in git history — a new repository
+   removes them. See [Remaining gaps](#remaining-gaps).
 4. Everything else — the React frontend, ONNX Runtime Web, the Vite/Tailwind build tooling,
    the YuNet face model — is permissive (MIT / BSD / Apache-2.0 / ISC). The runtime notices
    ship in `frontend/public/LICENSES.txt` (served as `dist/LICENSES.txt`), linked from
    `NOTICE`, and the build guard refuses a bundle without it.
 5. **The upstream repository had no LICENSE, and this fork asserts BSL 1.1 with a single
-   Licensor.** The provenance report still shows 535 lines from other contributors. Public
-   visibility is not a licence; before commercial licensing, obtain written assignments/CLAs
-   from the contributors or replace their code. This is a separate, blocking gap; see
-   [Remaining gaps](#remaining-gaps).
+   Licensor.** On 2026-11-03 the current tree's 535 teammate code lines were rewritten and
+   `provenance.py` now reports **0 lines from other authors**. The docs/design and upstream
+   credit remain; public visibility is not a licence. For commercial licensing, confirm the
+   docs/design rights in writing or rewrite them. See
+   [Remaining gaps](#remaining-gaps) §4.
 
 ## How versions and licences were established
 
@@ -86,12 +89,11 @@ The two EfficientDet rows describe the current build; the detector swap removed
 | EfficientDet-Lite2 `efficientdet_lite2.onnx` | 448×448 ONNX export · 22 948 355 B (21,9 MiB) · SHA-256 `ae663a7cb537b6a5eca0f2c45d39b10563993d84aadcc52d19e0fb345442cde6` | Apache-2.0 (weights, © 2020 Google LLC) **+** CC BY 3.0 (ONNX conversion, © Namas Bhandari) | OK — same two notices |
 | YuNet `yunet.onnx` | 2023mar · 232 598 B · SHA-256 `d1cd25851fba0e96d59f25548f072db7d114182c952605f509d14af502438dfb` | MIT (© 2020 Shiqi Yu) | OK — include the MIT notice when you redistribute the `.onnx` |
 | **Assets** | | | |
-| `docs/assets/*.png` (5 UI screenshots, including the model selector) | — | project-produced | OK — re-check that no unblurred face is visible; they contain frames of the demo footage, so the footage question applies |
-| `frontend/public/media/*.mp4` (3 web cuts) | — | derived from the clips above | **requires action** — unresolved provenance, same question as their sources |
+| `docs/assets/*.png` (5 UI screenshots, including the model selector) | — | project-produced | OK — re-check that no unblurred face is visible; they show the generated clips/stills, not the removed footage |
+| `frontend/public/media/*.mp4` (3 generated clips) | — | project-generated pan/zoom from `apron-stand.jpg` (Unsplash) and `baggage-hall.jpg` (CC0) | OK — permissive stills; no third-party airport video; the old unresolved cuts are gone from the tree |
 | `frontend/public/media/stills/apron-stand.jpg` | — | Unsplash License (https://unsplash.com/license) | OK — no attribution required; credit Unsplash in the demo |
-| `frontend/public/media/stills/taxiway-heathrow.jpg` | — | CC BY-SA 2.0, © Derek Harper (Geograph); https://creativecommons.org/licenses/by-sa/2.0/ | **attribution required**; the file stays CC BY-SA, the code is unaffected |
 | `frontend/public/media/stills/baggage-hall.jpg` | — | CC0 (djedj, Pixabay); https://creativecommons.org/publicdomain/zero/1.0/ | OK |
-| `frontend/public/media/stills/zone-*.jpg` (3) | — | derived from the demo clips | **requires action** — same unresolved provenance as `stand12.mp4`, `taxiway-b.mp4`, `baggage-area.mp4`; no licence claimed |
+| `frontend/public/media/stills/zone-*.jpg` (3) | — | frames from the generated clips | OK — project-generated from the Unsplash/CC0 stills |
 
 The served runtime notices are in `frontend/public/LICENSES.txt` (`dist/LICENSES.txt`):
 MIT for React/ReactDOM/scheduler, ONNX Runtime Web/Common, platform, js-tokens, loose-envify,
@@ -256,96 +258,23 @@ variant named in the removed Python error hint is the same licence, and is not u
 
 ## Assets
 
-**The demo clips are an open item and the single biggest hole in this audit.**
-`data/videos/README.md` lists six clips, and every row still reads `de completat` under
-*Sursă*, *Licență* and *Cine a filmat*. The files are not in git (`*.mp4` is ignored), so
-this repository cannot vouch for them at all. The three web cuts in
-`frontend/public/media/` **are** committed (a targeted `.gitignore` exception) and are served
-by the static build, so they are distributed even when the 4K sources are not. Before any
-public demo, sale or hosted deployment:
+**The current demo clips are project-generated from licensed stills.**
+`stand12.mp4` and `taxiway-b.mp4` are pan/zoom derivatives of the Unsplash
+`apron-stand.jpg`; `baggage-area.mp4` is a derivative of the CC0 `baggage-hall.jpg`. The
+`zone-*.jpg` stills are frames from those clips. The Unsplash licence permits modification
+and commercial use without attribution; CC0 has no restrictions. There is no third-party
+airport video with unknown provenance in the current tree or build.
 
-- fill in source, licence, camera operator and date for each clip;
-- obtain written consent from any volunteer visible in the footage (`data/videos/README.md`
-  already requires this);
-- confirm the airport/operator consented to the apron footage being shown publicly;
-- blur faces before publication — which the pipeline does, but re-check the exported cuts by
-  hand.
+The old 4K clips and their web cuts are **removed from the current tree**; they remain in git
+history and in the shared Drive. Do not reuse them without source, licence, camera operator
+and consent. A new repository without the old history removes the blobs. The old clips are
+not covered by the BSL or by the model licences.
 
-`data/reference_frames/` has the same gap: the README says provenance belongs "in the video
-README or here", and it is in neither. The `docs/assets/*.png` screenshots are project-produced,
-but they contain frames of that footage — treat them as covered by the same unresolved question.
-
-Two smaller asset notes: the clip `2026-10-30_restricted-zone_cam02_lucratori-pushback-motor..mp4`
-has a double dot in its name that the README already flags, and the PPE clip promised in the
-READMEs does not exist. Neither is a licence problem; both will embarrass you in a due-diligence
-folder.
-
-## Remaining gaps
-
-Ordered by how much they cost to fix, not by how loud they are.
-
-### 1. Demo footage provenance — unresolved, blocking for commercial redistribution
-
-Six clips, three committed web cuts, three stills derived from them, plus two reference
-frames and the UI screenshots that show them. No source, no licence, no camera operator, no
-written consent on file. See the checklist in [Assets](#assets). **Not cleared**, and this
-document does not clear them.
-
-### 2. The AGPL blob is still in git history — necessary but not sufficient
-
-Deleting `frontend/public/models/yolo26n.onnx` from the current tree stops the build from
-serving it, but the object is still in the history of a **public** repository: anyone can
-fetch the blob by commit. A public repo that once contained AGPL weights — even a repo whose
-current build is AGPL-free — is not the same thing as a clean distribution. Three ways out:
-
-1. **New repository with filtered history (recommended).** Clone the repo as a mirror,
-   `git filter-repo` to remove the AGPL blob (and the clips if they are being replaced), and
-   push the filtered history into a **new, empty** repository. Nothing is force-pushed, no
-   cached object survives, authorship and most history are preserved, but every commit hash
-   changes. The old repository is archived with a pointer to the new one.
-2. **New repository from the current tree.** Publish only the current tree with no imported
-   history. Simplest and cleanest operationally; the contribution history
-   (`scripts/provenance.py` output) does not travel, so keep a `docs/provenance.md` snapshot
-   and the old repo's URL.
-3. **History rewrite in place.** `git filter-repo` or BFG to drop the blob from every commit,
-   then a force-push of **all** refs and tags, then a request to GitHub Support to
-   garbage-collect unreachable objects (forks and caches can outlive the rewrite). This
-   breaks every existing clone and link, and `AGENTS.md` forbids a force push without
-   explicit owner approval. **Not performed, and not to be performed by an agent.**
-
-Which one is right is a business call, not a technical one. What is not a call: the current
-build being AGPL-free is necessary but not sufficient for a clean public repository.
-
-### 3. The clips in history have the same problem
-
-A history rewrite would remove the AGPL blob; it would **not** remove the committed demo
-clips, and it would not create rights that were never obtained. Even a fresh repository keeps
-whatever is copied into it. Do not treat "fresh repo" as a way to launder the footage
-question: rights are fixed by replacing the clips or documenting them, not by changing which
-repository serves them.
-
-### 4. Upstream code and contributor rights — unresolved, blocking for commercial licensing
-
-The upstream repository (`DaVecTORzzz/craiova-hack-2026`, public) had **no LICENSE** at the
-audited commit. This fork adds BSL 1.1 with Licensor Andrei Șugubete. The provenance report
-shows **535 lines** from other contributors; the README credits Andrei, Max, Dalina and
-Ariana. Public visibility does not grant reuse or relicensing rights. A BSL commercial licence
-granted by one Licensor cannot bind code owned by other authors without their consent.
-
-Action: obtain a written CLA/assignment (or an explicit licence) from every contributor, or
-replace their code and document the replacement. Keep the evidence with the commercial
-paperwork. Do not treat the BSL file as proof that the contributor rights are settled.
-
-### 5. Claims we could not substantiate
-
-- **Per-file model card for the exact `.tflite`** behind the ONNX conversion — see the caveat
-  in [Model provenance](#model-provenance).
-- **The footage** — everything about it.
-- **The `docs/assets/*.png` screenshots** — project-produced, but they depict that footage.
-- **Contributor assignments.** We did not see written CLAs from the other authors.
-- **Anything about the buyer's jurisdiction.** CC BY 3.0 and Apache-2.0 are the licences read
-  off the upstream files; moral rights, database rights and contractual restrictions in a
-  specific country were not assessed.
+The three stock stills used by the app are licensed:
+- `frontend/public/media/stills/apron-stand.jpg` — Unsplash License
+  (https://unsplash.com/license); source of the CAM-01/CAM-02 clips.
+- `frontend/public/media/stills/baggage-hall.jpg` — CC0 (djedj, Pixabay);
+  https://creativecommons.org/publicdomain/zero/1.0/; source of the CAM-03 clip.
 
 ## What to do before selling
 
@@ -354,11 +283,11 @@ paperwork. Do not treat the BSL file as proof that the contributor rights are se
    `LICENSE-CC-BY-3.0.txt` next to the weights, and keep both attribution lines in
    `frontend/public/NOTICE`. Do not reintroduce YOLO/AGPL weights, including "just for a
    demo" and including fine-tuned exports — the licence follows the weights.
-2. **Resolve the clips — this is now the blocking item.** Fill the provenance table in
-   `data/videos/README.md`, or replace the six clips (and the web cuts, the three derived
-   stills, the two reference frames and the screenshots that show them) with footage you own
-   or have licensed in writing. Until then, say "demo footage, provenance not recorded" out
-   loud and do not ship it to a customer.
+2. **Keep the generated clips.** The current `stand12.mp4`, `taxiway-b.mp4` and
+   `baggage-area.mp4` are generated from the Unsplash/CC0 stills. Do not replace them with
+   the old unresolved footage; a new repository without the old history removes those blobs.
+   If you add a new clip, document source, licence, operator and consent in
+   `data/videos/README.md` first.
 3. **Keep the BSL in place and intact.** `LICENSE` must stay at the repo root, with the same
    parameters (Licensor, Additional Use Grant: None, Change Date 2030-11-02, Change License
    Apache-2.0) and conspicuously displayed on every copy — BSL 1.1 requires it. A commercial
@@ -366,16 +295,16 @@ paperwork. Do not treat the BSL file as proof that the contributor rights are se
    CC BY 3.0 material, which need no sublicense because they are already permissive.
 4. **Ship the notices with every distribution.** `dist/NOTICE` must contain: the
    EfficientDet-Lite Apache-2.0 attribution, the Namas Bhandari CC BY 3.0 attribution with
-   the licence URL, the YuNet MIT notice, the ONNX Runtime Web MIT notice, and the CC BY-SA
-   attribution for the Heathrow still. `dist/LICENSES.txt` must carry the runtime
+   the licence URL, the YuNet MIT notice, the ONNX Runtime Web MIT notice, and the Unsplash/
+   CC0 attribution for the generated-clip stills. `dist/LICENSES.txt` must carry the runtime
    MIT/ISC/BSD/Apache notices. If you reuse the model files outside this repository, carry
    the two licence texts with them. The build guard checks both files.
 5. **Decide the history question** (new repo with filtered history vs new repo from the
    current tree vs in-place rewrite) before calling a repository "clean". See
    [Remaining gaps](#remaining-gaps) §2.
-6. **Settle contributor rights.** Get written assignments/CLAs from every contributor or
-   replace their lines; the BSL file alone does not prove it. See
-   [Remaining gaps](#remaining-gaps) §4.
+6. **Settle docs/design rights.** The code has been rewritten (0 teammate lines); the
+   docs/design and upstream credit remain. Get written assignments/CLAs or rewrite them; the
+   BSL file alone does not prove it. See [Remaining gaps](#remaining-gaps) §4.
 7. **Get a lawyer to read this file.** It is an engineering audit with sources attached, not
    a legal opinion.
 

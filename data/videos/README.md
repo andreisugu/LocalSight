@@ -1,38 +1,27 @@
-# Video-uri de test
+# Video-uri demo
 
-Câte un clip pentru fiecare caz din demo. Clipurile `.mp4` nu intră în git; le păstrăm în folderul comun din Drive, sub `SafeSight/data/videos/`.
+**Starea curentă (3 noiembrie 2026):** clipurile demo livrate sunt **generate de proiect**
+din două still-uri cu licență clară, nu sunt footage de aeroport cu provenance necunoscută:
 
-> ## Statut legal — NECESITĂ ACȚIUNE
->
-> **Proveniența clipurilor e nerezolvată.** Coloanele *Sursă*, *Licență* și *Cine a filmat*
-> scriu `de completat` pentru toate cele șase clipuri: nu există nici sursă documentată, nici
-> licență, nici operator de cameră, nici acord scris de la persoanele din cadru.
->
-> **Ce înseamnă concret:**
->
-> - clipurile **nu sunt curățate** pentru redistribuire comercială și nu sunt acoperite de
->   licența BSL a codului; nu se inventează o licență pe care nu o avem;
-> - cele trei taieri web din `frontend/public/media/*.mp4` **sunt** comise în git și servite
->   de build-ul static, deci se distribuie chiar dacă sursele 4K nu sunt în repo; la fel
->   `zone-*.jpg` (cadre re-encodate din ele) și capturile din `docs/assets/`;
-> - pentru orice demo public, pilot plătit sau instanță găzduită: **completează drepturile
->   sau înlocuiește clipurile** cu material pe care îl deținem.
->
-> **Checklist per clip** (dovada se păstrează într-un loc durabil, nu într-un chat):
->
-> - [ ] sursă: cine deține înregistrarea și camera (aeroport / operator), numit;
-> - [ ] licență sau permisiune **scrisă**, cu scopul: demo intern / demo public / redistribuire comercială;
-> - [ ] operator de cameră, numit;
-> - [ ] dată și loc (apron / terminal);
-> - [ ] acord scris de la voluntarii identificabili — blur-ul e mitigare, nu substitut de consens;
-> - [ ] conținut terț în cadru (livery, logo-uri, plăcuțe, ecrane);
-> - [ ] fișiere derivate trecute în listă: cele trei taieri web, cele trei `zone-*.jpg`, capturile din `docs/assets/`;
-> - [ ] verificare manuală a exportului: nicio față neblurată în ce se publică.
->
-> Context complet: [`docs/legal/model-provenance.md`](../../docs/legal/model-provenance.md) §4 și
-> [`THIRD_PARTY.md`](../../THIRD_PARTY.md). Licențele modelelor sunt rezolvate; filmările, nu.
+| Fișier livrat | Sursă | Licență | Note |
+|---|---|---|---|
+| `frontend/public/media/stand12.mp4` | `frontend/public/media/stills/apron-stand.jpg` (Unsplash) | Unsplash License | pan/zoom lent pe apron; lucrătorii sunt mici, motorul îi vede doar de aproape |
+| `frontend/public/media/taxiway-b.mp4` | același still Unsplash, alt crop | Unsplash License | plan larg de apron; fără persoane în prim-plan |
+| `frontend/public/media/baggage-area.mp4` | `frontend/public/media/stills/baggage-hall.jpg` (CC0, djedj/Pixabay) | CC0 | close-up pe persoana de la banda de bagaje; camera pe care rulează incidentul demo |
+| `frontend/public/media/stills/zone-*.jpg` | primele cadre din clipurile generate | proiect | folosite ca referință pentru editorul de zone |
 
-| Caz | Fișier (în Drive) | Sursă | Licență | Cine a filmat | Data |
+Clipurile sunt derivate ale still-urilor de mai sus; Unsplash License nu cere atribuire și
+permite modificarea, CC0 nu are restricții. Nu există un al treilea footage cu provenance
+necunoscută în arborele curent.
+
+## Ce s-a scos
+
+Clipurile 4K originale din Drive și web cut-urile derivate din ele **nu mai sunt în build**.
+Tabelul lor rămâne aici doar ca istoric; nu le re-folosiți fără să completați sursa, licența,
+operatorul și consimțământul. Ele pot exista în istoricul git al fork-ului; un repo nou
+(curat) nu le mai are.
+
+| Caz istoric | Fișier (Drive) | Sursă | Licență | Cine a filmat | Data |
 |---|---|---|---|---|---|
 | Persoană în zona motorului | `videos/2026-10-30_restricted-zone_cam01_persoana-langa-motor.mp4` | de completat | de completat | de completat | 2026-10-30 |
 | Persoane lângă motor la pushback | `videos/2026-10-30_restricted-zone_cam02_lucratori-pushback-motor..mp4` | de completat | de completat | de completat | 2026-10-30 |
@@ -43,17 +32,11 @@ Câte un clip pentru fiecare caz din demo. Clipurile `.mp4` nu intră în git; l
 
 ## Reguli
 
-- Un clip cu avionul în față, **fără persoană, PPE sau fum**, este B-roll pentru pitch. Nu se folosește ca test de detecție.
+- Nu adăuga footage nou fără sursă, licență scrisă, operator și consimțământ pentru persoanele
+  identificabile; blur-ul este mitigare, nu consimțământ.
+- Pentru un clip nou generat din still-uri, documentează still-ul sursă și licența lui aici.
 - Numele fișierului: `YYYY-MM-DD_<caz>_<camera>_<descriere>.mp4`.
-- După upload, completează rândul din tabel cu sursa, licența, cine a filmat și data.
-- Acord scris pentru voluntari; fețele se blurează înainte de publicare.
+- Fețele se blurează înainte de publicare; verifică exportul cu ochiul, nu doar cu motorul.
 
-## Setul curent
-
-Sunt 4 clipuri B-roll și 2 clipuri `restricted-zone`. Lipsește încă:
-
-- clip video pentru PPE lipsă.
-
-`reference_frames/` are 2 cadre PPE, iar `annotations/` are 2 etichete YOLO validate vizual de Andrei pe 31 octombrie 2026. Setul rămâne mic, pentru demo/experiment, nu pentru antrenare de producție.
-
-Numele `...pushback-motor..mp4` are două puncte; de corectat la următorul upload.
+`reference_frames/` și `annotations/` rămân materiale de proiect; nu conțin imagini third-party
+noi.

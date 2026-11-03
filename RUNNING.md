@@ -215,8 +215,10 @@ blochează) motorul cade pe un singur fir.
 ```bash
 python3 frontend/scripts/prepare-models.py --help   # argumentele curente; sursele se dau explicit
 python3 frontend/scripts/prepare-models.py <argumentele din --help>
-bash scripts/prepare-demo-media.sh --check   # doar listează ce s-ar encodea
-bash scripts/prepare-demo-media.sh           # scrie în frontend/public/media/
+# Clipurile demo livrate sunt generate din still-uri Unsplash/CC0; vezi
+# data/videos/README.md. Scriptul 4K de mai jos e istoric, pentru un clip nou documentat:
+bash scripts/prepare-demo-media.sh --check
+bash scripts/prepare-demo-media.sh
 ```
 
 Scriptul copiază cele două exporturi ONNX EfficientDet-Lite (neatinse) și rescrie doar

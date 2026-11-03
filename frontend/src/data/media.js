@@ -12,7 +12,7 @@ const STILLS = `${APP_BASE_URL}media/stills/`;
 /** Snapshot shown for an incident of each demo camera. */
 export const DEMO_STILLS = {
   stand12: `${STILLS}apron-stand.jpg`,
-  'taxiway-b': `${STILLS}taxiway-heathrow.jpg`,
+  'taxiway-b': `${STILLS}zone-taxiway-b.jpg`,
   'baggage-area': `${STILLS}baggage-hall.jpg`,
 };
 

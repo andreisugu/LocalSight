@@ -69,9 +69,9 @@ const ZONE_FIXTURES = [
     zone_id: 'baggage-area',
     camera_id: 'baggage-area',
     name: 'Zona bagaje — banda 2',
-    rule_type: 'PPE_REQUIRED',
+    rule_type: 'RESTRICTED',
     active_when: 'always',
-    required_ppe: ['hi_vis_vest'],
+    required_ppe: [],
     severity: 'WARNING',
     debounce_s: 2.0,
     notify_channel: 'slack',
@@ -79,10 +79,10 @@ const ZONE_FIXTURES = [
     // list until someone confirms it.
     escalate_after_s: null,
     polygon: outline(
-      [0.08, 0.3],
-      [0.92, 0.3],
-      [0.92, 0.86],
-      [0.08, 0.86]
+      [0.02, 0.18],
+      [0.98, 0.18],
+      [0.98, 0.97],
+      [0.02, 0.97]
     ),
   },
   {

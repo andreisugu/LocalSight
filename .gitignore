@@ -47,10 +47,10 @@ data/**
 !frontend/public/models/
 !frontend/public/models/*.onnx
 
-# Excepție țintită: clipurile web din demo-ul static (Live fără backend le joacă
-# direct din frontend/public/media/<camera-id>.mp4). Sunt mici (~10,6 MB total, sub
-# 15 MB per fișier), fără audio, max 1920 px; se regenerează cu
-# scripts/prepare-demo-media.sh. Sursele 4K din data/videos rămân ignorate.
+# Excepție țintită: clipurile demo generate din still-uri licențiate (Live le joacă
+# direct din frontend/public/media/<camera-id>.mp4). Sunt mici (~4 MB total, sub
+# 15 MB per fișier), fără audio, 1280x720. Sursele vechi 4K rămân ignorate; vezi
+# data/videos/README.md pentru proveniență.
 !frontend/public/media/*.mp4
 
 # Date generate la rulare

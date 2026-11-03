@@ -40,7 +40,7 @@ pe un laptop mic scad. Detaliile și lanțul de licențe: [`docs/legal/model-pro
 | Ce | Stare | Unde se vede |
 |---|---|---|
 | UI React + Vite pe date mock | funcționează | [`frontend/`](frontend/), linkul de sus |
-| Build static cu clipurile demo | funcționează, fără backend; clipurile au provenance necompletată | linkul de sus |
+| Build static cu clipurile demo | funcționează, fără backend; clipurile sunt generate din still-uri Unsplash/CC0 | linkul de sus |
 | Build și deploy static (GitHub Pages) | funcționează, doar după un CI verde pe `main` (`workflow_run`) | [`.github/workflows/pages.yml`](.github/workflows/pages.yml) |
 | Identificarea build-ului live | footer-ul sidebar-ului: `build <sha>` (sau `build dev` local) | [`Sidebar.jsx`](frontend/src/components/layout/Sidebar.jsx) |
 | Model detecție | EfficientDet-Lite0 implicit; Lite2 din Setări; ambele Apache-2.0 | [`frontend/public/models/`](frontend/public/models/), [`SettingsView.jsx`](frontend/src/components/views/SettingsView.jsx) |
@@ -48,7 +48,7 @@ pe un laptop mic scad. Detaliile și lanțul de licențe: [`docs/legal/model-pro
 | WASM pe 4 fire pe Pages | funcționează prin service worker COOP/COEP, cu cache versionat pe build | [`frontend/public/coi-serviceworker.js`](frontend/public/coi-serviceworker.js) |
 | Raport de tură | calculat din incidentele vizibile, marcat `șablon` | `/reports` |
 | Detecție de vestă hi-vis (PPE) | funcționează; badge `VESTĂ` / `FĂRĂ VESTĂ` / `PPE ?` pe canvas | [`frontend/src/engine/vest.js`](frontend/src/engine/vest.js); `NO_PPE` cere un om de ≥150 px în cadru |
-| Camere | 3 clipuri demo + camera browser (getUserMedia) | selectorul de cameră din Live |
+| Camere | 3 clipuri demo generate din still-uri licențiate + camera browser (getUserMedia) | selectorul de cameră din Live |
 | Blur pe fețe înainte de desenare | funcționează pe cadrul din canvas și în snapshot | `worker.js`; JPEG 960 px, fețele blurate, URL deținut de pagină |
 | Backend, Slack, MJPEG, SQLite | în afara scopului | stack-ul Python a fost scos din acest fork; vezi istoricul git |
 
@@ -154,20 +154,19 @@ Scenariul de prezentare, pas cu pas: [`demo/run_sheet_browser.md`](demo/run_shee
 | YuNet | MIT | © Shiqi Yu / OpenCV Zoo |
 | ONNX Runtime Web | MIT | © Microsoft |
 | Runtime JS/WASM: React, lucide, protobuf, flatbuffers | MIT / ISC / BSD-3 / Apache-2.0 | texte complete în [`frontend/public/LICENSES.txt`](frontend/public/LICENSES.txt) |
-| Still-uri stock: apron / taxiway / baggage | Unsplash / CC BY-SA 2.0 / CC0 | atribuite în [`frontend/public/NOTICE`](frontend/public/NOTICE); taxiway cere atribuire Derek Harper |
-| Contribuții upstream | **de confirmat** | upstream fără LICENSE; BSL afirmat de Licensor; acordurile contribuitorilor trebuie documentate |
-| Clipuri și still-uri demo | **nespecificat** | provenance necompletată; nu sunt acoperite pentru redistribuire comercială |
+| Still-uri stock: apron / baggage | Unsplash / CC0 | atribuite în [`frontend/public/NOTICE`](frontend/public/NOTICE); clipurile demo sunt derivate din ele |
+| Contribuții upstream | **cod: 100% al nostru** | ultimele 535 de linii au fost rescrise pe 3 nov; docs/design rămân creditate |
+| Clipuri demo generate + zone stills | proiect (din Unsplash/CC0) | fără footage necunoscut în build; clipurile vechi rămân doar în istoricul git |
 
-> **Gap cunoscut:** build-ul curent nu conține AGPL, dar blob-ul `yolo26n.onnx` rămâne în
-> istoricul git public. Pentru un repo complet curat e nevoie fie de un repo nou cu istoric
-> filtrat, fie de o rescriere de istoric cu aprobare explicită; ambele sunt descrise în
-> [`docs/legal/model-provenance.md`](docs/legal/model-provenance.md) §5. Clipurile demo au
-> același statut: nu sunt acoperite până nu au sursă/licență/consimțământ.
+> **Gap cunoscut:** build-ul curent nu conține AGPL și nu mai folosește clipurile vechi, dar
+> blob-ul `yolo26n.onnx` și clipurile vechi rămân în istoricul git public. Un repo nou cu
+> istoric filtrat/commit curat le elimină; vezi
+> [`docs/legal/model-provenance.md`](docs/legal/model-provenance.md) §5.
 >
-> **Contribuitori:** upstream-ul nu avea `LICENSE`; BSL-ul este afirmat de Licensor. Pentru
-> licențiere comercială, contribuțiile celorlalți autori trebuie acoperite printr-un acord
-> scris (CLA/cesiune) sau înlocuite; detalii în
-> [`docs/legal/model-provenance.md`](docs/legal/model-provenance.md) §3.1.
+> **Contribuitori:** codul curent a fost rescris integral pe 3 noiembrie; `provenance.py`
+> raportează 0 linii de la colegi. Docs/design-ul rămâne creditat; pentru licențiere
+> comercială, confirmă acordul pentru docs/design sau rescrie-le; template în
+> [`docs/legal/contributor-assignment-template.md`](docs/legal/contributor-assignment-template.md).
 
 Nu este consultanță juridică. Auditul complet, lanțul de proveniență, SHA-256-urile și
 checklist-ul comercial sunt în [`THIRD_PARTY.md`](THIRD_PARTY.md) și
@@ -182,9 +181,9 @@ Ce cod a rămas de la fiecare autor se măsoară pe linii cu `python3 scripts/pr
 (`git blame -w`), iar `--audit <fișier>` listează exact liniile rămase. Standardul de
 „înlocuit” — implementare nouă, logică testată, nu doar clase schimbate — și lista a ce s-a
 amânat sunt în [`docs/rewrite-backlog.md`](docs/rewrite-backlog.md); raportul generat este
-[`docs/provenance.md`](docs/provenance.md). La 3 noiembrie 2026: **98,7%** din liniile de
-cod de produs sunt ale noastre, **1,3%** sunt schelet JSX/etichete/importuri, iar auditul
-nu mai găsește **nicio linie de logică** moștenită. Stack-ul Python a fost scos din fork;
+[`docs/provenance.md`](docs/provenance.md). La 3 noiembrie 2026: **100%** din liniile de cod de produs sunt ale noastre, **0%** de la
+colegi, iar auditul nu mai găsește **nicio linie de logică** moștenită. Ultimele 535 de linii
+de schelet JSX/importuri au fost rescrise pe 3 noiembrie. Stack-ul Python a fost scos din fork;
 rămâne în istoricul git și în upstream.
 
 ## Credite

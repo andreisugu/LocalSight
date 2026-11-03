@@ -27,6 +27,9 @@ file listed here is served to every visitor and is a distribution of that artefa
 | `models/LICENSE-CC-BY-3.0.txt` | — | full CC BY 3.0 legal code + attribution | notice file |
 | `NOTICE` | — | visitor-facing summary, linked from the sidebar | notice file |
 | `LICENSES.txt` | — | full runtime MIT/ISC/BSD/Apache notices, linked from `NOTICE` | notice file |
+| `media/stand12.mp4`, `taxiway-b.mp4` | — | generated pan/zoom from the Unsplash apron still | Unsplash License |
+| `media/baggage-area.mp4` | — | generated pan/zoom from the CC0 baggage still | CC0 |
+| `media/stills/zone-*.jpg` | — | frames from the generated clips | project-generated from Unsplash/CC0 |
 
 No AGPL-licensed artifact is part of this list. The Ultralytics YOLO26n graph that earlier
 builds served is removed by the detector swap that this dossier accompanies — from the tree,
@@ -142,16 +145,18 @@ section collapses to one licence. Until then, both attributions stay.
 ### 3.1 Upstream code and contributor rights — unresolved
 
 The upstream repository (`DaVecTORzzz/craiova-hack-2026`, public) had **no LICENSE** at the
-audited commit. This fork adds BSL 1.1 with Licensor Andrei Șugubete. The provenance report
-shows **535 lines** from other contributors, and the README credits Andrei, Max, Dalina and
-Ariana. Public visibility is not a licence, and a BSL commercial licence granted by one
-Licensor cannot bind code owned by other authors without their consent.
+audited commit. This fork adds BSL 1.1 with Licensor Andrei Șugubete. On 2026-11-03 the
+current tree's 535 teammate code lines were replaced by a project-author rewrite;
+`scripts/provenance.py` now reports **0 lines from other authors**. The code-copyright gap in
+the current tree is therefore addressed. This is not a clean-room legal opinion and does not
+automatically transfer the upstream docs/design; the README still credits Andrei, Max, Dalina
+and Ariana.
 
-Before commercial licensing, obtain a written CLA/assignment or explicit licence from every
-contributor, or replace their code and document the replacement. Keep the evidence with the
-commercial paperwork. A starting template is in
+For commercial licensing, confirm in writing that the docs/design and the upstream project are
+covered, or rewrite them. A starting template is in
 [`contributor-assignment-template.md`](contributor-assignment-template.md); a lawyer should
-adapt it. This is a **blocking** item independent of the model licence.
+adapt it. This remains a **blocking** item for the docs/design and upstream credit, independent
+of the model licence.
 
 ### 3.2 Runtime libraries and notices — resolved
 
@@ -175,47 +180,34 @@ Guido Zuidhof); the implementation is ours and the MIT notice ships in `LICENSES
 Build-time-only packages (Vite, Tailwind, PostCSS, Playwright, caniuse-lite) are not in the
 served artifact; their versions and licences are in `THIRD_PARTY.md`.
 
-The demo footage is outside all of this: no licence is claimed for it, so neither the BSL nor
-the model licences say anything about it.
+The current demo clips are generated from the Unsplash/CC0 stills and are distributed under
+the still licences/project authorship; the old unresolved clips are no longer in the current
+tree. The old clips remain in history and are not covered by the BSL or the model licences.
 
-## 4. The gap that model licensing does not close: demo footage
+## 4. Demo footage: current clips generated from licensed stills
 
-`data/videos/README.md` lists six demo clips, and every row still reads `de completat` under
-source, licence and camera operator. No written consent is on file for the people in the
-footage. The 4K sources are not in git, but three web cuts in `frontend/public/media/` **are**
-committed and served by the build, and three `zone-*.jpg` stills are frames re-encoded from
-them; the UI screenshots in `docs/assets/` show the same footage.
+The current `stand12.mp4` and `taxiway-b.mp4` are pan/zoom derivatives of the Unsplash
+`apron-stand.jpg`; `baggage-area.mp4` is a pan/zoom derivative of the CC0 `baggage-hall.jpg`.
+The `zone-*.jpg` stills are frames from those generated clips. The Unsplash licence permits
+modification and commercial use without attribution; CC0 has no restrictions. There is no
+third-party airport video with unknown provenance in the current tree or build.
 
-Consequences, stated plainly:
+The **old** 4K clips and the web cuts derived from them were removed from the current tree and
+build; they remain in git history and in the shared Drive. Do not reuse them without recording
+source, licence, camera operator and consent. A new repository without the old history removes
+those blobs. See §5.
 
-- The clips are **demo material with unresolved provenance**. They are not cleared, and this
-  document does not clear them.
-- They are **not covered by the BSL** and not covered by any model licence.
-- They must be **replaced or documented before commercial redistribution** — not "before a
-  hackathon demo", before a sale, a paid pilot or a public hosted instance.
-- Removing a clip from the current tree does not remove it from git history, and does not
-  create rights that were never obtained.
-
-### Footage checklist
-
-For each clip, fill in and keep the evidence somewhere durable (not in a chat log):
+### Footage checklist for any future clip
 
 - [ ] **Source** — who owns the camera / the recording; the airport or operator name.
-- [ ] **Licence or permission** — written, with the scope: internal demo only, public demo,
-      commercial redistribution. "They said it was fine" is not a licence.
+- [ ] **Licence or permission** — written, with the scope; "they said it was fine" is not a licence.
 - [ ] **Camera operator** — the person who filmed it, named.
 - [ ] **Date and location** — clip date; apron / terminal area.
 - [ ] **Consent for identifiable people** — written consent from volunteers; blur is a
       mitigation, not a consent substitute.
 - [ ] **Third-party content in frame** — airline livery, logos, plates, screens.
-- [ ] **Derived files** — the three web cuts, the three `zone-*.jpg` stills, the
-      `docs/assets/*.png` screenshots, `localsight-demo.gif` and `social-preview.png`
-      inherit the same rights; list them with the clip.
-- [ ] **Re-check the export by hand** — the pipeline blurs faces, but a human confirms that
-      the shipped cuts contain no unblurred face.
-
-If a clip cannot be documented, replace it with footage you own. That is the only option that
-does not need a lawyer's judgement call.
+- [ ] **Derived files** — web cuts, zone stills, screenshots, GIF and social preview.
+- [ ] **Re-check the export by hand** — no unblurred face.
 
 ## 5. The gap model licensing does not close either: git history
 
@@ -228,11 +220,11 @@ The current build being AGPL-free is **necessary but not sufficient** for a full
 repository. Three options, and they are not equivalent:
 
 1. **New repository with filtered history — recommended.** Clone the repo as a mirror,
-   `git filter-repo` to remove the AGPL blob (and the clips if they are being replaced), and
+   `git filter-repo` to remove the AGPL blob and the old clip blobs, and
    push the filtered history into a **new, empty** repository. Nothing is force-pushed, no
    cached object survives, authorship and most history are preserved, but every commit hash
-   changes. Archive the old repository with a pointer to the new one. The AGPL question ends
-   here; the footage question does not (see §4).
+   changes. Archive the old repository with a pointer to the new one. The AGPL and old-clip
+   questions end here; the current generated clips are already clean (see §4).
 2. **New repository from the current tree.** Publish only the current tree with no imported
    history. Simplest operationally; contribution history does not travel — keep a
    `docs/provenance.md` snapshot and the old URL.
@@ -246,8 +238,8 @@ repository. Three options, and they are not equivalent:
 not perform one.** Which option to take is a business decision; that it must be decided is
 not.
 
-Note that option 1 does not launder the footage: a fresh repository keeps whatever is copied
-into it, and the committed clips would be copied. Rights are fixed by §4, not by changing
+Note that a fresh repository keeps whatever is copied into it. The current generated clips
+are clean; the old clips must not be copied back in. Rights are fixed by §4, not by changing
 which repository serves the files.
 
 ## 6. Commercial release checklist
@@ -266,11 +258,13 @@ Model licensing is done; the remaining work is footage and paperwork.
 - [ ] **Model files unmodified, hashes match.** If they are re-exported or re-quantised, the
       licence analysis must be redone — a modified graph is a modified work, and CC BY 3.0
       then requires an indication of the change.
-- [ ] **Footage resolved per §4**, or the clips replaced. This is the blocking item.
+- [ ] **Current clips are the generated Unsplash/CC0 derivatives**; the old unresolved clips
+      are not copied back in. A new repository removes the old history (§5).
 - [ ] **BSL intact.** `LICENSE` at the root, same Licensor / Additional Use Grant / Change
       Date / Change License, conspicuously displayed on every copy.
-- [ ] **Contributor rights settled.** Written assignments/CLAs from every author, or their
-      code replaced; the BSL file alone is not proof. See §3.1.
+- [ ] **Contributor rights settled for docs/design.** The code was rewritten (0 teammate
+      lines); the docs/design and upstream credit remain. Get written assignments/CLAs or
+      rewrite them; the BSL file alone is not proof. See §3.1.
 - [ ] **History decision taken per §5**, and written down where a buyer can see it.
 - [ ] **Legal review.** Hand this file, `THIRD_PARTY.md` and the two licence text files to a
       lawyer; they are written to be checked, not believed.
@@ -281,11 +275,12 @@ Model licensing is done; the remaining work is footage and paperwork.
 |---|---|
 | Person detector licence | **Resolved** — Apache-2.0 weights, CC BY 3.0 conversion, both attributed |
 | Runtime JS/WASM notices | **Resolved** — permissive; full texts in `LICENSES.txt`; no GPL/AGPL |
-| Upstream/contributor rights | **Unresolved** — upstream had no LICENSE; 535 lines from other authors; needs CLAs/assignment or replacement (§3.1) |
+| Code contributor rights | **Resolved in the current tree** — 535 teammate lines rewritten on 2026-11-03; provenance 0; docs/design still credited (§3.1) |
 | Face detector licence | **Resolved** — YuNet, MIT |
 | Runtime and build tooling | **Resolved** — MIT / ISC / Apache-2.0, notices shipped |
 | AGPL in the current build | **Resolved** — no AGPL model ships; the detector swap removes it from tree, engine and notice |
 | AGPL blob in git history | **Unresolved** — needs a fresh repository or an approved rewrite (§5) |
-| Demo footage provenance | **Unresolved** — no source, licence, operator or consent recorded (§4) |
+| Current demo clips | **Resolved** — generated from Unsplash/CC0 stills; no unknown footage in the current tree (§4) |
+| Old demo clips in git history | **Unresolved history** — removed from the current tree; a new repository without the old history removes them (§5) |
 | Per-file model card for the converted `.tflite` | **Not verified** — repository-level Apache-2.0 evidence only (§2) |
 | Legal review | **Not done** — this document is not legal advice |

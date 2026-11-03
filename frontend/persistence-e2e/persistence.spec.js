@@ -157,6 +157,9 @@ test('an engine incident, its snapshot and its ack survive a reload', async ({ p
   await openView(page, 'live');
   // The default list has no fixture cards at all; the demo toggle is never touched here.
   await expect(page.getByTestId('incident-card')).toHaveCount(0);
+  // The licensed baggage demo clip has a person the detector can see; CAM-01's generated
+  // apron still only has distant workers. The test is about persistence, not which camera.
+  await page.locator('select').first().selectOption({ value: 'baggage-area' });
   await startEngine(page);
   // An open incident makes the queue the default; this test is about the card's durable
   // snapshot, so pin the Flux list before waiting for it.

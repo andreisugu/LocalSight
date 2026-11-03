@@ -28,8 +28,8 @@ schimbă.
 - `docs/` — `browser-engine.md` (design-ul portului), `media.md` (clipurile demo),
   `performance.md` (măsurători istorice), `contract.md` (plicul evenimentului),
   `legal/model-provenance.md` (dosarul de licențe și proveniență al modelelor).
-- `scripts/` — `prepare-demo-media.sh` (encodează clipurile) și `provenance.py`
-  (raportul de proveniență).
+- `scripts/` — `prepare-demo-media.sh` (istoric; clipurile curente sunt generate din still-uri)
+  și `provenance.py` (raportul de proveniență).
 - `data/` — clipuri și adnotări locale, în afara git în afară de README-uri.
 - `demo/` — `run_sheet_browser.md` (demo-ul curent) plus run sheet-urile istorice.
 - `backend/`, `ml/`, `automation/` — **nu mai există în acest fork.** Nu le recrea; dacă
@@ -120,9 +120,12 @@ bash scripts/prepare-demo-media.sh           # scrie în frontend/public/media/
 - **Dependențe runtime doar permissive.** Nu adăuga runtime GPL/AGPL/LGPL; orice dependență
   de producție nouă cere actualizarea `frontend/public/LICENSES.txt` și a
   `THIRD_PARTY.md`. `check-base.mjs` refuză build-ul fără notice-uri.
-- **Drepturile contribuitorilor se documentează, nu se presupun.** BSL-ul e afirmat de
-  Licensor; codul altor autori are nevoie de cesiune/acord scris sau de înlocuire înainte de
-  licențiere comercială. Vezi `docs/legal/model-provenance.md` §3.1.
+- **Drepturile contribuitorilor se documentează, nu se presupun.** Codul curent a fost
+  rescris integral pe 3 noiembrie 2026 (0 linii de la colegi); docs/design-ul rămâne creditat
+  și are nevoie de cesiune/acord scris sau de rescriere înainte de licențiere comercială.
+  Vezi `docs/legal/model-provenance.md` §3.1.
+- **Clipurile demo sunt generate din still-uri licențiate** (Unsplash/CC0). Nu re-introduce
+  clipurile vechi 4K sau web cut-urile lor fără sursă, licență, operator și consimțământ.
 - **Nicio față neblurată în niciun asset commitat** — cadre, snapshot-uri, clipuri,
   capturi pentru docs. Blur-ul rulează înainte de salvare sau afișare, cu plasă de
   siguranță pe banda capului; dacă modelul de fețe nu se încarcă, nu se produce imagine
