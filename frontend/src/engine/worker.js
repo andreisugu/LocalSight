@@ -18,6 +18,7 @@ import {
 } from './detectors.js';
 import { decodeEfficientDet, decodeYuNet } from './decode.js';
 import { clampRect, expandedRect, headBandRects } from './blur.js';
+import { hudColourFor, personHudStates } from './hud.js';
 import { SNAPSHOT_PENDING, createPipeline } from './pipeline.js';
 import { faceInputPlan, padToMultiple, scaleFaceBoxes } from './perf.js';
 import { createTracker } from './tracker.js';
@@ -705,24 +706,41 @@ function blurHeads(ctx, detections, width, height) {
   for (const rect of headBandRects(boxes, width, height)) blurRect(ctx, rect);
 }
 
-function drawBoxes(ctx, boxes, colour, label) {
+function prepareBoxes(ctx) {
   ctx.lineWidth = Math.max(2, Math.round(ctx.canvas.width / 640));
   ctx.font = `${Math.round(ctx.canvas.width / 55)}px ui-monospace, monospace`;
   ctx.textBaseline = 'top';
-  for (const box of boxes) {
-    const rect = clampRect(box.x1, box.y1, box.x2, box.y2, ctx.canvas.width, ctx.canvas.height);
-    if (rect.width < 2 || rect.height < 2) continue;
-    ctx.strokeStyle = colour;
-    ctx.strokeRect(rect.left, rect.top, rect.width, rect.height);
-    if (!label) continue;
-    const text = `${label} ${box.score.toFixed(2)}`;
-    const padding = 3;
-    const textWidth = ctx.measureText(text).width;
-    const textHeight = Math.round(ctx.canvas.width / 55);
-    ctx.fillStyle = colour;
-    ctx.fillRect(rect.left, Math.max(0, rect.top - textHeight - padding * 2), textWidth + padding * 2, textHeight + padding * 2);
-    ctx.fillStyle = '#1F1F1F';
-    ctx.fillText(text, rect.left + padding, Math.max(0, rect.top - textHeight - padding));
+}
+
+function strokeBox(ctx, box, colour, label) {
+  const rect = clampRect(box.x1, box.y1, box.x2, box.y2, ctx.canvas.width, ctx.canvas.height);
+  if (rect.width < 2 || rect.height < 2) return;
+  ctx.strokeStyle = colour;
+  ctx.strokeRect(rect.left, rect.top, rect.width, rect.height);
+  if (!label) return;
+  const text = `${label} ${box.score.toFixed(2)}`;
+  const padding = 3;
+  const textWidth = ctx.measureText(text).width;
+  const textHeight = Math.round(ctx.canvas.width / 55);
+  ctx.fillStyle = colour;
+  ctx.fillRect(rect.left, Math.max(0, rect.top - textHeight - padding * 2), textWidth + padding * 2, textHeight + padding * 2);
+  ctx.fillStyle = '#1F1F1F';
+  ctx.fillText(text, rect.left + padding, Math.max(0, rect.top - textHeight - padding));
+}
+
+function drawBoxes(ctx, boxes, colour, label) {
+  prepareBoxes(ctx);
+  for (const box of boxes) strokeBox(ctx, box, colour, label);
+}
+
+// Person boxes take the colour of the rule that covers their feet (see hud.js). The frame
+// is annotated before `pipeline.step`, so the states are the ones the same detections would
+// produce this frame. A missing state keeps the default yellow: the HUD is presentation and
+// must never drop a box that the blur and the rules still see.
+function drawPersonBoxes(ctx, persons, hudStates) {
+  prepareBoxes(ctx);
+  for (let index = 0; index < persons.length; index += 1) {
+    strokeBox(ctx, persons[index], hudColourFor(hudStates?.[index]), 'PERSON');
   }
 }
 
@@ -1038,6 +1056,18 @@ async function handleFrame(message) {
     }
   }
 
+  // Box colour follows the zone rule the feet are under, but the boxes are drawn before
+  // `pipeline.step` computes membership. Repeat that test here on the same detections and
+  // zones, so the frame and its incident snapshot show the severity the rule is about to
+  // fire. `alignment.zones` is `[]` when the view is lost (no armed rule, no colour) and
+  // `null` without a reference, where the configured polygons are the ones the rules use.
+  const hudZones = alignment.zones ?? overlayZones;
+  const hudStates = personHudStates(detections, {
+    zones: hudZones,
+    engineOn: overlayEngineOn,
+    vestStates,
+  });
+
   // Blur, then boxes: a throw here means the frame is only partially covered, so it is
   // never forwarded. A render failure also stops the engine: the next frame could not be
   // trusted either.
@@ -1047,7 +1077,7 @@ async function handleFrame(message) {
     // The head band is the safety net for faces YuNet misses. The operator can turn it
     // off; `blurFaces` above and the fail-closed path below stay untouched either way.
     if (safetyBlur) blurHeads(frameCtx, detections, width, height);
-    drawBoxes(frameCtx, persons, '#FFEB33', 'PERSON');
+    drawPersonBoxes(frameCtx, persons, hudStates);
     drawBoxes(frameCtx, faces, '#33E1FF', null);
     blurred = true;
   } catch (caught) {
