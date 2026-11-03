@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useReducer, useState } from 'react';
-import { PenTool } from 'lucide-react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { Download, LayoutTemplate, PenTool, Save, Trash2, Upload } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { DEMO_REFERENCE_FRAMES } from '../../constants/mockData';
@@ -16,6 +16,20 @@ import {
   uniqueZoneId,
   validateDraft,
 } from '../../utils/zoneDraft.js';
+import {
+  MAX_TEMPLATE_CHARS,
+  MAX_TEMPLATE_NAME_CHARS,
+  assignZoneIds,
+  deleteTemplate,
+  exportZones,
+  parseZoneTemplate,
+  readTemplates,
+  saveTemplate,
+  templateForCamera,
+  templateStorage,
+  toZonePayload,
+  zoneExportFileName,
+} from '../../utils/zoneTemplates.js';
 import ZoneCanvas from '../zones/ZoneCanvas';
 import ZoneToolbar from '../zones/ZoneToolbar';
 import ZoneParameters from '../zones/ZoneParameters';
@@ -30,6 +44,39 @@ const HINT_DRAWING =
   'Click pe primul punct (verde) închide zona · trage punctele · „+” de pe latură adaugă un punct · Ctrl+Z anulează';
 const HINT_CLOSED =
   'Zonă închisă · trage punctele ca să le muți · „+” de pe latură adaugă un punct · click dreapta / Delete șterge · Ctrl+Z anulează';
+const TEMPLATE_SCOPE_CAMERA = 'camera';
+const TEMPLATE_SCOPE_GLOBAL = 'global';
+const TEMPLATE_SCOPE_LABEL = {
+  [TEMPLATE_SCOPE_CAMERA]: 'camera curentă',
+  [TEMPLATE_SCOPE_GLOBAL]: 'toate camerele',
+};
+const TEMPLATE_STATUS_IDLE =
+  'Exportă zonele camerei, importă un fișier JSON sau salvează-le ca șablon ca să le refolosești pe altă cameră.';
+
+/** Trigger a browser download for a JSON string. The object URL is released next tick. */
+function downloadJson(fileName, json) {
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.rel = 'noopener';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+/** The first few validation messages, so the status line stays one line on a phone. */
+function summarizeErrors(errors = [], limit = 3) {
+  const messages = (Array.isArray(errors) ? errors : [])
+    .map((error) => error?.message)
+    .filter((message) => typeof message === 'string' && message);
+  if (messages.length === 0) return 'motiv necunoscut';
+  const head = messages.slice(0, limit).join(' ');
+  return messages.length > limit ? `${head} (+${messages.length - limit})` : head;
+}
+
 /**
  * The instructions for the drawing surface. They live on the help line above the frame, as
  * the state changes, instead of on a pill that covered the polygon (M13).
@@ -174,6 +221,243 @@ function ParametersColumn({ editor, referenceUrl, usingDemoReference }) {
   );
 }
 /**
+ * Export, import and named templates for the selected camera.
+ *
+ * Everything here writes only through the store (`saveZone` / `deleteZone`), so the
+ * optimistic update and its rollback stay in one place. Replacing a camera's zones is
+ * always confirmed first and never merges silently: zones the template does not carry
+ * are deleted. A camera-scoped template is only offered on its own camera; reusing it
+ * elsewhere is what the export/import pair or a "Global" template is for. Zone ids are
+ * global in the store, so an id owned by another camera is re-issued here rather than
+ * moved (`assignZoneIds`).
+ */
+function ZoneTemplatesPanel({ editor }) {
+  const { themeStyles } = useTheme();
+  const fileRef = useRef(null);
+  const {
+    actions,
+    cameraZones,
+    selectedCameraId,
+    selectedTemplate,
+    selectedTemplateId,
+    setSelectedTemplateId,
+    setTemplateName,
+    setTemplateScope,
+    setTemplateStatus,
+    templateBusy,
+    templateName,
+    templateScope,
+    templateStatus,
+    templates,
+    templatesForCamera,
+  } = editor;
+
+  const fieldClass =
+    'min-w-0 rounded-lg border px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#FFEB33]';
+  const buttonClass =
+    'px-2.5 py-1.5 rounded-lg border text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-[#FFEB33]';
+  const fieldStyle = {
+    backgroundColor: themeStyles.cardBg,
+    borderColor: themeStyles.panelBorder,
+    color: themeStyles.text,
+  };
+  const idleStatus =
+    templatesForCamera.length > 0
+      ? `${templatesForCamera.length} șabloane disponibile pentru ${selectedCameraId}.`
+      : templates.length > 0
+        ? 'Niciun șablon pentru camera asta. Salvează unul cu domeniul „Global” ca să-l aplici pe orice cameră.'
+        : TEMPLATE_STATUS_IDLE;
+
+  async function handleFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (file.size > MAX_TEMPLATE_CHARS) {
+      setTemplateStatus(`Import respins: fișierul depășește ${Math.round(MAX_TEMPLATE_CHARS / 1024)} KB.`);
+      return;
+    }
+    let text = '';
+    try {
+      text = await file.text();
+    } catch (error) {
+      setTemplateStatus(`Import respins: fișierul nu poate fi citit (${error.message}).`);
+      return;
+    }
+    await actions.importZonesFromText(text);
+  }
+
+  return (
+    <section
+      data-testid="zone-template-panel"
+      aria-labelledby="zone-template-heading"
+      aria-describedby="zone-template-status"
+      className="space-y-2 rounded-xl border p-3 text-xs shadow-sm"
+      style={{ backgroundColor: themeStyles.panelBg, borderColor: themeStyles.panelBorder }}
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h3
+          id="zone-template-heading"
+          className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider"
+        >
+          <LayoutTemplate size={15} className="shrink-0 text-[#D73833] dark:text-[#FFEB33]" aria-hidden="true" />
+          Șabloane zone
+        </h3>
+        <p className="text-[11px] leading-snug" style={{ color: themeStyles.textMuted }}>
+          Desenează o dată, aplică pe orice cameră.
+        </p>
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            data-testid="zone-export"
+            onClick={actions.exportCameraZones}
+            disabled={cameraZones.length === 0 || templateBusy}
+            title={
+              cameraZones.length === 0
+                ? 'Camera asta nu are zone de exportat'
+                : `Descarcă ${cameraZones.length} zone din ${selectedCameraId} ca JSON`
+            }
+            className={`${buttonClass} border-slate-300 bg-white text-[#1F1F1F] hover:bg-slate-100 dark:border-white/20 dark:bg-black/20 dark:text-slate-200 dark:hover:bg-white/10`}
+          >
+            <Download size={13} aria-hidden="true" /> Export JSON
+          </button>
+          <button
+            type="button"
+            data-testid="zone-import"
+            onClick={() => fileRef.current?.click()}
+            disabled={templateBusy}
+            title="Încarcă un fișier JSON exportat din altă cameră"
+            className={`${buttonClass} border-slate-300 bg-white text-[#1F1F1F] hover:bg-slate-100 dark:border-white/20 dark:bg-black/20 dark:text-slate-200 dark:hover:bg-white/10`}
+          >
+            <Upload size={13} aria-hidden="true" /> Import JSON
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            data-testid="zone-import-file"
+            aria-label="Fișier JSON cu zone"
+            onChange={handleFile}
+            className="sr-only"
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-0 flex-1 sm:flex-none">
+          <label
+            htmlFor="zone-template-name"
+            className="mb-0.5 block text-[10px] font-bold uppercase tracking-wide opacity-70"
+          >
+            Nume șablon
+          </label>
+          <input
+            id="zone-template-name"
+            data-testid="zone-template-name"
+            type="text"
+            value={templateName}
+            maxLength={MAX_TEMPLATE_NAME_CHARS}
+            onChange={(event) => setTemplateName(event.target.value)}
+            placeholder="ex. Stand 12 — iarnă"
+            className={`w-full sm:w-56 ${fieldClass}`}
+            style={fieldStyle}
+          />
+        </div>
+        <div className="min-w-0">
+          <label
+            htmlFor="zone-template-scope"
+            className="mb-0.5 block text-[10px] font-bold uppercase tracking-wide opacity-70"
+          >
+            Se aplică pe
+          </label>
+          <select
+            id="zone-template-scope"
+            data-testid="zone-template-scope"
+            value={templateScope}
+            onChange={(event) => setTemplateScope(event.target.value)}
+            className={`${fieldClass} w-full sm:w-auto`}
+            style={fieldStyle}
+          >
+            <option value={TEMPLATE_SCOPE_CAMERA}>Camera curentă ({selectedCameraId})</option>
+            <option value={TEMPLATE_SCOPE_GLOBAL}>Global (toate camerele)</option>
+          </select>
+        </div>
+        <button
+          type="button"
+          data-testid="zone-template-save"
+          onClick={actions.saveCurrentTemplate}
+          disabled={templateBusy || templateName.trim() === '' || cameraZones.length === 0}
+          title={
+            cameraZones.length === 0
+              ? 'Camera asta nu are zone de salvat'
+              : 'Salvează zonele camerei curente ca șablon'
+          }
+          className={`${buttonClass} bg-[#7EDEED] text-[#1F1F1F] hover:bg-[#68c8d8]`}
+        >
+          <Save size={13} aria-hidden="true" /> Salvează șablon
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-0 flex-1">
+          <label
+            htmlFor="zone-template-select"
+            className="mb-0.5 block text-[10px] font-bold uppercase tracking-wide opacity-70"
+          >
+            Șablon salvat ({templatesForCamera.length})
+          </label>
+          <select
+            id="zone-template-select"
+            data-testid="zone-template-select"
+            value={selectedTemplateId}
+            onChange={(event) => setSelectedTemplateId(event.target.value)}
+            className={`${fieldClass} w-full`}
+            style={fieldStyle}
+          >
+            <option value="">— alege un șablon —</option>
+            {templatesForCamera.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.name} · {template.camera_id || 'global'} · {template.zones.length} zone
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="button"
+          data-testid="zone-template-apply"
+          onClick={actions.applySelectedTemplate}
+          disabled={!selectedTemplate || templateBusy}
+          title="Înlocuiește zonele camerei curente cu șablonul ales"
+          className={`${buttonClass} bg-[#D73833] text-white hover:bg-[#b82e2a]`}
+        >
+          Aplică
+        </button>
+        <button
+          type="button"
+          data-testid="zone-template-delete"
+          onClick={actions.removeSelectedTemplate}
+          disabled={!selectedTemplate || templateBusy}
+          title="Șterge șablonul; zonele camerelor rămân neschimbate"
+          className={`${buttonClass} border-red-500/40 text-red-600 hover:bg-red-500/10 dark:text-red-300`}
+        >
+          <Trash2 size={13} aria-hidden="true" /> Șterge
+        </button>
+      </div>
+
+      <p
+        id="zone-template-status"
+        data-testid="zone-template-status"
+        role="status"
+        aria-live="polite"
+        className="text-[11px] font-mono leading-snug"
+        style={{ color: themeStyles.textMuted }}
+      >
+        {templateStatus || idleStatus}
+      </p>
+    </section>
+  );
+}
+
+/**
  * Zone configuration editor.
  *
  * The polygon and the parameters are one draft document (`utils/zoneDraft.js`). This hook
@@ -194,9 +478,29 @@ const useZoneEditor = () => {
   const [uploading, setUploading] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [capturedAt, setCapturedAt] = useState(null);
+  // Named templates live in localStorage and survive a reload. Reading is capped and
+  // validated by the utility, so a planted blob means "no templates".
+  const [templates, setTemplates] = useState(() => readTemplates());
+  const [templateName, setTemplateName] = useState('');
+  const [templateScope, setTemplateScope] = useState(TEMPLATE_SCOPE_CAMERA);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [templateStatus, setTemplateStatus] = useState('');
+  const [templateBusy, setTemplateBusy] = useState(false);
+  // Bumped after a template/import replaces the camera's zones. The draft reloads from the
+  // store on this counter, so an import that keeps the same zone id still shows the new
+  // name and rule instead of the pre-import draft.
+  const [zoneReload, setZoneReload] = useState(0);
   const cameraZones = useMemo(
     () => zones.filter((item) => item.camera_id === selectedCameraId),
     [zones, selectedCameraId]
+  );
+  const templatesForCamera = useMemo(
+    () => templateForCamera(templates, selectedCameraId),
+    [templates, selectedCameraId]
+  );
+  const selectedTemplate = useMemo(
+    () => templatesForCamera.find((template) => template.id === selectedTemplateId) || null,
+    [templatesForCamera, selectedTemplateId]
   );
   const zone = useMemo(
     () => cameraZones.find((item) => item.zone_id === draft.zoneId) || null,
@@ -226,7 +530,7 @@ const useZoneEditor = () => {
       return;
     }
     dispatch({ type: 'reset' });
-  }, [selectedCameraId, draft.zoneId, draft.isNew, cameraZones.length]);
+  }, [selectedCameraId, draft.zoneId, draft.isNew, cameraZones.length, zoneReload]);
   // Keyboard: Ctrl+Z / Ctrl+Shift+Z, Delete removes the selected point, arrows nudge it
   // (Shift = 5x) and Esc deselects. Text fields keep their own keys.
   useEffect(() => {
@@ -246,6 +550,8 @@ const useZoneEditor = () => {
   function switchCamera(event) {
     dispatch({ type: 'camera-changed' });
     setSelectedCameraId(event.target.value);
+    // A template may belong to the previous camera; do not keep it selected silently.
+    setSelectedTemplateId('');
   }
   function chooseZone(zoneId) {
     dispatch({ type: 'select-zone', zoneId });
@@ -338,17 +644,136 @@ const useZoneEditor = () => {
     clearReferenceFrame(draft.zoneId);
     setCapturedAt(null);
   };
+  function exportCameraZones() {
+    if (cameraZones.length === 0) {
+      setTemplateStatus('Camera asta nu are zone de exportat.');
+      return;
+    }
+    const payload = exportZones(cameraZones, { cameraId: selectedCameraId });
+    const json = JSON.stringify(payload, null, 2);
+    downloadJson(zoneExportFileName(selectedCameraId), json);
+    const size = Math.round((json.length / 1024) * 10) / 10;
+    setTemplateStatus(`Export: ${payload.zones.length} zone din ${selectedCameraId} (${size} KB).`);
+  }
+  /**
+   * Replace this camera's zones with `incoming`: upsert every imported zone, then delete
+   * the ones the template does not carry. The caller has already confirmed.
+   */
+  async function replaceCameraZones(incoming, successMessage) {
+    setTemplateBusy(true);
+    try {
+      const foreignIds = zones
+        .filter((item) => item.camera_id !== selectedCameraId)
+        .map((item) => item.zone_id);
+      const prepared = assignZoneIds(incoming, foreignIds);
+      for (const item of prepared) {
+        await saveZone(item.zone_id, toZonePayload(item, selectedCameraId));
+      }
+      const keep = new Set(prepared.map((item) => item.zone_id));
+      for (const existing of cameraZones) {
+        if (!keep.has(existing.zone_id)) await deleteZone(existing.zone_id);
+      }
+      setZoneReload((value) => value + 1);
+      dispatch(prepared.length > 0 ? { type: 'select-zone', zoneId: prepared[0].zone_id } : { type: 'reset' });
+      setTemplateStatus(successMessage);
+    } catch (error) {
+      setTemplateStatus(`Aplicarea a eșuat: ${error.message}`);
+    } finally {
+      setTemplateBusy(false);
+    }
+  }
+  async function importZonesFromText(text) {
+    const result = parseZoneTemplate(text);
+    if (!result.ok) {
+      setTemplateStatus(`Import respins: ${summarizeErrors(result.errors)}.`);
+      return;
+    }
+    const source = result.cameraId ? ` (export din ${result.cameraId})` : '';
+    const confirmed = window.confirm(
+      `Importi ${result.zones.length} zone${source} în camera „${selectedCameraId}”? ` +
+        `Zonele actuale ale camerei (${cameraZones.length}) vor fi înlocuite.`
+    );
+    if (!confirmed) {
+      setTemplateStatus('Import anulat: zonele camerei nu s-au schimbat.');
+      return;
+    }
+    await replaceCameraZones(
+      result.zones,
+      `Import reușit: ${result.zones.length} zone aplicate pe ${selectedCameraId}.`
+    );
+  }
+  function saveCurrentTemplate() {
+    const result = saveTemplate(templateStorage(), {
+      name: templateName,
+      cameraId: templateScope === TEMPLATE_SCOPE_CAMERA ? selectedCameraId : null,
+      zones: cameraZones,
+    });
+    if (!result.ok) {
+      setTemplateStatus(result.errors[0]?.message || 'Șablonul nu a putut fi salvat.');
+      return;
+    }
+    setTemplates(result.templates);
+    setSelectedTemplateId(result.template.id);
+    setTemplateName('');
+    setTemplateStatus(
+      `Șablonul „${result.template.name}” salvat: ${result.template.zones.length} zone, ${TEMPLATE_SCOPE_LABEL[templateScope]}.`
+    );
+  }
+  async function applySelectedTemplate() {
+    if (!selectedTemplate) {
+      setTemplateStatus('Alege un șablon din listă.');
+      return;
+    }
+    const confirmed = window.confirm(
+      `Aplici șablonul „${selectedTemplate.name}” pe camera „${selectedCameraId}”? ` +
+        `Zonele actuale ale camerei (${cameraZones.length}) vor fi înlocuite.`
+    );
+    if (!confirmed) {
+      setTemplateStatus('Aplicare anulată: zonele camerei nu s-au schimbat.');
+      return;
+    }
+    await replaceCameraZones(
+      selectedTemplate.zones,
+      `Șablonul „${selectedTemplate.name}” aplicat: ${selectedTemplate.zones.length} zone pe ${selectedCameraId}.`
+    );
+  }
+  function removeSelectedTemplate() {
+    if (!selectedTemplate) {
+      setTemplateStatus('Alege un șablon din listă.');
+      return;
+    }
+    const confirmed = window.confirm(
+      `Ștergi șablonul „${selectedTemplate.name}”? Zonele camerelor nu sunt afectate.`
+    );
+    if (!confirmed) {
+      setTemplateStatus('Ștergere anulată.');
+      return;
+    }
+    const result = deleteTemplate(templateStorage(), selectedTemplate.id);
+    if (!result.ok) {
+      setTemplateStatus(result.errors[0]?.message || 'Ștergerea a eșuat.');
+      return;
+    }
+    setTemplates(result.templates);
+    setSelectedTemplateId('');
+    setTemplateStatus(`Șablonul „${selectedTemplate.name}” a fost șters.`);
+  }
   return {
     actions: {
       addPointOnFrame,
+      applySelectedTemplate,
       applyShapeToDraft,
       chooseZone,
       commitJsonPoints,
       deletePointAt,
       dropReference,
+      exportCameraZones,
       grabLiveFrame,
+      importZonesFromText,
       persistDraft,
       removeDraftZone,
+      removeSelectedTemplate,
+      saveCurrentTemplate,
       sortPointsAroundCentre,
       startNewZone,
       switchCamera,
@@ -367,9 +792,21 @@ const useZoneEditor = () => {
     jsonText,
     saving,
     selectedCameraId,
+    selectedTemplate,
+    selectedTemplateId,
     setJsonOpen,
     setJsonText,
+    setSelectedTemplateId,
+    setTemplateName,
+    setTemplateScope,
+    setTemplateStatus,
     showToast,
+    templateBusy,
+    templateName,
+    templateScope,
+    templateStatus,
+    templates,
+    templatesForCamera,
     uploading,
     zone,
   };
@@ -390,6 +827,7 @@ export default function ZoneEditorView() {
           onCameraChange={editor.actions.switchCamera}
           hint={editorHint(editor.draft.points.length, editor.draft.closed)}
         />
+        <ZoneTemplatesPanel editor={editor} />
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <DrawingColumn editor={editor} referenceUrl={referenceUrl}></DrawingColumn>
           <ParametersColumn editor={editor} referenceUrl={referenceUrl} usingDemoReference={usingDemoReference}></ParametersColumn>
