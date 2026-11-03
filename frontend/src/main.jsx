@@ -1,27 +1,35 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App.jsx';
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import AppRoot from './App.jsx';
 import ErrorBoundary from './components/common/ErrorBoundary.jsx';
-import './index.css';
+import './index.css'; // Tailwind layers, base typography and the print rules.
 
-// GitHub Pages cannot send COOP/COEP, so ORT's wasm backend would stay single-threaded
-// there. `public/coi-serviceworker.js` re-serves same-origin navigations with those two
-// headers; this registration is what turns it on. Nothing else in the app changes if it is
-// unavailable: dev, unsupported browsers and already-isolated hosts skip it entirely.
-//
-// The same worker owns the runtime cache (see the file header). The `?v=` parameter is
-// the cache namespace: a deploy with a new SHA activates a new worker, which deletes the
-// previous cache instead of silently serving the old bundle. A local build without a SHA
-// registers `v=dev`; hashed asset names still make it fetch whatever the new HTML asks for.
-const COI_RELOAD_KEY = 'localsight.coi.reload';
-const COI_CACHE_VERSION = String(import.meta.env.VITE_BUILD_SHA || 'dev');
+// The static host cannot send COOP/COEP, and those two headers are what make ONNX Runtime's
+// wasm backend multi-threaded. `public/coi-serviceworker.js` re-serves same-origin
+// navigations with both headers, so registering it is what switches that path on. Every
+// other situation (dev server, a browser without service workers, a host that already
+// isolates) simply skips it and the app is unchanged.
+const RELOAD_FLAG = 'localsight.coi.reload';
+const CACHE_NAMESPACE = String(import.meta.env.VITE_BUILD_SHA || 'dev');
 
-function registerIsolationWorker() {
-  if (!('serviceWorker' in navigator) || !import.meta.env.PROD) return;
-  // A host that already sends COOP/COEP itself (dev server, a real origin) needs no
-  // worker. But an isolated document *controlled by this worker* must still register:
-  // returning visitors on Pages are isolated precisely because the worker is running, and
-  // skipping registration there would pin them to the worker (and cache) they first got.
+/**
+ * The worker's `?v=` query is its cache namespace: a deploy with a new SHA activates a new
+ * worker, which drops the previous cache instead of quietly serving the old bundle. A local
+ * build has no SHA and registers `v=dev`; hashed asset names still fetch the new files.
+ */
+function isolationWorkerUrl() {
+  const version = encodeURIComponent(CACHE_NAMESPACE);
+  return `${import.meta.env.BASE_URL}coi-serviceworker.js?v=${version}`;
+}
+
+function installIsolationWorker() {
+  const supported = 'serviceWorker' in navigator;
+  if (!supported || !import.meta.env.PROD) return;
+
+  // A host that already sends COOP/COEP itself (dev server, a real origin) needs no worker.
+  // An isolated document *controlled by this worker* must still register, though: returning
+  // visitors on Pages are isolated precisely because the worker runs, and skipping
+  // registration there would pin them to the worker (and cache) they first received.
   if (window.crossOriginIsolated && !navigator.serviceWorker.controller) return;
 
   // The first load is not isolated yet: the worker can only add headers to a document it
@@ -30,8 +38,8 @@ function registerIsolationWorker() {
   // to isolate can cost one reload, never a loop.
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     try {
-      if (sessionStorage.getItem(COI_RELOAD_KEY)) return;
-      sessionStorage.setItem(COI_RELOAD_KEY, '1');
+      if (sessionStorage.getItem(RELOAD_FLAG)) return;
+      sessionStorage.setItem(RELOAD_FLAG, '1');
     } catch {
       // No sessionStorage means no guard, and no guard means no reload.
       return;
@@ -40,22 +48,21 @@ function registerIsolationWorker() {
   });
 
   navigator.serviceWorker
-    .register(
-      `${import.meta.env.BASE_URL}coi-serviceworker.js?v=${encodeURIComponent(COI_CACHE_VERSION)}`,
-      { scope: import.meta.env.BASE_URL },
-    )
+    .register(isolationWorkerUrl(), { scope: import.meta.env.BASE_URL })
     .catch((error) => {
-      // Isolation is an optimization: without it the engine still runs, just on one thread.
+      // Isolation is an optimisation: without it the engine still runs, just on one thread.
       console.warn('[coi] service worker registration failed:', error.message);
     });
 }
 
-registerIsolationWorker();
+/** The document shell: strict mode, the error boundary, then the application itself. */
+const applicationTree = <StrictMode><ErrorBoundary><AppRoot /></ErrorBoundary></StrictMode>;
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  </React.StrictMode>
-);
+function mountApplication() {
+  const host = document.getElementById('root');
+  if (!host) throw new Error('LocalSight: the #root mount node is missing from the shell.');
+  createRoot(host).render(applicationTree);
+}
+
+installIsolationWorker();
+mountApplication();
