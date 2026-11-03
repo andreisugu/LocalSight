@@ -4,7 +4,7 @@
 // utils/systemView.js and tested there; this module renders their result and nothing on
 // the page is hard-coded to a value it cannot verify.
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Cpu, Database, HardDrive, Layers, Lock, Server, Settings, ShieldCheck, Terminal, Trash2, Video } from 'lucide-react';
+import { Box, Cpu, Database, HardDrive, Layers, Lock, Send, Server, Settings, ShieldCheck, Terminal, Trash2, Video } from 'lucide-react';
 import { useSecurity as useSecurityContext } from '../../context/SecurityContext';
 import { useTheme } from '../../context/ThemeContext';
 import { BACKGROUND_MAX_CAMERAS, BACKGROUND_MIN_CORES } from '../../context/useBackgroundCameras';
@@ -27,6 +27,7 @@ import {
   latestDetectionModel,
   sourceSummary,
 } from '../../utils/systemView';
+import { WEBHOOK_CHANNELS, isRelayUrl } from '../../utils/webhook';
 import { WEBCAM_CAMERA_ID } from '../live/liveMedia';
 const INCIDENT_VIEW = 'incident_detail';
 // Glyph per summary tile; a tile without one falls back to the CPU mark.
@@ -65,6 +66,39 @@ const BACKGROUND_REFUSAL = {
   'low-hardware': `Mașina are prea puține nuclee pentru încă o sesiune ONNX per cameră (minimum ${BACKGROUND_MIN_CORES}).`,
   'hardware-unknown': 'Browserul nu raportează numărul de nuclee; guarda refuză.',
 };
+
+// The providers the relay formats for. `ntfy` is the default: self-hosted or the public
+// server, and the one that needs no account.
+const WEBHOOK_CHANNEL_LABELS = {
+  slack: 'Slack',
+  discord: 'Discord',
+  telegram: 'Telegram',
+  ntfy: 'ntfy',
+};
+
+// The notifier returns short codes; the panel turns them into a sentence. `network` is the
+// one a blocked CSP request and an unreachable relay both produce, so it says both.
+const WEBHOOK_ERROR_TEXT = {
+  network: 'releul nu răspunde sau cererea a fost blocată (CSP/rețea).',
+  timeout: 'releul nu a răspuns în 8 secunde.',
+  'no-relay': 'lipsește URL-ul releului.',
+  disabled: 'notificările sunt oprite.',
+};
+
+/** One sentence per notifier state; the panel never shows a bare state id. */
+function webhookStatusText(status) {
+  if (status.state === 'sending') return 'SE TRIMITE — așteaptă răspunsul releului.';
+  if (status.state === 'sent') return `TRIMIS — ${status.message || 'releul a răspuns.'}`;
+  if (status.state === 'error') {
+    const code = status.message || '';
+    const detail = WEBHOOK_ERROR_TEXT[code]
+      || (code.startsWith('http_') ? `releul a răspuns ${code.slice(5)}.` : code)
+      || 'trimiterea a eșuat.';
+    return `EROARE — ${detail}`;
+  }
+  if (status.state === 'off') return 'OPRIT — nu pleacă nicio notificare.';
+  return 'PREGĂTIT — pornește notificările și trimite un test.';
+}
 
 // Cameras table: header labels live with the cells that use them, so a new column is one
 // entry instead of a second <th> with a hand-copied class list.
@@ -331,6 +365,195 @@ function SafetyBlurControl({ enabled, onChange }) {
   );
 }
 
+/**
+ * Opt-in webhook notifications. The panel edits the browser-local setting and calls the
+ * relay; it never sees a provider secret. The URL input keeps its own draft because a
+ * half-typed URL is not a URL: the context stores only the last valid one.
+ */
+function WebhookPanel({ settings, onChange, onTest, status }) {
+  const { themeStyles } = useTheme();
+  const muted = mutedInk(themeStyles);
+  const [relayDraft, setRelayDraft] = useState(settings.relayUrl);
+  const relayValid = isRelayUrl(relayDraft);
+  const relayInvalid = relayDraft.trim() !== '' && !relayValid;
+  const testing = status.state === 'sending';
+  // No relay URL, no test. A disabled feature still answers a click with "oprit", so the
+  // button stays enabled once the URL is valid.
+  const testDisabled = !relayValid || testing;
+  const fieldStyle = {
+    backgroundColor: themeStyles.cardBg,
+    borderColor: themeStyles.panelBorder,
+    color: themeStyles.text,
+  };
+  const fieldClass =
+    'w-full rounded-lg border px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#FFEB33]';
+
+  return (
+    <>
+      <label className="flex items-start gap-2 text-xs font-bold">
+        <input
+          type="checkbox"
+          data-testid="webhook-enabled"
+          checked={settings.enabled}
+          onChange={(event) => onChange({ enabled: event.target.checked })}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-[#0284C7] focus:outline-none focus:ring-2 focus:ring-[#FFEB33]"
+        />
+        <span>Trimite incidentele reale către un canal (implicit OPRIT)</span>
+      </label>
+
+      <p className="text-xs" style={muted}>
+        Doar text: tip, severitate, cameră, zonă și ora detectării. Fără imagini, fără
+        snapshot-uri, fără fețe. Pleacă numai incidentele produse de motorul din acest tab;
+        fixture-urile demo nu sunt trimise niciodată.
+      </p>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <label htmlFor="webhook-channel" className="block text-xs font-bold">
+            Canal
+          </label>
+          <select
+            id="webhook-channel"
+            data-testid="webhook-channel"
+            value={settings.channel}
+            onChange={(event) => onChange({ channel: event.target.value })}
+            style={fieldStyle}
+            className={`${fieldClass} sm:max-w-[12rem]`}
+          >
+            {WEBHOOK_CHANNELS.map((channel) => (
+              <option key={channel} value={channel}>
+                {WEBHOOK_CHANNEL_LABELS[channel] || channel}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="webhook-relay-url" className="block text-xs font-bold">
+            URL releu
+          </label>
+          <input
+            id="webhook-relay-url"
+            data-testid="webhook-relay-url"
+            type="url"
+            inputMode="url"
+            autoComplete="off"
+            spellCheck="false"
+            placeholder="http://localhost:8787"
+            value={relayDraft}
+            onChange={(event) => {
+              const value = event.target.value;
+              setRelayDraft(value);
+              // A half-typed URL clears the stored one; the draft still shows the text.
+              onChange({ relayUrl: value });
+            }}
+            aria-describedby="webhook-relay-note"
+            style={fieldStyle}
+            className={fieldClass}
+          />
+          <p
+            id="webhook-relay-note"
+            data-testid="webhook-relay-note"
+            data-valid={relayValid ? 'true' : 'false'}
+            className={`text-[11px] leading-snug ${relayInvalid ? 'text-red-600 dark:text-red-400' : ''}`}
+            style={relayInvalid ? undefined : muted}
+          >
+            {relayInvalid
+              ? 'URL invalid: trebuie să înceapă cu http:// sau https://.'
+              : 'Adresa releului auto-găzduit; fără ea nu pleacă nimic.'}
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="webhook-token" className="block text-xs font-bold">
+            Token releu (opțional)
+          </label>
+          <input
+            id="webhook-token"
+            data-testid="webhook-token"
+            type="password"
+            autoComplete="off"
+            spellCheck="false"
+            value={settings.token}
+            onChange={(event) => onChange({ token: event.target.value })}
+            style={fieldStyle}
+            className={fieldClass}
+          />
+          <p className="text-[11px] leading-snug" style={muted}>
+            Trimis ca <code className="font-mono">X-Relay-Token</code>; se păstrează doar în
+            acest browser.
+          </p>
+        </div>
+
+        <div className="flex items-end">
+          <button
+            type="button"
+            data-testid="webhook-test"
+            onClick={() => {
+              void onTest();
+            }}
+            disabled={testDisabled}
+            className="rounded-lg border border-[#0284C7]/50 bg-[#0284C7]/10 px-3 py-1.5 text-xs font-bold text-[#0369A1] transition-colors hover:bg-[#0284C7]/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FFEB33] disabled:opacity-60 dark:border-[#FFEB33]/50 dark:bg-[#FFEB33]/10 dark:text-[#FFEB33]"
+          >
+            <Send size={12} aria-hidden="true" className="mr-1 inline" />
+            {testing ? 'Se trimite…' : 'Trimite test'}
+          </button>
+        </div>
+      </div>
+
+      <p
+        data-testid="webhook-status"
+        data-state={status.state}
+        className="font-mono text-[11px] font-bold leading-snug"
+        style={
+          status.state === 'error'
+            ? { color: '#D73833' }
+            : status.state === 'sent'
+              ? { color: '#047857' }
+              : muted
+        }
+      >
+        {webhookStatusText(status)}
+      </p>
+
+      <div
+        className="space-y-1 border-t pt-2 text-[11px] leading-snug"
+        style={{ ...muted, borderColor: themeStyles.panelBorder }}
+      >
+        <p>
+          Configurarea rămâne în acest browser. Aplicația e statică: nu ține secrete și nu
+          poate ocoli CORS-ul providerilor, deci trimite un JSON către releu, iar releul ține
+          cheile.
+        </p>
+        <p>
+          Pornește releul cu <code className="font-mono">node scripts/webhook-relay.mjs</code>{' '}
+          și variabilele providerului (<code className="font-mono">SLACK_WEBHOOK_URL</code>,{' '}
+          <code className="font-mono">DISCORD_WEBHOOK_URL</code>,{' '}
+          <code className="font-mono">TELEGRAM_BOT_TOKEN</code> +{' '}
+          <code className="font-mono">TELEGRAM_CHAT_ID</code> sau{' '}
+          <code className="font-mono">NTFY_TOPIC</code>). Fără releu, nicio notificare nu pleacă.
+        </p>
+        <p>
+          Slack și Telegram resping adesea POST-uri directe din browser (CORS), iar un webhook
+          pus în build devine public: releul este calea recomandată. Un token la releu oprește
+          orice alt client.
+        </p>
+        <p>
+          Politica de securitate a build-ului permite cereri doar către același origin
+          (<code className="font-mono">connect-src 'self'</code>). Un releu pe alt origin
+          trebuie declarat în acea politică, altfel browserul blochează cererea înainte să
+          plece; un releu servit pe același origin (reverse proxy) funcționează direct.
+        </p>
+        <p>
+          Notificările sunt best effort cât timp tabul e deschis: fără service worker, fără
+          coadă pe server. Un tab închis sau ascuns nu trimite nimic; incidentele deja trimise
+          sunt ținute minte local, ca reîncărcarea să nu le repete.
+        </p>
+      </div>
+    </>
+  );
+}
+
 /** One detector option: the radio plus what it costs and who it suits. */
 function DetectorChoice({ value, active, onSelect }) {
   const { themeStyles } = useTheme();
@@ -544,6 +767,10 @@ const SettingsView = () => {
     backgroundEnabled,
     setBackgroundEnabled,
     getBackgroundStatus,
+    webhookSettings,
+    setWebhookSettings,
+    webhookStatus,
+    sendTestWebhook,
   } = useSecurityContext();
 
   // The stored-count panel is a read of IndexedDB, so it is refreshed when the screen
@@ -870,6 +1097,25 @@ const SettingsView = () => {
               Oprește toate camerele din fundal
             </button>
           )}
+        </SettingsCard>
+
+        <SettingsCard
+          id="webhook"
+          title="Notificări webhook"
+          glyph={Send}
+          data-testid="webhook-panel"
+          badge={
+            <ToneChip tone={webhookSettings.enabled ? 'demo' : 'neutral'}>
+              {webhookSettings.enabled ? 'PORNIT' : 'OPRIT'}
+            </ToneChip>
+          }
+        >
+          <WebhookPanel
+            settings={webhookSettings}
+            onChange={setWebhookSettings}
+            onTest={sendTestWebhook}
+            status={webhookStatus}
+          />
         </SettingsCard>
 
         <SettingsCard

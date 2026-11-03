@@ -22,8 +22,16 @@ import { useRouting } from './useRouting.js';
 import { useShiftReport } from './useShiftReport.js';
 import { useSimulation } from './useSimulation.js';
 import { useToast } from './useToast.js';
+import useWebhookNotifications from './useWebhookNotifications.js';
 import { useZoneStore } from './useZoneStore.js';
 import { initialShowDemoData, storeShowDemoData } from '../utils/demoPreference.js';
+import { readWebhookSettings, storeWebhookSettings } from '../utils/webhook.js';
+// The base the webhook message points at. `BASE_URL` ends with a slash, and the message
+// appends `incidents`; the origin makes the text usable outside this tab.
+const APP_BASE = import.meta.env.BASE_URL || '/';
+const WEBHOOK_APP_URL = typeof window === 'undefined'
+  ? APP_BASE
+  : `${window.location.origin}${APP_BASE}`;
 // The default is null on purpose: `useSecurity` turns a missing provider into an error
 // instead of handing components an empty object that fails later and further away.
 const Store = createContext(null);
@@ -77,6 +85,18 @@ function useStoreValue() {
   const incidents = useIncidentStore(
     incidentStoreInput({ showToast, operator, cameraStore, zoneStore, routing, showDemoData })
   );
+  // Opt-in webhook notifications. The setting lives in localStorage, the notifier only
+  // looks at real engine incidents and is idle while the option is off. Additive: no
+  // existing key changes and no screen is required to read these.
+  const [webhookSettings, setWebhookSettingsState] = useState(() => readWebhookSettings());
+  const setWebhookSettings = useCallback((patch) => {
+    setWebhookSettingsState(storeWebhookSettings(patch));
+  }, []);
+  const webhook = useWebhookNotifications({
+    events: incidents.events,
+    settings: webhookSettings,
+    appUrl: WEBHOOK_APP_URL,
+  });
   const { kpis, setKpis } = useKpis(incidents.events, { showDemoData });
   // All cameras, optionally in the background. The hook sits here so a route change never
   // tears down its workers; it starts them only when the operator enabled the option and
@@ -199,6 +219,14 @@ function useStoreValue() {
     recordCoverageSample: coverage.recordCoverageSample,
     clearCoverageSamples: coverage.clearCoverageSamples,
   };
+  // Additive: only the Settings panel reads and writes these. Persisting happens in the
+  // setter, so the stored value and the rendered one cannot drift.
+  const webhookKeys = {
+    webhookSettings,
+    setWebhookSettings,
+    webhookStatus: webhook.status,
+    sendTestWebhook: webhook.sendTest,
+  };
   return flattenGroups([
     navigation,
     sidebar,
@@ -211,6 +239,7 @@ function useStoreValue() {
     demoKeys,
     backgroundKeys,
     coverageKeys,
+    webhookKeys,
   ]);
 }
 export function SecurityProvider({ children }) {
