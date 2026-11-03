@@ -75,6 +75,9 @@ jobs:
           VITE_USE_MOCK: "true"
           VITE_BASE: "/LocalSight/"
           VITE_BUILD_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          # Optional remote relay origin for the opt-in webhook feature. Set it as a
+          # repository variable; empty means same-origin/localhost only (the CSP stays closed).
+          VITE_WEBHOOK_ORIGIN: ${{ vars.VITE_WEBHOOK_ORIGIN }}
 
       # Pages serves 404.html for unknown paths, so the history-router deep
       # links (/zones, /incidents/<id>) get the app shell instead of a 404.
