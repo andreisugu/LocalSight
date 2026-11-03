@@ -490,6 +490,8 @@ function useCameraLabels(cameras) {
         labels[camera.id] = camera.name || camera.code || camera.id;
       }
     }
+    // The WHEP source is synthetic and not in the store; coverage samples still carry its id.
+    labels['cam-net'] = 'CAM-NET • Cameră de rețea';
     return labels;
   }, [cameras]);
 }
