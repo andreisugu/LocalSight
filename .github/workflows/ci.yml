@@ -95,6 +95,11 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit --no-fund
 
+      # Source-level licence guard: a copyleft/unknown dependency in the lockfile, or a
+      # missing notice/licence text/model, fails here before the build can ship it.
+      - name: Check licences and ship artefacts
+        run: npm run check:licenses
+
       # Pure logic only: the engine, the event contract helpers and the report/confidence
       # formatters, plus the demo fixtures and the API transport mappers.
       - name: Unit tests
