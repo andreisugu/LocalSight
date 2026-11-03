@@ -301,7 +301,6 @@ function SimulatedEvent({ entry, onPick }) {
     </Pill>
   </button>;
 }
-
 /** Mock-only event list and its menu; the static build has no ingest path. */
 function SimulationMenu({ menu, surface, onToggle, onPick }) {
   const items = SIMULATED_EVENTS.map((entry) => (
@@ -353,7 +352,6 @@ function ThemeSwitch({ dark, palette, onToggle }) {
     className="rounded-xl border text-xs shadow-sm transition-all"
   />;
 }
-
 /** Operator trigger, role list and the audit-log name field. */
 function OperatorMenu({
   menu,
