@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * The local feature loop, in one command: unit tests, the real static builds, and both
- * browser suites, with a timing table at the end.
+ * The local feature loop, in one command: licence guard, unit tests, the real static
+ * builds, and both browser suites, with a timing table at the end.
  *
  *   npm run verify                     # unit + build + smoke (5) + Pages (6)
  *   npm run verify -- --with-persistence   # ... plus the slow durable-store suite
@@ -174,6 +174,8 @@ async function withServer(base, fn) {
 }
 
 async function main() {
+  await step('licences (check-licenses)', () => run('npm', ['run', 'check:licenses']));
+
   await step('unit (node --test)', () => run('npm', ['run', 'test:unit']));
 
   // Smoke runs at the root base, so it gets its own build. See the file comment.
