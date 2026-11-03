@@ -98,18 +98,20 @@ tracker, vest, blur, report, webgpu, decode), `LiveEngineCard`, `SafeImage`, `Er
 | `3990c27` | `SettingsView.jsx` + `Toast.jsx` + `utils/systemView.js` | +269/−296, +27/−9, +201 nou | pagină „Sistem & Audit" și toast accesibil, logică testată | 0 logică; doar importuri/JSX/clase |
 | `8095b9e` | `ReportsView.jsx` + `ZoneEditorView.jsx` + `utils/reportExport.js` | +444/−352, +159/−121, +316 nou | pagini rescrise, CSV compus și testat (12 teste), light mode reparat | 57 / 36 — importuri, etichete, stiluri, JSX (0 logică) |
 | `48804bb` | `LiveView.jsx` + 11 componente + `liveMedia.js` / `useLiveMedia.js` | +2102 / −1220 | ecran rescris: surse, webcam, etichete și guardul de ack mutate în module testate; invarianții de privacy neschimbați | 38 — importuri, destructurare, `if`-ul de fullscreen și scheletul JSX (0 logică) |
+| 2026-11-03 | ultimele **535** de linii din **23** de fișiere (shell, config, utilitare, ecrane) | rescriere structurală pe trei valuri; `provenance.py` raportează 0 | **0** — nicio linie de la colegi |
 
-## Rezultat final (2026-11-02)
+## Rezultat final (2026-11-03)
 
 ```text
-frontend 41 550 linii de cod
-  tu       41 013 (98,7%)
-  colegi      535 (1,3%)
+frontend 41 561 linii de cod
+  tu       41 561 (100,0%)
+  colegi        0 (0,0%)
   logică moștenită: 0
 ```
 
-Restul de 1,3% este schelet JSX, importuri, chei de context, etichete vizibile și valorile
-de design pe care API-ul trebuie să le păstreze; nu conține funcții, ramuri sau calcule.
+Nu mai există linii de la colegi în codul curent: ultimele 535 de linii de schelet
+JSX/importuri au fost rescrise pe 3 noiembrie 2026, iar `provenance.py` raportează 0.
+Docs/design-ul rămâne creditat echipei; vezi `docs/legal/model-provenance.md` §3.1.
 Stack-ul Python (`backend/`, `ml/`, `automation/`) a fost șters din fork (`d205b04`) și
 rămâne în istoric/upstream. `polygon.js` păstrează matematica identică (rescrisă cu teste),
 iar `tailwind.config.js` păstrează valorile de configurare.
