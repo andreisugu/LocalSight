@@ -2,18 +2,19 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSecurity } from '../../context/SecurityContext';
 import { useEngine } from '../../engine/useEngine';
-import LiveEngineCard from '../live/LiveEngineCard';
+import { DEMO_REFERENCE_FRAMES } from '../../constants/mockData';
 import CameraToolbar from '../live/CameraToolbar';
-import MediaStage from '../live/MediaStage';
-import KpiStrip from '../live/KpiStrip';
-import IncidentFeed from '../live/IncidentFeed';
 import FullscreenStage from '../live/FullscreenStage';
+import IncidentFeed from '../live/IncidentFeed';
+import KpiStrip from '../live/KpiStrip';
+import LiveEngineCard from '../live/LiveEngineCard';
+import MediaStage from '../live/MediaStage';
 import { NoCameraScreen } from '../live/LiveEmptyStates';
 import {
-  useEnginePreference,
-  useWebcamFeed,
-  useMediaFailures,
   useEngineIncidents,
+  useEnginePreference,
+  useMediaFailures,
+  useWebcamFeed,
 } from '../live/useLiveMedia';
 import {
   WEBCAM_CAMERA_ID,
@@ -25,44 +26,55 @@ import {
   pickActiveZone,
   toEngineZones,
 } from '../live/liveMedia';
-import { DEMO_REFERENCE_FRAMES } from '../../constants/mockData';
-
 // The Live screen is a composition: the rules live in liveMedia.js, the effects in
 // useLiveMedia.js, and every block below is its own component. What remains here is the
 // wiring the engine requires (one <video> and one <canvas> for the life of the view).
-export default function LiveView() {
-  const { isDarkMode, themeStyles } = useTheme();
-  const {
-    kpis,
-    cameras,
-    activeCamera,
-    setSelectedCameraId,
-    toggleEngine,
-    filteredEvents,
-    filterMode,
-    setFilterMode,
-    acknowledgeEvent,
-    setSelectedEventId,
-    setCurrentView,
-    zones,
-    addEngineEvents,
-    health,
-    searchQuery,
-    reportActiveCamera,
-    recordCoverageSample,
-  } = useSecurity();
-
-  // 'standard' | 'split' | 'fullscreen'
-  const [displayMode, setDisplayMode] = useState('standard');
+const INCIDENT_DETAIL = 'incident_detail';
+const MODE_STANDARD = 'standard';
+const MODE_SPLIT = 'split';
+const MODE_FULLSCREEN = 'fullscreen';
+/** Left column of the split layout: toolbar, media stage and the engine/sensor card. */
+function StageColumn({ children }) {
+  return <section className="flex-1 flex flex-col space-y-2 min-w-0">{children}</section>;
+}
+/** Immersive view: the raw clip rendered in its own tree, never with the engine running. */
+function FullscreenLive({ camera, plan, failures, onToggleEngine, onExit }) {
+  return (
+    <FullscreenStage
+      activeCamera={camera}
+      isOffline={plan.isOffline}
+      showStream={plan.showStream}
+      showDemoVideo={plan.showDemoVideo}
+      demoVideoSrc={plan.demoVideoSrc}
+      noLiveForCamera={plan.noLiveForCamera}
+      demoCameraLabel={plan.demoCameraLabel}
+      onStreamError={failures.onStreamError}
+      onVideoError={failures.onVideoError}
+      onToggleEngine={onToggleEngine}
+      onExit={onExit}
+    />
+  );
+}
+const LiveView = () => {
+  const { themeStyles, isDarkMode } = useTheme();
+  const security = useSecurity();
+  const { cameras, activeCamera, kpis, health, zones,
+    // incident feed and routing
+    filteredEvents, filterMode, setFilterMode, searchQuery,
+    acknowledgeEvent, setSelectedEventId, setCurrentView,
+    // engine plumbing
+    toggleEngine, setSelectedCameraId, addEngineEvents,
+    reportActiveCamera, recordCoverageSample,
+  } = security;
+  // MODE_STANDARD | MODE_SPLIT | MODE_FULLSCREEN
+  const [displayMode, setDisplayMode] = useState(MODE_STANDARD);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-
   const isWebcam = activeCamera?.id === WEBCAM_CAMERA_ID;
   const enginePreference = useEnginePreference();
   const browserEngineOn = enginePreference.browserEngineOn;
   const webcam = useWebcamFeed({ isWebcam, videoRef, browserEngineOn });
   const failures = useMediaFailures(activeCamera?.id);
-
   const demoConfig = useMemo(
     () => ({
       cameraIds: parseList(import.meta.env.VITE_DEMO_CAMERA),
@@ -70,7 +82,6 @@ export default function LiveView() {
     }),
     []
   );
-
   const plan = mediaPlan({
     camera: activeCamera,
     cameras,
@@ -82,17 +93,14 @@ export default function LiveView() {
     videoFailed: failures.videoFailed,
     isWebcam,
   });
-
   // The two sources the browser engine can process. Everything the clip path shows keys
   // off this, so the webcam path is not a second UI.
   const engineSource = plan.showDemoVideo || webcam.live;
-
   const activeZone = useMemo(() => pickActiveZone(zones, activeCamera), [zones, activeCamera]);
   const engineZones = useMemo(
     () => toEngineZones(zones, activeCamera?.id),
     [zones, activeCamera?.id]
   );
-
   // The frame the polygons were drawn on. The zone editor paints its canvas on exactly this
   // image (an uploaded `reference_frame_url` wins, otherwise the demo still), so the engine
   // maps zones from the geometry the operator actually drew on. The webcam has no such
@@ -108,13 +116,11 @@ export default function LiveView() {
       cameraZones.find((zone) => zone.reference_frame_url)?.reference_frame_url;
     return uploaded || DEMO_REFERENCE_FRAMES[activeCamera.id] || null;
   }, [activeZone, activeCamera?.id, isWebcam, zones]);
-
   // The engine runs on the local clip fallback or on the live webcam stream, and only while
   // the viewer asked for it. Fullscreen renders the raw clip in a separate tree, so the
   // worker is stopped there instead of being left pointing at a <video> that no longer
   // exists.
-  const engineEnabled = browserEngineOn && engineSource && displayMode !== 'fullscreen';
-
+  const engineEnabled = browserEngineOn && engineSource && displayMode !== MODE_FULLSCREEN;
   // The background manager must skip exactly the camera whose frames this view feeds to
   // its worker. A selected-but-stopped camera is not owned: turning the engine off, leaving
   // Live or entering fullscreen releases it, and the background run may process it.
@@ -125,7 +131,6 @@ export default function LiveView() {
     reportActiveCamera(engineEnabled ? activeCamera?.id ?? null : null);
     return () => reportActiveCamera(null);
   }, [engineEnabled, activeCamera?.id, reportActiveCamera]);
-
   const engine = useEngine({
     videoRef,
     canvasRef,
@@ -148,9 +153,7 @@ export default function LiveView() {
     // The person detector is read from Settings inside `useEngine`, so a model change
     // restarts the worker without anything Live-specific to pass.
   });
-
   useEngineIncidents(engine.events, addEngineEvents);
-
   // Coverage receipt: one sample per second while the engine runs in this tab, plus one on
   // every visibility change and engine-status change. `hidden` is the browser throttling
   // the tab, `paused` is an enabled engine that is not producing frames yet (model load,
@@ -177,37 +180,23 @@ export default function LiveView() {
       document.removeEventListener('visibilitychange', record);
     };
   }, [engineEnabled, coverageCameraId, engineStatus, recordCoverageSample]);
-
   // Privacy: the immersive view renders the raw clip in its own React tree, so entering it
   // would stop the worker and show unblurred faces full-screen. It is never reachable while
   // the browser engine is on; this effect also catches a preference turned on while
   // fullscreen is open.
   useEffect(() => {
-    if (browserEngineOn && displayMode === 'fullscreen') setDisplayMode('standard');
+    if (browserEngineOn && displayMode === MODE_FULLSCREEN) setDisplayMode(MODE_STANDARD);
   }, [browserEngineOn, displayMode]);
-
   if (!activeCamera) {
     return <NoCameraScreen health={health} themeStyles={themeStyles} />;
   }
-
-  if (displayMode === 'fullscreen') {
-    return (
-      <FullscreenStage
-        activeCamera={activeCamera}
-        isOffline={plan.isOffline}
-        showStream={plan.showStream}
-        showDemoVideo={plan.showDemoVideo}
-        demoVideoSrc={plan.demoVideoSrc}
-        noLiveForCamera={plan.noLiveForCamera}
-        demoCameraLabel={plan.demoCameraLabel}
-        onStreamError={failures.onStreamError}
-        onVideoError={failures.onVideoError}
-        onToggleEngine={toggleEngine}
-        onExit={() => setDisplayMode('standard')}
-      />
-    );
-  }
-
+  if (displayMode === MODE_FULLSCREEN) return <FullscreenLive
+    camera={activeCamera}
+    plan={plan}
+    failures={failures}
+    onToggleEngine={toggleEngine}
+    onExit={() => setDisplayMode(MODE_STANDARD)}
+  ></FullscreenLive>;
   const readout = engineReadout({
     engine,
     isWebcam,
@@ -220,22 +209,19 @@ export default function LiveView() {
     health,
     kpis,
   });
-
   const openIncident = (eventId) => {
     setSelectedEventId(eventId);
-    setCurrentView('incident_detail');
+    setCurrentView(INCIDENT_DETAIL);
   };
-
-  return (
-    <div className="min-h-full w-full p-3 md:p-4 space-y-3 select-none">
+  // Two columns from `lg` (1024px), not `xl` (1280px): at the required 1024×768 viewport
+  // the incident feed — the alert surface with every "Confirmă" — started at y=824 inside a
+  // 704px scroller, i.e. completely below the fold. The stage keeps `flex-1 min-w-0`, so it
+  // simply narrows.
+  const columnFlow = displayMode === MODE_SPLIT ? 'flex-col' : 'flex-col lg:flex-row';
+  return <main className="min-h-full w-full p-3 md:p-4 space-y-3 select-none">
       <KpiStrip kpis={kpis} themeStyles={themeStyles} />
-
-      {/* Two columns from `lg` (1024px), not `xl` (1280px): at the required 1024×768
-          viewport the incident feed — the alert surface with every "Confirmă" — used to
-          start at y=824 in a 704px scroller, i.e. completely below the fold. The stage
-          keeps `flex-1 min-w-0`, so it simply narrows. */}
-      <div className={`flex ${displayMode === 'split' ? 'flex-col' : 'flex-col lg:flex-row'} gap-3`}>
-        <div className="flex-1 flex flex-col space-y-2 min-w-0">
+      <section className={`flex ${columnFlow} gap-3`}>
+        <StageColumn>
           <CameraToolbar
             cameras={cameras}
             activeCamera={activeCamera}
@@ -250,9 +236,8 @@ export default function LiveView() {
             engineSource={engineSource}
             onToggleBrowserEngine={enginePreference.toggle}
             isWebcam={isWebcam}
-            onOpenFullscreen={() => setDisplayMode('fullscreen')}
-          />
-
+            onOpenFullscreen={() => setDisplayMode(MODE_FULLSCREEN)}
+          ></CameraToolbar>
           <MediaStage
             activeCamera={activeCamera}
             displayMode={displayMode}
@@ -272,7 +257,6 @@ export default function LiveView() {
             onStreamError={failures.onStreamError}
             onVideoError={failures.onVideoError}
           />
-
           {/* One card for the engine and the sensors: always present, one title, one grid.
               Engine metrics join the same grid only while the worker produces frames, so an
               idle engine never paints invented zeros. */}
@@ -289,8 +273,7 @@ export default function LiveView() {
             cameraLabel={activeCamera.name || activeCamera.code || activeCamera.id}
             referenceUrl={referenceFrameUrl}
           />
-        </div>
-
+        </StageColumn>
         <IncidentFeed
           events={filteredEvents}
           filterMode={filterMode}
@@ -301,8 +284,8 @@ export default function LiveView() {
           searchQuery={searchQuery}
           onOpenIncident={openIncident}
           onAcknowledge={acknowledgeEvent}
-        />
-      </div>
-    </div>
-  );
-}
+        ></IncidentFeed>
+      </section>
+    </main>;
+};
+export default LiveView;

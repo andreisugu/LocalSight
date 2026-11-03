@@ -1,32 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AlertOctagon,
-  ChevronLeft,
-  ChevronRight,
-  FileText,
-  PenTool,
-  Settings,
-  ShieldCheck,
-  Video,
-} from 'lucide-react';
-import { useTheme } from '../../context/ThemeContext';
-import { useSecurity } from '../../context/SecurityContext';
+import { Video, AlertOctagon, PenTool, FileText, Settings, ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 import { USE_MOCK } from '../../services/api';
 import { detectorLabel } from '../../engine/detectorFlag';
 import { readEngineSettings } from '../../utils/engineSettings';
+import { useSecurity } from '../../context/SecurityContext';
+import { useTheme } from '../../context/ThemeContext';
 import { IconButton, Panel, Pill } from '../ui';
-
 // Below Tailwind's `sm` (640px) a 240px rail would leave ~135px of content on a 375px
 // phone, so the rail starts collapsed there and opens as an overlay.
 const PHONE_QUERY = '(max-width: 639px)';
 // An explicit user choice beats the viewport. We never write this key ourselves, so a
 // resize cannot get stuck on a choice the user made weeks ago.
 const COLLAPSE_PREFERENCE_KEY = 'localsight.sidebarCollapsed';
-
 // Shared by the collapsed (icon only) and expanded (icon + label) footer controls.
 const FOOTER_BUTTON =
   'w-full rounded-xl bg-slate-100 px-2 py-2 text-slate-700 shadow-sm transition-all hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10';
-
 // The commit this bundle was built from. The workflows pass the full SHA at build time;
 // a plain local build has no SHA and says `dev` instead of inventing one. Short form only:
 // the footer is 240 px wide and the point is comparing it with `git rev-parse --short HEAD`.
@@ -66,7 +54,6 @@ const NAV_ITEMS = [
     icon: Settings,
   },
 ];
-
 function readCollapsePreference() {
   try {
     const stored = localStorage.getItem(COLLAPSE_PREFERENCE_KEY);
@@ -77,17 +64,14 @@ function readCollapsePreference() {
   }
   return null;
 }
-
 function isPhoneViewport() {
   return window.matchMedia(PHONE_QUERY).matches;
 }
-
 /** A route belongs to one nav entry; the incident detail also lights up "Incidente". */
 function navItemMatches(item, view) {
   if (item.id === view) return true;
   return Boolean(item.also?.includes(view));
 }
-
 /** Short age for the badge: "acum", "12m", "3h". */
 function formatAge(minutes) {
   if (minutes === null) return '';
@@ -95,14 +79,12 @@ function formatAge(minutes) {
   if (minutes < 60) return `${minutes}m`;
   return `${Math.floor(minutes / 60)}h`;
 }
-
 /**
  * The attention signal: how many cases wait and how long the oldest one has waited.
  * A bare count cannot tell a fresh incident from a forgotten one; the age can.
  */
 function AttentionBadge({ open, escalated, oldestMinutes }) {
   if (open === 0 && escalated === 0) return null;
-
   // Before the first escalation the signal must appear with the incident, not 30 s later.
   // Yellow = waiting; red = waiting for too long.
   if (escalated === 0) {
@@ -113,13 +95,11 @@ function AttentionBadge({ open, escalated, oldestMinutes }) {
       </Pill>
     );
   }
-
   const age = formatAge(oldestMinutes);
   const total = open + escalated;
   const label = `${escalated} ${
     escalated === 1 ? 'incident escaladat' : 'incidente escaladate'
   }${age ? `, cel mai vechi ${age === 'acum' ? 'chiar acum' : `acum ${age}`}` : ''} · ${total} în total`;
-
   return (
     <span
       title={label}
@@ -138,11 +118,9 @@ function AttentionBadge({ open, escalated, oldestMinutes }) {
     </span>
   );
 }
-
 /** Footer card: says what is running, with the tag that qualifies it. */
 function StatusCard({ title, tag, tone, tagClassName, children }) {
   const { isDarkMode } = useTheme();
-
   return (
     <Panel
       title={title}
@@ -169,13 +147,11 @@ function StatusCard({ title, tag, tone, tagClassName, children }) {
     </Panel>
   );
 }
-
 /** One navigation row; the map in Sidebar only supplies data and the active flag. */
 function NavButton({ item, active, collapsed, attention, onSelect }) {
   const { isDarkMode, themeStyles } = useTheme();
   const Icon = item.icon;
   const waiting = attention.open > 0 || attention.escalated > 0;
-
   return (
     <button
       type="button"
@@ -213,7 +189,6 @@ function NavButton({ item, active, collapsed, attention, onSelect }) {
           </span>
         </span>
       )}
-
       {item.id === 'incidents' && waiting && (
         <AttentionBadge
           open={attention.open}
@@ -224,7 +199,6 @@ function NavButton({ item, active, collapsed, attention, onSelect }) {
     </button>
   );
 }
-
 /** The module list; Sidebar owns the route, this owns the rows and the section label. */
 function NavList({ currentView, collapsed, attention, onSelect }) {
   return (
@@ -235,7 +209,6 @@ function NavList({ currentView, collapsed, attention, onSelect }) {
             Module Operaționale
           </p>
         )}
-
         {NAV_ITEMS.map((item) => (
           <NavButton
             key={item.id}
@@ -250,11 +223,9 @@ function NavList({ currentView, collapsed, attention, onSelect }) {
     </nav>
   );
 }
-
 /** Footer: the state card that tells the truth, plus the collapse control. */
 function SidebarFooter({ collapsed, health, edgeLabel, edgeActive, edgeSuffix, onCollapse }) {
   const { themeStyles } = useTheme();
-
   return (
     <div
       style={{ borderColor: themeStyles.navBorder }}
@@ -290,7 +261,6 @@ function SidebarFooter({ collapsed, health, edgeLabel, edgeActive, edgeSuffix, o
             </p>
           </StatusCard>
         ))}
-
       {/* Truth about what is deployed plus the notices the artifact actually ships. The
           footer is the one place every demo visitor sees, so the build stamp is here and
           not only on an admin screen. */}
@@ -309,7 +279,6 @@ function SidebarFooter({ collapsed, health, edgeLabel, edgeActive, edgeSuffix, o
           </a>
         </p>
       )}
-
       {collapsed ? (
         <IconButton
           icon={ChevronRight}
@@ -333,29 +302,46 @@ function SidebarFooter({ collapsed, health, edgeLabel, edgeActive, edgeSuffix, o
     </div>
   );
 }
-
-export default function Sidebar() {
-  const { isDarkMode, themeStyles } = useTheme();
-  const {
-    currentView,
-    setCurrentView,
-    isSidebarCollapsed,
-    setIsSidebarCollapsed,
-    events,
-    health,
-  } = useSecurity();
-
+/** The rail markup: fixed width, its own border and the `inert` target for the hook. */
+function SidebarShell({ collapsed, dark, palette, railRef, children }) {
+  return (
+    <aside
+      ref={railRef}
+      data-testid="sidebar"
+      aria-label="Navigare"
+      style={{
+        backgroundColor: dark ? palette.navBg : '#FFFFFF',
+        borderColor: palette.navBorder,
+        width: collapsed ? '0px' : '15rem',
+      }}
+      className={`no-print z-20 flex h-full shrink-0 select-none flex-col justify-between overflow-hidden border-r shadow-md transition-all duration-300 max-sm:fixed max-sm:bottom-0 max-sm:left-0 max-sm:top-16 max-sm:z-40 max-sm:h-auto ${
+        collapsed ? 'border-r-0' : ''
+      }`}
+    >
+      {children}
+    </aside>
+  );
+}
+/**
+ * Everything the rail needs from the store and the viewport, in one place: the attention
+ * counters, the collapse preference, the inert toggle and the two handlers. The component
+ * below is then pure layout.
+ */
+const useSidebarState = () => {
+  const security = useSecurity();
+  const { currentView, setCurrentView, isSidebarCollapsed, setIsSidebarCollapsed,
+    events, health,
+  } = security;
   const edgeSeen = health?.edge_last_seen_s;
   const edgeActive = Boolean(health?.db && edgeSeen != null && edgeSeen < 60);
   const edgeLabel = edgeActive ? 'ACTIV' : edgeSeen == null ? 'FĂRĂ DATE' : 'ÎNTÂRZIAT';
-
+  const edgeSuffix = edgeSeen == null ? 'edge fără date' : `edge acum ${Math.round(edgeSeen)}s`;
   // Re-render every 30 s so the age of the oldest escalated case keeps moving.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(timer);
   }, []);
-
   const attention = useMemo(() => {
     const list = events || [];
     const open = list.filter((event) => event.status === 'open').length;
@@ -372,11 +358,9 @@ export default function Sidebar() {
       oldestMinutes: Number.isFinite(oldest) ? Math.max(0, Math.round((now - oldest) / 60000)) : null,
     };
   }, [events, now]);
-
   // The state we imposed from the viewport. When the user toggles the rail, state no
   // longer matches it and we stop overriding their choice.
   const autoCollapsedRef = useRef(null);
-
   useEffect(() => {
     const stored = readCollapsePreference();
     if (stored !== null) {
@@ -384,7 +368,6 @@ export default function Sidebar() {
       setIsSidebarCollapsed(stored);
       return undefined;
     }
-
     const phone = window.matchMedia(PHONE_QUERY);
     const applyViewport = () => {
       if (autoCollapsedRef.current !== null && isSidebarCollapsed !== autoCollapsedRef.current) return;
@@ -395,17 +378,6 @@ export default function Sidebar() {
     phone.addEventListener('change', applyViewport);
     return () => phone.removeEventListener('change', applyViewport);
   }, [isSidebarCollapsed, setIsSidebarCollapsed]);
-
-  const edgeSuffix = edgeSeen == null ? 'edge fără date' : `edge acum ${Math.round(edgeSeen)}s`;
-
-  const goToView = (viewId) => {
-    setCurrentView(viewId);
-    // The rail covers the screen on a phone: close it after choosing.
-    if (isPhoneViewport()) setIsSidebarCollapsed(true);
-  };
-
-  const collapseRail = () => setIsSidebarCollapsed(true);
-
   // A collapsed rail keeps its width at 0 but its buttons stay in the tab order at
   // negative coordinates (WCAG 2.4.7 / 2.4.3). `inert` removes the whole subtree from
   // both the tab order and the accessibility tree; the header's rail toggle is the way
@@ -418,48 +390,42 @@ export default function Sidebar() {
     if (isSidebarCollapsed) node.setAttribute('inert', '');
     else node.removeAttribute('inert');
   }, [isSidebarCollapsed]);
-
-  return (
-    <>
+  const goToView = (viewId) => {
+    setCurrentView(viewId);
+    // The rail covers the screen on a phone: close it after choosing.
+    if (isPhoneViewport()) setIsSidebarCollapsed(true);
+  };
+  const collapseRail = () => setIsSidebarCollapsed(true);
+  return {
+    asideRef,
+    attention,
+    collapsed: isSidebarCollapsed,
+    collapseRail,
+    currentView,
+    edgeActive,
+    edgeLabel,
+    edgeSuffix,
+    goToView,
+    health,
+  };
+}
+const Sidebar = () => {
+  const { themeStyles, isDarkMode } = useTheme();
+  const rail = useSidebarState();
+  return <>
       {/* On a phone the rail covers the content, so a backdrop closes it by click: no
           need to hunt for the collapse button. */}
-      {!isSidebarCollapsed && (
+      {!rail.collapsed && (
         <div
           aria-hidden="true"
-          onClick={collapseRail}
+          onClick={rail.collapseRail}
           className="no-print fixed inset-x-0 bottom-0 top-16 z-30 bg-black/60 sm:hidden"
         />
       )}
-
-      <aside
-        ref={asideRef}
-        data-testid="sidebar"
-        aria-label="Navigare"
-        style={{
-          backgroundColor: isDarkMode ? themeStyles.navBg : '#FFFFFF',
-          borderColor: themeStyles.navBorder,
-          width: isSidebarCollapsed ? '0px' : '15rem',
-        }}
-        className={`no-print z-20 flex h-full shrink-0 select-none flex-col justify-between overflow-hidden border-r shadow-md transition-all duration-300 max-sm:fixed max-sm:bottom-0 max-sm:left-0 max-sm:top-16 max-sm:z-40 max-sm:h-auto ${
-          isSidebarCollapsed ? 'border-r-0' : ''
-        }`}
-      >
-        <NavList
-          currentView={currentView}
-          collapsed={isSidebarCollapsed}
-          attention={attention}
-          onSelect={goToView}
-        />
-
-        <SidebarFooter
-          collapsed={isSidebarCollapsed}
-          health={health}
-          edgeLabel={edgeLabel}
-          edgeActive={edgeActive}
-          edgeSuffix={edgeSuffix}
-          onCollapse={collapseRail}
-        />
-      </aside>
-    </>
-  );
-}
+      <SidebarShell collapsed={rail.collapsed} dark={isDarkMode} palette={themeStyles} railRef={rail.asideRef}>
+        <NavList currentView={rail.currentView} collapsed={rail.collapsed} attention={rail.attention} onSelect={rail.goToView}></NavList>
+        <SidebarFooter collapsed={rail.collapsed} health={rail.health} edgeLabel={rail.edgeLabel} edgeActive={rail.edgeActive} edgeSuffix={rail.edgeSuffix} onCollapse={rail.collapseRail}></SidebarFooter>
+      </SidebarShell>
+    </>;
+};
+export default Sidebar;
