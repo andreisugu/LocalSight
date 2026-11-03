@@ -1,11 +1,11 @@
 /* Global stylesheet. `@import` must come first, before the Tailwind directives, so the
-   custom rules are split into `src/styles/` files. Moving them ahead of the utilities does
-   not change the cascade: unlayered rules still beat layered utilities, and the `body`
-   rule stays inside `@layer base` where the base layer owns it. */
+   custom rules live in `src/styles/` and this file only fixes the layer order. Moving them
+   ahead of the utilities does not change the cascade: unlayered rules still beat layered
+   utilities, and the `body` rule stays inside `@layer base` where the base layer owns it. */
 @import './styles/base.css';
 @import './styles/scrollbar.css';
 @import './styles/print.css';
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@tailwind base; /* preflight plus the base layer: resets, typography, interaction policy */
+@tailwind components; /* component classes; a utility may override any of them */
+@tailwind utilities; /* utilities last, so one always wins over a component class */

@@ -1,100 +1,86 @@
 import { useEffect, useRef } from 'react';
-import { ThemeProvider, useTheme } from './context/ThemeContext';
-import { SecurityProvider, useSecurity } from './context/SecurityContext';
-import Header from './components/layout/Header';
-import Sidebar from './components/layout/Sidebar';
-import LiveView from './components/views/LiveView';
-import IncidentDetailView from './components/views/IncidentDetailView';
-import IncidentsListView from './components/views/IncidentsListView';
-import ZoneEditorView from './components/views/ZoneEditorView';
-import ReportsView from './components/views/ReportsView';
-import SettingsView from './components/views/SettingsView';
-import LabView from './components/views/LabView';
-import BenchView from './components/views/BenchView';
-import Toast from './components/common/Toast';
-
-// One map instead of a switch: adding a view is one line, and the fallback stays Live.
-const VIEW_COMPONENTS = {
-  incidents: IncidentsListView,
-  incident_detail: IncidentDetailView,
-  zones: ZoneEditorView,
-  reports: ReportsView,
-  settings: SettingsView,
-  lab: LabView,
-  bench: BenchView,
-  live: LiveView,
-};
-
-/**
- * The scroll container owns the view's scroll position. The key discards nested scroll
- * state when the route changes; the focus moves a keyboard user to the new view instead of
- * leaving them in the sidebar. Keeping this in one component makes the reset contract
- * obvious next to the element it applies to.
- */
-function ScreenOutlet({ view, contentRef }) {
-  const Screen = VIEW_COMPONENTS[view] || LiveView;
-
+import { ThemeProvider as ThemeRoot, useTheme as useThemeContext } from './context/ThemeContext';
+import { SecurityProvider, useSecurity as useSecurityContext } from './context/SecurityContext';
+import StatusToast from './components/common/Toast';
+import AppHeader from './components/layout/Header';
+import AppSidebar from './components/layout/Sidebar';
+import BenchScreen from './components/views/BenchView';
+import IncidentDetailScreen from './components/views/IncidentDetailView';
+import IncidentsListScreen from './components/views/IncidentsListView';
+import LabScreen from './components/views/LabView';
+import LiveScreen from './components/views/LiveView';
+import ReportsScreen from './components/views/ReportsView';
+import SettingsScreen from './components/views/SettingsView';
+import ZoneEditorScreen from './components/views/ZoneEditorView';
+// Route name -> screen. This map is the whole router: adding a view is one entry, and an
+// unknown route falls back to Live instead of rendering a blank screen.
+const SCREENS = new Map([
+  ['incidents', IncidentsListScreen],
+  ['incident_detail', IncidentDetailScreen],
+  ['zones', ZoneEditorScreen],
+  ['reports', ReportsScreen],
+  ['settings', SettingsScreen],
+  ['lab', LabScreen],
+  ['bench', BenchScreen],
+  ['live', LiveScreen],
+]);
+const FALLBACK_SCREEN = LiveScreen;
+const SHELL_CLASSES =
+  'flex h-screen w-screen flex-col overflow-hidden antialiased selection:bg-[#FFEB33] selection:text-[#1F1F1F]';
+// Scroll position and focus belong to the route, not to each screen: the outlet is the one
+// scroller, and the `key` discards a stale scroll offset the moment the route changes. The
+// focus call hands a keyboard user the new screen instead of the rail they left.
+const ScreenOutlet = ({ view, outletRef }) => {
+  const Screen = SCREENS.get(view) ?? FALLBACK_SCREEN;
   return (
     <main
-      key={view}
       id="main-content"
-      ref={contentRef}
+      key={view}
+      ref={outletRef}
       tabIndex={-1}
       aria-label="Conținutul paginii"
-      className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden outline-none"
-    >
+      className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden outline-none">
       <Screen />
     </main>
   );
-}
-
-function AppShell() {
-  const { themeStyles } = useTheme();
-  const { currentView } = useSecurity();
-  const contentRef = useRef(null);
-  // The first paint keeps the natural focus order (skip link, header, rail, content). Only
-  // a route *change* moves focus into the new screen, so the browser back/forward and a
-  // sidebar click do not leave the user at the top of a stale scroll position.
-  const focusedOnceRef = useRef(false);
-
-  // The previous screen owned the scroll position; opening an incident from a scrolled
-  // list must not start halfway down the detail.
+};
+// Every route starts at the top. The very first paint keeps the natural focus order (skip
+// link, header, rail, content), so only a later change moves focus into the outlet.
+const useRouteReset = (view, outletRef) => {
+  const firstPaint = useRef(true);
   useEffect(() => {
-    const content = contentRef.current;
-    if (!content) return;
-    content.scrollTop = 0;
-    if (!focusedOnceRef.current) {
-      focusedOnceRef.current = true;
+    const outlet = outletRef.current;
+    if (!outlet) return;
+    outlet.scrollTop = 0;
+    if (firstPaint.current) {
+      firstPaint.current = false;
       return;
     }
-    content.focus({ preventScroll: true });
-  }, [currentView]);
-
-  return (
-    <div
-      style={{ backgroundColor: themeStyles.appBg, color: themeStyles.textColor }}
-      className="flex h-screen w-screen flex-col overflow-hidden antialiased selection:bg-[#FFEB33] selection:text-[#1F1F1F]"
-    >
-      {/* WCAG 2.4.1: the first Tab stop on every route, before the header and the rail. */}
-      <a href="#main-content" className="skip-link no-print">
-        Sari la conținut
-      </a>
-      <Header />
-      <div className="relative flex min-h-0 flex-1 overflow-hidden">
-        <Sidebar />
-        <ScreenOutlet view={currentView} contentRef={contentRef} />
-      </div>
-      <Toast />
-    </div>
-  );
-}
-
-export default function App() {
-  return (
-    <ThemeProvider>
-      <SecurityProvider>
-        <AppShell />
-      </SecurityProvider>
-    </ThemeProvider>
-  );
-}
+    outlet.focus({ preventScroll: true });
+  }, [view, outletRef]);
+};
+const AppLayout = () => {
+  const { themeStyles } = useThemeContext();
+  const { currentView } = useSecurityContext();
+  const outletRef = useRef(null);
+  useRouteReset(currentView, outletRef);
+  const shellStyle = { backgroundColor: themeStyles.appBg, color: themeStyles.textColor };
+  return <div style={shellStyle} className={SHELL_CLASSES}>
+    {/* WCAG 2.4.1: the first Tab stop on every route, ahead of the header and the rail. */}
+    <a href="#main-content" className="skip-link no-print">
+      Sari la conținut
+    </a>
+    <AppHeader />
+    <section aria-label="Zona de lucru" className="relative flex min-h-0 flex-1 overflow-hidden">
+      <AppSidebar />
+      <ScreenOutlet view={currentView} outletRef={outletRef} />
+    </section>
+    <StatusToast />
+  </div>;
+};
+// Theme first, then security: the shell below reads both.
+const Providers = ({ children }) => <ThemeRoot>
+  <SecurityProvider>{children}</SecurityProvider>
+</ThemeRoot>;
+const App = () => <Providers><AppLayout /></Providers>;
+export default App;
