@@ -12,7 +12,11 @@
          - style-src: React writes inline style attributes (theme colours). An attribute has
            no nonce/hash, so 'unsafe-inline' is limited to styles.
          - connect/img/media: 'self' plus the blob: URLs the engine uses for snapshots,
-           clips and the local camera. No external origin is allowed anywhere.
+           clips and the local camera. No external origin is allowed anywhere, with one
+           narrow exception: the optional network camera (`?whep=` / `localsight.whepUrl`)
+           speaks WHEP to a MediaMTX gateway running on this machine, so loopback on any
+           port is allowed for `connect-src`. That is still not "the internet": a WHEP URL
+           on another host needs this policy widened deliberately, with TLS.
          - Vite's development preamble is injected at the top of <head>, before this meta,
            so the dev server's inline HMR preamble still runs; the production HTML has no
            inline script. The optional VITE_USE_MOCK=false API mode is outside this policy:

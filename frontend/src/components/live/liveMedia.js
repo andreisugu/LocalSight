@@ -17,6 +17,46 @@ const LIVE_ENGINE_STORAGE_KEY = 'localsight.liveEngine';
 // no stream_url, no demo clip, and a getUserMedia request when it becomes active.
 export const WEBCAM_CAMERA_ID = 'webcam-live';
 
+// Not a fixture: the network camera exists only when a WHEP endpoint was provided
+// (`?whep=…` or `localsight.whepUrl`). A browser cannot open RTSP; it gets the gateway's
+// WebRTC track instead, and the same <video> the engine reads frames from.
+export const NETWORK_CAMERA_ID = 'cam-net';
+
+/**
+ * The synthetic source for a real network camera. It has no RTSP URL the browser could use,
+ * no demo clip and no seeded zone: the id and the gateway URL are the whole contract, so a
+ * build without a WHEP endpoint never lists it.
+ *
+ * @param {string} whepUrl Normalized WHEP endpoint.
+ */
+export function networkCamera(whepUrl) {
+  if (!whepUrl) return null;
+  return {
+    id: NETWORK_CAMERA_ID,
+    code: 'CAM-NET',
+    name: 'CAM-NET • Cameră de rețea',
+    subtitle: 'RTSP → MediaMTX → WebRTC (WHEP)',
+    category: 'Rețea & Gateway',
+    // A network camera has no seeded zone: detections are drawn, no zone rule fires.
+    zone_id: null,
+    rtsp_url: null,
+    // The gateway endpoint, not an RTSP URL. Only `LiveView` reads this key.
+    whep_url: whepUrl,
+    status: 'online',
+    engine_on: false,
+    fps: null,
+    resolution: null,
+    previewBg: 'from-[#0B2B33] via-[#0E3A45] to-[#111111]',
+    boxes: [],
+    network: true,
+  };
+}
+
+/** Whether a camera row is the synthetic WHEP source. */
+export function isNetworkCamera(camera) {
+  return Boolean(camera) && (camera.id === NETWORK_CAMERA_ID || camera.network === true);
+}
+
 // One <video> node for the life of the view: it owns the decoder and the media pipeline,
 // and the worker reads frames from that exact element. Rekeying it per engine state threw
 // a fresh element (and a fresh decoder, and a clip restart) at Chromium on every toggle;
@@ -130,8 +170,19 @@ export function demoClipFor(cameraId, entries) {
 export function cameraOptionLabel(camera, demoCameraIds) {
   const offline = camera?.status === 'offline';
   const local = camera?.id === WEBCAM_CAMERA_ID;
+  const network = isNetworkCamera(camera);
+  // A network camera is not "outside the demo": it is the one source that really comes from
+  // a gateway, so it says which protocol carried it instead.
   const inDemo = !demoCameraIds.length || demoCameraIds.includes(camera?.id);
-  const suffix = offline ? ' • offline' : local ? ' • cameră locală' : inDemo ? '' : ' • fără feed în demo';
+  const suffix = offline
+    ? ' • offline'
+    : local
+      ? ' • cameră locală'
+      : network
+        ? ' • WHEP'
+        : inDemo
+          ? ''
+          : ' • fără feed în demo';
   const name = camera?.code || camera?.id || '';
   const full = camera?.name && camera.name !== name ? `${name} — ${camera.name}` : name;
   return `${full}${suffix}`;
@@ -139,12 +190,15 @@ export function cameraOptionLabel(camera, demoCameraIds) {
 
 /**
  * Resolves everything the stage needs to pick a source. The webcam is never a stream_url
- * or a clip: it is a track owned by the page, so every network path is disabled by id.
+ * or a clip: it is a track owned by the page, so every network path is disabled by id. The
+ * network camera is the mirror image — its only source is the WHEP track on the same
+ * element, so it must never inherit a demo clip or the "outside the demo" state.
  *
  * @returns {{
  *   isOffline: boolean, demoClip: string|null, demoCameraLabel: string,
  *   noLiveForCamera: boolean, showStream: boolean, demoVideoSrc: string|null,
- *   showDemoVideo: boolean, streamFailed: boolean, videoFailed: boolean,
+ *   showDemoVideo: boolean, showNetworkVideo: boolean, isNetwork: boolean,
+ *   streamFailed: boolean, videoFailed: boolean,
  * }}
  */
 export function mediaPlan({
@@ -157,6 +211,7 @@ export function mediaPlan({
   streamFailed = false,
   videoFailed = false,
   isWebcam = false,
+  isNetwork = false,
 }) {
   const isOffline = camera?.status === 'offline';
   const demoCameraLabel = demoCameraIds
@@ -164,18 +219,23 @@ export function mediaPlan({
     .join(', ');
   const noLiveForCamera = Boolean(
     demoCameraIds.length && camera?.id && !demoCameraIds.includes(camera.id)
+      && !isNetwork
   );
   const showStream = Boolean(
-    camera?.stream_url && !streamFailed && !isOffline && !noLiveForCamera && !isWebcam
+    camera?.stream_url && !streamFailed && !isOffline && !noLiveForCamera
+      && !isWebcam && !isNetwork
   );
-  const demoClip = isWebcam ? null : demoClipFor(camera?.id, demoClipEntries);
+  const demoClip = isWebcam || isNetwork ? null : demoClipFor(camera?.id, demoClipEntries);
   const mediaVideoOverride = String(videoOverride || '').trim();
   const mediaBaseUrl = baseUrl || '/';
   const demoVideoSrc =
     mediaVideoOverride || (camera?.id ? `${mediaBaseUrl}media/${camera.id}.mp4` : null);
   const showDemoVideo = Boolean(
-    demoVideoSrc && !videoFailed && !isOffline && !noLiveForCamera && !isWebcam
+    demoVideoSrc && !videoFailed && !isOffline && !noLiveForCamera && !isWebcam && !isNetwork
   );
+  // The network camera always renders its <video>: the WHEP client needs the element to
+  // exist before it can attach a track, so this is not gated on the stream being live.
+  const showNetworkVideo = Boolean(isNetwork && !isOffline);
 
   return {
     isOffline,
@@ -185,6 +245,8 @@ export function mediaPlan({
     showStream,
     demoVideoSrc,
     showDemoVideo,
+    showNetworkVideo,
+    isNetwork: Boolean(isNetwork),
     streamFailed,
     videoFailed,
   };
@@ -224,12 +286,16 @@ export function toEngineZones(zones, cameraId) {
 
 // Why the engine starts on or off: the visitor must be able to tell a fast path from the
 // WASM fallback before they press the button.
-export function engineReason(gpuAvailable, isWebcam) {
+export function engineReason(gpuAvailable, isWebcam, isNetwork = false) {
   if (gpuAvailable === null) return 'se verifică WebGPU…';
   if (gpuAvailable) {
-    return isWebcam
-      ? 'WebGPU disponibil — detecția reală rulează pe fluxul camerei locale.'
-      : 'WebGPU disponibil — detecția reală rulează pe acest clip.';
+    if (isWebcam) {
+      return 'WebGPU disponibil — detecția reală rulează pe fluxul camerei locale.';
+    }
+    if (isNetwork) {
+      return 'WebGPU disponibil — detecția reală rulează pe fluxul camerei de rețea.';
+    }
+    return 'WebGPU disponibil — detecția reală rulează pe acest clip.';
   }
   return 'rulează pe WASM cu 4 fire când izolarea e activă; ~5–6 fps';
 }
@@ -242,7 +308,9 @@ export function engineReason(gpuAvailable, isWebcam) {
 export function engineReadout({
   engine,
   isWebcam,
+  isNetwork = false,
   webcamLive,
+  whepLive = false,
   activeZone,
   activeCamera,
   showStream,
@@ -260,11 +328,17 @@ export function engineReadout({
         ? `${browserEngineFps.toFixed(1)} FPS • browser`
         : 'cameră locală • oprit'
       : 'cameră locală • fără flux'
-    : browserEngineFps
-      ? `${browserEngineFps.toFixed(1)} FPS • browser`
-      : liveFps
-        ? `${liveFps} FPS • Live`
-        : 'FPS necunoscut';
+    : isNetwork
+      ? browserEngineFps
+        ? `${browserEngineFps.toFixed(1)} FPS • browser`
+        : whepLive
+          ? 'rețea • WHEP'
+          : 'rețea • fără flux'
+      : browserEngineFps
+        ? `${browserEngineFps.toFixed(1)} FPS • browser`
+        : liveFps
+          ? `${liveFps} FPS • Live`
+          : 'FPS necunoscut';
   const zoneInactive = activeZone?.active_when === 'engine_on' && !activeCamera?.engine_on;
   const zoneLabel = activeZone
     ? `${activeZone.name}${zoneInactive ? ' (inactiv)' : ''}`

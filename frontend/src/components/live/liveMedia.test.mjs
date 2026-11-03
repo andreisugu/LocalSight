@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   ACK_POINTER_WINDOW_MS,
+  NETWORK_CAMERA_ID,
   cameraErrorFor,
   cameraOptionLabel,
   demoClipFor,
@@ -10,7 +11,9 @@ import {
   engineReadout,
   engineReason,
   hiddenRawCopy,
+  isNetworkCamera,
   mediaPlan,
+  networkCamera,
   outlineForZone,
   parseList,
   pickActiveZone,
@@ -114,6 +117,86 @@ test('the webcam disables every network source by id', () => {
   assert.equal(plan.showStream, false);
   assert.equal(plan.showDemoVideo, false);
   assert.equal(plan.demoClip, null);
+});
+
+test('the network camera exists only when a WHEP endpoint was provided', () => {
+  assert.equal(networkCamera(null), null);
+  assert.equal(networkCamera(''), null);
+  const camera = networkCamera('http://127.0.0.1:8889/cam/whep');
+  assert.equal(camera.id, NETWORK_CAMERA_ID);
+  assert.equal(camera.code, 'CAM-NET');
+  assert.equal(camera.name, 'CAM-NET • Cameră de rețea');
+  assert.equal(camera.whep_url, 'http://127.0.0.1:8889/cam/whep');
+  // The browser cannot open RTSP, so the synthetic row must not pretend to have one.
+  assert.equal(camera.rtsp_url, null);
+  assert.equal(camera.stream_url, undefined);
+  assert.deepEqual(camera.boxes, []);
+  assert.equal(isNetworkCamera(camera), true);
+  assert.equal(isNetworkCamera({ id: 'stand12' }), false);
+  assert.equal(isNetworkCamera(null), false);
+});
+
+test('a network camera is never sent to the demo clip path', () => {
+  // `demoCameraIds` names the cameras with a local clip; the network camera is not one of
+  // them, and must not be told that it has "no feed in the demo" because of that.
+  const camera = networkCamera('http://127.0.0.1:8889/cam/whep');
+  const plan = mediaPlan({
+    camera,
+    cameras: [camera],
+    demoCameraIds: ['stand12'],
+    demoClipEntries: ['stand12=a.mp4'],
+    baseUrl: '/LocalSight/',
+    isNetwork: true,
+  });
+  assert.equal(plan.noLiveForCamera, false);
+  assert.equal(plan.showDemoVideo, false);
+  assert.equal(plan.showStream, false);
+  assert.equal(plan.demoClip, null);
+  // The <video> must exist before the WHEP client can attach a track.
+  assert.equal(plan.showNetworkVideo, true);
+  assert.equal(plan.isNetwork, true);
+
+  const offline = mediaPlan({ camera: { ...camera, status: 'offline' }, isNetwork: true });
+  assert.equal(offline.showNetworkVideo, false);
+});
+
+test('the camera menu names the network source and its protocol', () => {
+  assert.match(
+    cameraOptionLabel(networkCamera('http://127.0.0.1:8889/cam/whep'), ['stand12']),
+    /• WHEP$/
+  );
+  assert.match(cameraOptionLabel(networkCamera('http://host/cam/whep'), []), /CAM-NET/);
+});
+
+test('the engine copy says when it runs on the network camera', () => {
+  assert.match(engineReason(true, false, true), /camerei de rețea/);
+  assert.doesNotMatch(engineReason(true, false, false), /camerei de rețea/);
+
+  const base = {
+    engine: { status: 'idle', fps: 0, actualProviders: [] },
+    isWebcam: false,
+    isNetwork: true,
+    activeZone: null,
+    activeCamera: { id: NETWORK_CAMERA_ID, subtitle: 'RTSP → MediaMTX → WebRTC (WHEP)' },
+    showStream: false,
+    browserEngineOn: false,
+    engineSource: false,
+    health: {},
+    kpis: { detection_to_alert_latency_s: '—' },
+  };
+  // A configured URL with no negotiated session is not a feed.
+  assert.equal(engineReadout({ ...base, whepLive: false }).pipelineLabel, 'rețea • fără flux');
+  assert.equal(engineReadout({ ...base, whepLive: true }).pipelineLabel, 'rețea • WHEP');
+  const running = engineReadout({
+    ...base,
+    whepLive: true,
+    engine: { status: 'running', fps: 4.25, actualProviders: ['wasm'] },
+    browserEngineOn: true,
+    engineSource: true,
+  });
+  assert.equal(running.pipelineLabel, '4.3 FPS • browser');
+  // No seeded zone: the subtitle explains the source instead of inventing a rule name.
+  assert.equal(running.zoneLabel, 'RTSP → MediaMTX → WebRTC (WHEP)');
 });
 
 test('an offline camera shows no source at all', () => {

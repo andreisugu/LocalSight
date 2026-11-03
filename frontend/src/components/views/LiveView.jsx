@@ -15,17 +15,22 @@ import {
   useEnginePreference,
   useMediaFailures,
   useWebcamFeed,
+  useWhepFeed,
 } from '../live/useLiveMedia';
 import {
+  NETWORK_CAMERA_ID,
   WEBCAM_CAMERA_ID,
   edgeIsActive,
   engineReadout,
   engineReason,
+  isNetworkCamera,
   mediaPlan,
+  networkCamera,
   parseList,
   pickActiveZone,
   toEngineZones,
 } from '../live/liveMedia';
+import { resolveWhepUrl } from '../live/whepClient';
 // The Live screen is a composition: the rules live in liveMedia.js, the effects in
 // useLiveMedia.js, and every block below is its own component. What remains here is the
 // wiring the engine requires (one <video> and one <canvas> for the life of the view).
@@ -58,22 +63,60 @@ function FullscreenLive({ camera, plan, failures, onToggleEngine, onExit }) {
 const LiveView = () => {
   const { themeStyles, isDarkMode } = useTheme();
   const security = useSecurity();
-  const { cameras, activeCamera, kpis, health, zones,
+  const {
+    // `cameras`/`activeCamera` are the store's; the view merges the optional network camera
+    // on top without writing it back, so no other screen can inherit a source it cannot play.
+    cameras: storeCameras,
+    activeCamera: storeCamera,
+    kpis, health, zones,
     // incident feed and routing
     filteredEvents, filterMode, setFilterMode, searchQuery,
     acknowledgeEvent, setSelectedEventId, setCurrentView,
     // engine plumbing
     toggleEngine, setSelectedCameraId, addEngineEvents,
-    reportActiveCamera, recordCoverageSample,
+    reportActiveCamera, recordCoverageSample, showToast,
   } = security;
   // MODE_STANDARD | MODE_SPLIT | MODE_FULLSCREEN
   const [displayMode, setDisplayMode] = useState(MODE_STANDARD);
+  // A network camera is not a fixture: it exists only when the operator named a WHEP
+  // gateway (`?whep=…` or `localsight.whepUrl`). Read once: the address bar is the
+  // configuration, and a re-render must not renegotiate a session.
+  const [whepUrl] = useState(() => resolveWhepUrl());
+  const network = useMemo(() => networkCamera(whepUrl), [whepUrl]);
+  const cameras = useMemo(
+    () => (network ? [...storeCameras, network] : storeCameras),
+    [storeCameras, network]
+  );
+  // Landing with `?whep=` is an explicit request to watch that camera, so it starts
+  // selected. Without it the store's selection is untouched.
+  const [networkSelected, setNetworkSelected] = useState(Boolean(whepUrl));
+  const activeCamera = network && networkSelected ? network : storeCamera;
+  const isNetwork = isNetworkCamera(activeCamera) && Boolean(network);
+  const selectCamera = (cameraId) => {
+    if (network && cameraId === NETWORK_CAMERA_ID) {
+      setNetworkSelected(true);
+      return;
+    }
+    setNetworkSelected(false);
+    setSelectedCameraId(cameraId);
+  };
+  // The MOTOR switch belongs to the aircraft on a stand; the gateway source has no stand,
+  // so it must not write a fabricated engine state (or call the API with an unknown id).
+  // Saying so beats a dead button that looks broken.
+  const onToggleEngine = (cameraId) => {
+    if (isNetwork) {
+      showToast('CAM-NET nu are motor de stand — pornește detecția în browser.');
+      return;
+    }
+    toggleEngine(cameraId);
+  };
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const isWebcam = activeCamera?.id === WEBCAM_CAMERA_ID;
   const enginePreference = useEnginePreference();
   const browserEngineOn = enginePreference.browserEngineOn;
   const webcam = useWebcamFeed({ isWebcam, videoRef, browserEngineOn });
+  const whep = useWhepFeed({ isNetwork, videoRef, url: network?.whep_url || null });
   const failures = useMediaFailures(activeCamera?.id);
   const demoConfig = useMemo(
     () => ({
@@ -92,10 +135,12 @@ const LiveView = () => {
     streamFailed: failures.streamFailed,
     videoFailed: failures.videoFailed,
     isWebcam,
+    isNetwork,
   });
   // The two sources the browser engine can process. Everything the clip path shows keys
-  // off this, so the webcam path is not a second UI.
-  const engineSource = plan.showDemoVideo || webcam.live;
+  // off this, so the webcam path is not a second UI. The network camera joins them only
+  // once its WebRTC session is really up: a configured URL is not a source.
+  const engineSource = plan.showDemoVideo || webcam.live || whep.live;
   const activeZone = useMemo(() => pickActiveZone(zones, activeCamera), [zones, activeCamera]);
   const engineZones = useMemo(
     () => toEngineZones(zones, activeCamera?.id),
@@ -107,7 +152,7 @@ const LiveView = () => {
   // frame — the room moves and the frame no longer exists — so alignment stays off and the
   // configured polygons are used unchanged.
   const referenceFrameUrl = useMemo(() => {
-    if (isWebcam || !activeCamera?.id) return null;
+    if (isWebcam || isNetwork || !activeCamera?.id) return null;
     const cameraZones = (zones || []).filter((zone) => zone.camera_id === activeCamera.id);
     // Two references cannot describe the same camera: the active zone first, then the first
     // zone of this camera that has one.
@@ -115,7 +160,7 @@ const LiveView = () => {
       activeZone?.reference_frame_url ||
       cameraZones.find((zone) => zone.reference_frame_url)?.reference_frame_url;
     return uploaded || DEMO_REFERENCE_FRAMES[activeCamera.id] || null;
-  }, [activeZone, activeCamera?.id, isWebcam, zones]);
+  }, [activeZone, activeCamera?.id, isWebcam, isNetwork, zones]);
   // The engine runs on the local clip fallback or on the live webcam stream, and only while
   // the viewer asked for it. Fullscreen renders the raw clip in a separate tree, so the
   // worker is stopped there instead of being left pointing at a <video> that no longer
@@ -200,7 +245,9 @@ const LiveView = () => {
   const readout = engineReadout({
     engine,
     isWebcam,
+    isNetwork,
     webcamLive: webcam.live,
+    whepLive: whep.live,
     activeZone,
     activeCamera,
     showStream: plan.showStream,
@@ -229,13 +276,17 @@ const LiveView = () => {
             isDarkMode={isDarkMode}
             themeStyles={themeStyles}
             displayMode={displayMode}
-            onSelectCamera={setSelectedCameraId}
+            onSelectCamera={selectCamera}
             onSelectMode={setDisplayMode}
-            onToggleEngine={toggleEngine}
+            onToggleEngine={onToggleEngine}
             browserEngineOn={browserEngineOn}
             engineSource={engineSource}
             onToggleBrowserEngine={enginePreference.toggle}
-            isWebcam={isWebcam}
+            // The toolbar uses this flag for one thing: "no fullscreen button for a
+            // source that lives in a React-owned element". The network camera is that
+            // too (its track is on the same <video>), and fullscreen would render
+            // another tree without srcObject.
+            isWebcam={isWebcam || isNetwork}
             onOpenFullscreen={() => setDisplayMode(MODE_FULLSCREEN)}
           ></CameraToolbar>
           <MediaStage
@@ -244,12 +295,14 @@ const LiveView = () => {
             plan={plan}
             edgeActive={edgeIsActive(health)}
             isWebcam={isWebcam}
+            isNetwork={isNetwork}
             browserEngineOn={browserEngineOn}
             engine={engine}
             engineSource={engineSource}
             activeZone={activeZone}
-            engineReason={engineReason(enginePreference.gpuAvailable, isWebcam)}
+            engineReason={engineReason(enginePreference.gpuAvailable, isWebcam, isNetwork)}
             webcam={webcam}
+            whep={whep}
             videoRef={videoRef}
             canvasRef={canvasRef}
             onRetryWebcam={webcam.retry}
