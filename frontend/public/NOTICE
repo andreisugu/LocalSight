@@ -94,7 +94,12 @@ the same file.
 ONNX Runtime Web is MIT, but its WASM bundle contains third-party components. The official
 upstream ThirdPartyNotices ships as /THIRD_PARTY_NOTICES.txt (ORT 1.31.1); it lists the
 components and their licences (MLAS, protobuf, flatbuffers, XNNPACK, Eigen/MPL2, Intel MKL
-notice and others). Review the exact WASM build with counsel before commercial use.
+notice and others). Source for the ORT build:
+https://github.com/microsoft/onnxruntime/tree/v1.31.1. The Eigen component is Eigen 3.4
+(https://gitlab.com/libeigen/eigen/-/archive/3.4/eigen-3.4.zip), MPL2; keep that source
+available if Eigen is in the shipped WASM. Intel MKL is a native x86 dependency of some ORT
+builds; the Web WASM strings/build path show MLAS, not MKL. Review the exact WASM manifest
+with counsel before commercial use.
 
 Tailwind's preflight CSS and Vite's runtime helpers are MIT and ship inside dist; their
 notices are in /LICENSES.txt. PostCSS, Autoprefixer, Playwright and caniuse-lite are

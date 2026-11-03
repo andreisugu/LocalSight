@@ -178,8 +178,11 @@ has no GPL/AGPL/LGPL dependency (audited from `frontend/package-lock.json`):
 The full copyright lines and licence texts ship in `frontend/public/LICENSES.txt`
 (`dist/LICENSES.txt`), linked from `NOTICE`; the build guard checks the file. ONNX Runtime
 Web's WASM bundles third-party components; the official upstream notice ships as
-`frontend/public/THIRD_PARTY_NOTICES.txt` (`dist/THIRD_PARTY_NOTICES.txt`). The COOP/COEP
-service-worker pattern is inspired by gzuidhof/coi-serviceworker (MIT, Copyright (c) 2021
+`frontend/public/THIRD_PARTY_NOTICES.txt` (`dist/THIRD_PARTY_NOTICES.txt`). Source for the
+ORT build: `https://github.com/microsoft/onnxruntime/tree/v1.31.1`. Eigen is Eigen 3.4
+(`https://gitlab.com/libeigen/eigen/-/archive/3.4/eigen-3.4.zip`), MPL2; ORT's common target
+links it, so keep the Eigen source available. Intel MKL is a native x86 dependency of some ORT
+builds; the Web WASM strings show MLAS, not MKL. The COOP/COEP service-worker pattern is inspired by gzuidhof/coi-serviceworker (MIT, Copyright (c) 2021
 Guido Zuidhof); the implementation is ours and the MIT notice ships in `LICENSES.txt`.
 Most build-time packages (PostCSS, Autoprefixer, Playwright, caniuse-lite) are not in the
 served artifact. Tailwind's preflight CSS and Vite's small runtime helpers do ship; their

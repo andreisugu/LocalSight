@@ -104,7 +104,11 @@ undici-types, @types/node, Tailwind (preflight CSS) and Vite (runtime helpers); 
 lucide-react and guid-typescript; BSD-3-Clause for protobufjs and the @protobufjs/* packages;
 Apache-2.0 for flatbuffers and long. ONNX Runtime Web's WASM bundles third-party code; the
 official upstream notice is shipped as `frontend/public/THIRD_PARTY_NOTICES.txt`
-(`dist/THIRD_PARTY_NOTICES.txt`). The COOP/COEP service-worker pattern is inspired by
+(`dist/THIRD_PARTY_NOTICES.txt`). Source for the ORT build:
+`https://github.com/microsoft/onnxruntime/tree/v1.31.1`. The Eigen component is Eigen 3.4
+(`https://gitlab.com/libeigen/eigen/-/archive/3.4/eigen-3.4.zip`), MPL2; keep the Eigen
+source available if it is in the shipped WASM (ORT's common target links Eigen). Intel MKL is
+native-only; the Web WASM strings show MLAS, not MKL. The COOP/COEP service-worker pattern is inspired by
 gzuidhof/coi-serviceworker (MIT, Copyright (c) 2021 Guido Zuidhof); the implementation is ours
 and the MIT notice ships there.
 
