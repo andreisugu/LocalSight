@@ -32,7 +32,7 @@ const ONNX_NOISE = /VerifyOutputSizes|Expected shape from model/;
  * then renders it. Only document paths are skipped, so a missing asset still counts.
  */
 const APP_DOCUMENT_PATH =
-  /\/LocalSight\/(?:incidents|settings|zones|reports|live|lab|bench)(?:\/|$)/;
+  /\/LocalSight\/(?:incidents|settings|zones|reports|archive|live|lab|bench)(?:\/|$)/;
 
 /**
  * Collects everything the page reports as a problem. `onnxNoise` and `pagesFallback` are

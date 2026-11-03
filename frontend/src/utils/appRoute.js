@@ -12,6 +12,7 @@ export const VIEW_PATHS = Object.freeze({
   incidents: '/incidents',
   zones: '/zones',
   reports: '/reports',
+  archive: '/archive',
   settings: '/settings',
   // Spike page, reachable by URL only: no sidebar entry.
   lab: '/lab',

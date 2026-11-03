@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Video, AlertOctagon, PenTool, FileText, Settings, ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Archive, Video, AlertOctagon, PenTool, FileText, Settings, ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-react';
 import { USE_MOCK } from '../../services/api';
 import { detectorLabel } from '../../engine/detectorFlag';
 import { readEngineSettings } from '../../utils/engineSettings';
@@ -45,6 +45,12 @@ const NAV_ITEMS = [
     label: 'Rapoarte Tură',
     subtitle: 'Statistici & Export PDF',
     icon: FileText,
+  },
+  {
+    id: 'archive',
+    label: 'Arhivă & Backup',
+    subtitle: 'Export & import local',
+    icon: Archive,
   },
   {
     id: 'settings',
