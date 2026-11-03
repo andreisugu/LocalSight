@@ -136,6 +136,13 @@ const notice = existsSync(join(distDir, 'NOTICE')) ? readFileSync(join(distDir, 
 if (notice && !notice.includes('EfficientDet')) {
   fail('dist/NOTICE does not name the EfficientDet model');
 }
+if (indexHtml && indexHtml.includes('%VITE_')) {
+  fail('dist/index.html still contains an unreplaced VITE placeholder (CSP would be invalid)');
+}
+const csp = indexHtml?.match(/Content-Security-Policy[^>]*content="([^"]*)"/i)?.[1] || '';
+if (csp && !csp.includes("connect-src 'self'")) {
+  fail('dist/index.html CSP is missing connect-src self');
+}
 if (existsSync(join(modelsDir, 'yolo26n.onnx'))) {
   fail('dist/models/yolo26n.onnx is present: the AGPL YOLO weights must not ship');
 }

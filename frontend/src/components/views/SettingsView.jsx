@@ -539,10 +539,11 @@ function WebhookPanel({ settings, onChange, onTest, status }) {
           orice alt client.
         </p>
         <p>
-          Politica de securitate a build-ului permite cereri doar către același origin
-          (<code className="font-mono">connect-src 'self'</code>). Un releu pe alt origin
-          trebuie declarat în acea politică, altfel browserul blochează cererea înainte să
-          plece; un releu servit pe același origin (reverse proxy) funcționează direct.
+          CSP-ul permite <code className="font-mono">connect-src 'self'</code>, localhost
+          (releul self-hosted) și originea declarată la build în{' '}
+          <code className="font-mono">VITE_WEBHOOK_ORIGIN</code>. Un releu pe alt origin
+          trebuie adăugat la build, altfel browserul blochează cererea înainte să plece; un
+          releu pe același origin (reverse proxy) funcționează direct.
         </p>
         <p>
           Notificările sunt best effort cât timp tabul e deschis: fără service worker, fără

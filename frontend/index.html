@@ -16,10 +16,12 @@
          - Vite's development preamble is injected at the top of <head>, before this meta,
            so the dev server's inline HMR preamble still runs; the production HTML has no
            inline script. The optional VITE_USE_MOCK=false API mode is outside this policy:
-           connect-src is same-origin only, which is what a static app needs. -->
+           connect-src is same-origin plus the operator's relay origin(s): a static app
+           cannot know the relay host at runtime, so a remote relay needs the build-time
+           VITE_WEBHOOK_ORIGIN allowlist (and localhost for the self-hosted relay). -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' blob:; img-src 'self' blob: data:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self'"
+      content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' blob: http://localhost:* http://127.0.0.1:* %VITE_WEBHOOK_ORIGIN%; img-src 'self' blob: data:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self'"
     />
     <meta name="referrer" content="no-referrer" />
     <!-- Best effort only: Chromium ignores Permissions-Policy in a meta tag (it is a
