@@ -9,7 +9,6 @@
 //
 // The public shape is frozen: the views destructure these keys, so a new module must not
 // rename or remove one without changing every consumer.
-
 import { createContext, useCallback, useContext, useState } from 'react';
 import { useBackgroundCameras } from './useBackgroundCameras.js';
 import { useBackendBootstrap } from './useBackendBootstrap.js';
@@ -25,16 +24,28 @@ import { useSimulation } from './useSimulation.js';
 import { useToast } from './useToast.js';
 import { useZoneStore } from './useZoneStore.js';
 import { initialShowDemoData, storeShowDemoData } from '../utils/demoPreference.js';
-
 // The default is null on purpose: `useSecurity` turns a missing provider into an error
 // instead of handing components an empty object that fails later and further away.
 const Store = createContext(null);
-
 /** Flattens the named key groups into the one object the provider hands out. */
 function flattenGroups(groups) {
   return groups.reduce((flat, group) => Object.assign(flat, group), {});
 }
-
+/**
+ * Every input the incident store takes, named once. The store reads camera and zone names
+ * to label an engine report, so it has to be created after both of them.
+ */
+function incidentStoreInput({ showToast, operator, cameraStore, zoneStore, routing, showDemoData }) {
+  return {
+    showToast,
+    operatorName: operator.operatorName,
+    cameras: cameraStore.cameras,
+    zones: zoneStore.zones,
+    selectedEventId: routing.selectedEventId,
+    linkedIncidentId: routing.linkedIncidentId,
+    showDemoData,
+  };
+}
 /**
  * Builds the store value from the focused hooks. Kept out of the provider component so the
  * render below is one line and the wiring reads top to bottom: stores first, then the
@@ -43,11 +54,9 @@ function flattenGroups(groups) {
 function useStoreValue() {
   const { toastMessage, showToast } = useToast();
   const operator = useOperator({ showToast });
-
   const cameraStore = useCameraStore({ showToast });
   const zoneStore = useZoneStore({ showToast });
   const routing = useRouting();
-
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   // Which camera the Live view is really feeding to its browser engine, not just which one
   // is selected. `null` means "Live owns nothing right now" (another screen, engine off,
@@ -56,7 +65,6 @@ function useStoreValue() {
   const reportActiveCamera = useCallback((cameraId) => {
     setLiveEngineCameraId(typeof cameraId === 'string' && cameraId ? cameraId : null);
   }, []);
-
   // Real detections by default; the eight demo fixtures are one explicit choice away and
   // that choice survives a reload. The setter is the only writer, so the stored value and
   // the rendered one cannot drift.
@@ -66,21 +74,10 @@ function useStoreValue() {
     storeShowDemoData(value);
     setShowDemoDataState(value);
   }, []);
-
-  // The incident list reads the camera and zone names when it decorates an engine event,
-  // so it is created after both stores.
-  const incidents = useIncidentStore({
-    showToast,
-    operatorName: operator.operatorName,
-    cameras: cameraStore.cameras,
-    zones: zoneStore.zones,
-    selectedEventId: routing.selectedEventId,
-    linkedIncidentId: routing.linkedIncidentId,
-    showDemoData,
-  });
-
+  const incidents = useIncidentStore(
+    incidentStoreInput({ showToast, operator, cameraStore, zoneStore, routing, showDemoData })
+  );
   const { kpis, setKpis } = useKpis(incidents.events, { showDemoData });
-
   // All cameras, optionally in the background. The hook sits here so a route change never
   // tears down its workers; it starts them only when the operator enabled the option and
   // the resource guard allows it, and it never processes the camera Live owns.
@@ -90,14 +87,12 @@ function useStoreValue() {
     addEngineEvents: incidents.addEngineEvents,
     liveEngineCameraId,
   });
-
   const connection = useConnectionHealth({
     showToast,
     setEvents: incidents.setEvents,
     setKpis,
     setCameras: cameraStore.setCameras,
   });
-
   useBackendBootstrap({
     showToast,
     setCameras: cameraStore.setCameras,
@@ -108,18 +103,15 @@ function useStoreValue() {
     setKpis,
     setHealth: connection.setHealth,
   });
-
   const report = useShiftReport({ showToast });
   // The coverage receipt's raw samples. Additive and session-only: no key below changes,
   // and the list is never persisted (the Reports panel says "doar cât a rulat motorul").
   const coverage = useCoverageSamples();
-
   const { simulateIncomingWsEvent } = useSimulation({
     showToast,
     setEvents: incidents.setEvents,
     setSelectedEventId: routing.setSelectedEventId,
   });
-
   // Which screens read which keys. Grouped so the frozen surface stays scannable.
   const navigation = {
     currentView: routing.currentView,
@@ -192,10 +184,7 @@ function useStoreValue() {
   };
   // Additive on purpose: no existing screen changes, and every surface that lists events
   // (feed, list, report, KPI strip) already reads the same visible list.
-  const demoKeys = {
-    showDemoData,
-    setShowDemoData,
-  };
+  const demoKeys = { showDemoData, setShowDemoData };
   // Additive: only Live writes the ownership key and only Settings reads the status.
   const backgroundKeys = {
     backgroundEnabled: background.enabled,
@@ -210,7 +199,6 @@ function useStoreValue() {
     recordCoverageSample: coverage.recordCoverageSample,
     clearCoverageSamples: coverage.clearCoverageSamples,
   };
-
   return flattenGroups([
     navigation,
     sidebar,
@@ -225,13 +213,10 @@ function useStoreValue() {
     coverageKeys,
   ]);
 }
-
 export function SecurityProvider({ children }) {
   const value = useStoreValue();
-
   return <Store.Provider value={value}>{children}</Store.Provider>;
 }
-
 export function useSecurity() {
   const store = useContext(Store);
   if (!store) throw new Error('useSecurity must be used within a SecurityProvider');

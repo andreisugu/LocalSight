@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useReducer, useState } from 'react';
 import { PenTool } from 'lucide-react';
-
-import { useSecurity } from '../../context/SecurityContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useSecurity } from '../../context/SecurityContext';
 import { DEMO_REFERENCE_FRAMES } from '../../constants/mockData';
 import {
   buildZonePayload,
@@ -21,7 +20,6 @@ import ZoneCanvas from '../zones/ZoneCanvas';
 import ZoneToolbar from '../zones/ZoneToolbar';
 import ZoneParameters from '../zones/ZoneParameters';
 import ZoneReferencePanel from '../zones/ZoneReferencePanel';
-
 const NO_ZONE_MESSAGE = 'Alege o zonă salvată sau apasă „Zonă nouă”.';
 const MIN_POINTS_MESSAGE = 'O zonă are nevoie de cel puțin 3 puncte.';
 const REORDER_NOTICE = 'Punctele au fost reordonate în jurul centrului zonei.';
@@ -32,7 +30,6 @@ const HINT_DRAWING =
   'Click pe primul punct (verde) închide zona · trage punctele · „+” de pe latură adaugă un punct · Ctrl+Z anulează';
 const HINT_CLOSED =
   'Zonă închisă · trage punctele ca să le muți · „+” de pe latură adaugă un punct · click dreapta / Delete șterge · Ctrl+Z anulează';
-
 /**
  * The instructions for the drawing surface. They live on the help line above the frame, as
  * the state changes, instead of on a pill that covered the polygon (M13).
@@ -41,7 +38,6 @@ function editorHint(points, closed) {
   if (closed) return HINT_CLOSED;
   return points >= 3 ? HINT_DRAWING : HINT_EMPTY;
 }
-
 /** Page title plus the camera picker: which camera's zones the editor is showing. */
 function EditorHeader({ cameraChoices, selectedCameraId, onCameraChange, hint }) {
   const { themeStyles } = useTheme();
@@ -59,7 +55,6 @@ function EditorHeader({ cameraChoices, selectedCameraId, onCameraChange, hint })
           {hint}
         </p>
       </div>
-
       <div className="flex w-full min-w-0 flex-wrap items-center gap-2 text-xs sm:w-auto">
         <label htmlFor="zone-camera" className="font-bold opacity-75">
           Camera:
@@ -86,7 +81,6 @@ function EditorHeader({ cameraChoices, selectedCameraId, onCameraChange, hint })
     </header>
   );
 }
-
 /** Nothing to edit: the camera list came back empty. */
 function NoCamerasNotice() {
   const { themeStyles } = useTheme();
@@ -104,11 +98,9 @@ function NoCamerasNotice() {
     </div>
   );
 }
-
 /** The drawing surface and its toolbar: the polygon itself, left column on wide screens. */
 function DrawingColumn({ editor, referenceUrl }) {
   const { cameraZones, draft, check, jsonOpen, jsonText, setJsonText, setJsonOpen, dispatch, actions } = editor;
-
   return (
     <section className="min-w-0 space-y-3 xl:col-span-2">
       <ZoneToolbar
@@ -127,7 +119,6 @@ function DrawingColumn({ editor, referenceUrl }) {
         onJsonTextChange={setJsonText}
         onApplyJson={actions.commitJsonPoints}
       />
-
       <ZoneCanvas
         points={draft.points}
         closed={draft.closed}
@@ -149,11 +140,9 @@ function DrawingColumn({ editor, referenceUrl }) {
     </section>
   );
 }
-
 /** The parameters form and the reference-frame panel, stacked in the right column. */
 function ParametersColumn({ editor, referenceUrl, usingDemoReference }) {
   const { draft, zone, saving, canSave, uploading, capturing, capturedAt, dispatch, actions } = editor;
-
   return (
     <aside className="min-w-0 space-y-3" aria-label="Parametrii și cadrul zonei">
       <ZoneParameters
@@ -169,7 +158,6 @@ function ParametersColumn({ editor, referenceUrl, usingDemoReference }) {
         onSave={actions.persistDraft}
         onDelete={actions.removeDraftZone}
       />
-
       <ZoneReferencePanel
         referenceUrl={referenceUrl}
         usingDemoReference={usingDemoReference}
@@ -185,7 +173,6 @@ function ParametersColumn({ editor, referenceUrl, usingDemoReference }) {
     </aside>
   );
 }
-
 /**
  * Zone configuration editor.
  *
@@ -194,21 +181,12 @@ function ParametersColumn({ editor, referenceUrl, usingDemoReference }) {
  * and the reference frame — so the component below is only layout and cannot silently drop
  * a guard while it is being re-arranged.
  */
-function useZoneEditor() {
-  const {
-    cameras,
-    activeCamera,
-    zones,
-    selectedCameraId,
-    setSelectedCameraId,
-    saveZone,
-    deleteZone,
-    clearReferenceFrame,
-    captureReferenceFrame,
-    captureReferenceFromLive,
-    showToast,
-  } = useSecurity();
-
+const useZoneEditor = () => {
+  const security = useSecurity();
+  const { cameras, activeCamera, zones, selectedCameraId, setSelectedCameraId,
+    saveZone, deleteZone, clearReferenceFrame,
+    captureReferenceFrame, captureReferenceFromLive, showToast,
+  } = security;
   const [draft, dispatch] = useReducer(draftReducer, undefined, emptyDraft);
   const [jsonOpen, setJsonOpen] = useState(false);
   const [jsonText, setJsonText] = useState('[]');
@@ -216,7 +194,6 @@ function useZoneEditor() {
   const [uploading, setUploading] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [capturedAt, setCapturedAt] = useState(null);
-
   const cameraZones = useMemo(
     () => zones.filter((item) => item.camera_id === selectedCameraId),
     [zones, selectedCameraId]
@@ -225,17 +202,14 @@ function useZoneEditor() {
     () => cameraZones.find((item) => item.zone_id === draft.zoneId) || null,
     [cameraZones, draft.zoneId]
   );
-
   const check = useMemo(() => validateDraft(draft), [draft]);
   const cameraChoices = useMemo(() => cameraOptions(cameras, zones), [cameras, zones]);
   const canSave = check.canSave && !saving;
-
   // The JSON textarea mirrors the geometry; typing does not touch the draft until
   // "Aplică pe cadru", so a half-typed line cannot corrupt the polygon.
   useEffect(() => {
     setJsonText(formatPoints(draft.points));
   }, [draft.points]);
-
   // Reload only when the selection changes, never on every store update: a save or a
   // live event must not throw away the edit in progress. A zone that is not saved yet
   // has nothing to reload and stays as it is.
@@ -253,7 +227,6 @@ function useZoneEditor() {
     }
     dispatch({ type: 'reset' });
   }, [selectedCameraId, draft.zoneId, draft.isNew, cameraZones.length]);
-
   // Keyboard: Ctrl+Z / Ctrl+Shift+Z, Delete removes the selected point, arrows nudge it
   // (Shift = 5x) and Esc deselects. Text fields keep their own keys.
   useEffect(() => {
@@ -264,32 +237,24 @@ function useZoneEditor() {
       if (intent.preventDefault) event.preventDefault();
       const blocked =
         intent.type === 'delete-selection' && !canDeletePoint(draft, draft.selectedIndex);
-      if (blocked) {
-        showToast(MIN_POINTS_MESSAGE);
-        return;
-      }
+      if (blocked) return showToast(MIN_POINTS_MESSAGE);
       dispatch(intent);
     }
-
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [draft, showToast]);
-
   function switchCamera(event) {
     dispatch({ type: 'camera-changed' });
     setSelectedCameraId(event.target.value);
   }
-
   function chooseZone(zoneId) {
     dispatch({ type: 'select-zone', zoneId });
   }
-
   function startNewZone() {
     const id = uniqueZoneId(`${selectedCameraId}-zona`, zones);
     dispatch({ type: 'create', zoneId: id });
     showToast('Zonă nouă: desenează poligonul, apoi salvează.');
   }
-
   function addPointOnFrame(point) {
     if (draft.zoneId) {
       dispatch({ type: 'add-point', point });
@@ -297,7 +262,6 @@ function useZoneEditor() {
     }
     showToast(NO_ZONE_MESSAGE);
   }
-
   function applyShapeToDraft(shape) {
     if (draft.zoneId) {
       dispatch({ type: 'apply-shape', shape });
@@ -305,7 +269,6 @@ function useZoneEditor() {
     }
     showToast(NO_ZONE_MESSAGE);
   }
-
   function deletePointAt(index) {
     if (!canDeletePoint(draft, index)) {
       showToast(MIN_POINTS_MESSAGE);
@@ -313,12 +276,10 @@ function useZoneEditor() {
     }
     dispatch({ type: 'delete-point', index });
   }
-
   function sortPointsAroundCentre() {
     dispatch({ type: 'reorder' });
     showToast(REORDER_NOTICE);
   }
-
   function commitJsonPoints() {
     const { points, error } = parsePointList(jsonText);
     if (error) {
@@ -328,7 +289,6 @@ function useZoneEditor() {
     dispatch({ type: 'apply-points', points });
     showToast('Coordonate aplicate pe cadru.');
   }
-
   async function persistDraft() {
     const [failure] = check.errors;
     if (failure) {
@@ -343,7 +303,6 @@ function useZoneEditor() {
       setSaving(false);
     }
   }
-
   async function removeDraftZone() {
     if (!draft.zoneId || !zone) return;
     const confirmed = window.confirm(
@@ -354,7 +313,6 @@ function useZoneEditor() {
     await deleteZone(draft.zoneId);
     dispatch({ type: 'delete-result', remainingZones: remaining });
   }
-
   async function uploadFrame(file) {
     if (!draft.zoneId) return;
     setUploading(true);
@@ -365,7 +323,6 @@ function useZoneEditor() {
       setUploading(false);
     }
   }
-
   async function grabLiveFrame() {
     if (!draft.zoneId) return;
     setCapturing(true);
@@ -376,13 +333,11 @@ function useZoneEditor() {
       setCapturing(false);
     }
   }
-
-  function dropReference() {
+  const dropReference = () => {
     if (!draft.zoneId) return;
     clearReferenceFrame(draft.zoneId);
     setCapturedAt(null);
-  }
-
+  };
   return {
     actions: {
       addPointOnFrame,
@@ -419,37 +374,26 @@ function useZoneEditor() {
     zone,
   };
 }
-
 export default function ZoneEditorView() {
   const editor = useZoneEditor();
-
   if (!editor.activeCamera) return <NoCamerasNotice />;
-
   // The static build has no edge to upload a reference frame, so the first frame of the
   // camera's demo clip is the background. An uploaded frame still wins.
   const demoReferenceUrl = DEMO_REFERENCE_FRAMES[editor.selectedCameraId] || null;
   const referenceUrl = editor.zone?.reference_frame_url || demoReferenceUrl || null;
   const usingDemoReference = !editor.zone?.reference_frame_url && Boolean(demoReferenceUrl);
-
-  return (
-    <div className="flex-1 h-full overflow-y-auto">
-      <div className="mx-auto w-full max-w-7xl space-y-4 p-4 md:p-6">
+  return <main className="flex-1 h-full overflow-y-auto">
+      <section className="mx-auto w-full max-w-7xl space-y-4 p-4 md:p-6">
         <EditorHeader
           cameraChoices={editor.cameraChoices}
           selectedCameraId={editor.selectedCameraId}
           onCameraChange={editor.actions.switchCamera}
           hint={editorHint(editor.draft.points.length, editor.draft.closed)}
         />
-
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <DrawingColumn editor={editor} referenceUrl={referenceUrl} />
-          <ParametersColumn
-            editor={editor}
-            referenceUrl={referenceUrl}
-            usingDemoReference={usingDemoReference}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
+        <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          <DrawingColumn editor={editor} referenceUrl={referenceUrl}></DrawingColumn>
+          <ParametersColumn editor={editor} referenceUrl={referenceUrl} usingDemoReference={usingDemoReference}></ParametersColumn>
+        </section>
+      </section>
+    </main>;
+};
