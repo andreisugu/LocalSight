@@ -8,6 +8,7 @@ import {
   readEnginePreference,
   storeEnginePreference,
 } from './liveMedia';
+import { WhepError, connectWhep, whepErrorInfo } from './whepClient';
 
 // The browser engine is a stored preference with a measured default. The person detector
 // always runs on WASM (see `preferredProviders` in detectors.js): EfficientDet on
@@ -63,6 +64,10 @@ export function useWebcamFeed({ isWebcam, videoRef, browserEngineOn }) {
   // The live stream lives in refs as well, so the unmount hook and the request-race guard
   // can stop tracks without waiting for a render.
   const streamRef = useRef(null);
+  // The exact MediaStream this hook wrote to `video.srcObject`. The stage has three kinds
+  // of source on one element and only one of them is a getUserMedia track: detaching must
+  // never clear a stream another source (the WHEP gateway) attached.
+  const attachedRef = useRef(null);
   const requestRef = useRef(0);
   const mountedRef = useRef(true);
 
@@ -151,7 +156,12 @@ export function useWebcamFeed({ isWebcam, videoRef, browserEngineOn }) {
     if (!isWebcam || !stream) {
       // Back on a clip the same DOM node may be reused (engine on keeps one element):
       // detach the stream explicitly, otherwise the <video> keeps playing the camera.
-      if (video.srcObject) video.srcObject = null;
+      // Only a stream this hook attached is detached: the network camera puts its own
+      // MediaStream on the same element, and toggling the engine must not kill it.
+      if (attachedRef.current && video.srcObject === attachedRef.current) {
+        video.srcObject = null;
+      }
+      attachedRef.current = null;
       if (!isWebcam && video.src) {
         const played = video.play();
         if (played?.catch) played.catch(() => {});
@@ -159,6 +169,7 @@ export function useWebcamFeed({ isWebcam, videoRef, browserEngineOn }) {
       return;
     }
     if (video.srcObject !== stream) video.srcObject = stream;
+    attachedRef.current = stream;
     const played = video.play();
     if (played?.catch) {
       // Muted playback is allowed by the autoplay policy, so a rejection here is real.
@@ -176,6 +187,89 @@ export function useWebcamFeed({ isWebcam, videoRef, browserEngineOn }) {
     // and the moment after a switch all fall outside it.
     live: isWebcam && state === 'live' && Boolean(stream),
     retry: start,
+  };
+}
+
+/**
+ * Owns the network camera session: one WHEP peer connection on the same <video> the engine
+ * reads frames from.
+ *
+ * The lifecycle mirrors `useWebcamFeed` on purpose — the stage has one element and one
+ * source at a time — with one difference: a failed handshake must be retryable without
+ * reloading the page, because the gateway is a process the operator starts by hand.
+ *
+ * @param {{isNetwork: boolean, videoRef: import('react').RefObject<HTMLVideoElement>,
+ *          url: string|null}} options
+ */
+export function useWhepFeed({ isNetwork, videoRef, url }) {
+  const [state, setState] = useState('idle'); // idle | connecting | live | error
+  const [error, setError] = useState(null);
+  // A retry is a new attempt number, not a mutation of the URL: the address the operator
+  // typed stays the one in the address bar.
+  const [attempt, setAttempt] = useState(0);
+  const sessionRef = useRef(null);
+  const retry = useCallback(() => setAttempt((count) => count + 1), []);
+
+  const stop = useCallback(() => {
+    const session = sessionRef.current;
+    sessionRef.current = null;
+    // `close()` clears srcObject only when it is the stream this session attached, so a
+    // webcam track or a clip on the same element is never detached by the wrong source.
+    if (session) session.close();
+  }, []);
+
+  useEffect(() => {
+    if (!isNetwork || !url) {
+      stop();
+      setState('idle');
+      setError(null);
+      return undefined;
+    }
+    let cancelled = false;
+    setState('connecting');
+    setError(null);
+    stop();
+
+    const fail = (caught) => {
+      if (cancelled) return;
+      setState('error');
+      setError(whepErrorInfo(caught));
+    };
+
+    connectWhep(url, videoRef.current, {
+      onConnectionState: (connectionState) => {
+        if (cancelled || connectionState !== 'failed') return;
+        fail(new WhepError('disconnected', 'starea WebRTC a trecut pe „failed”.'));
+      },
+      onAutoplayBlocked: (reason) => {
+        if (cancelled) return;
+        setState('error');
+        setError(whepErrorInfo(new WhepError('autoplay', reason?.message)));
+      },
+    })
+      .then((session) => {
+        // A newer attempt (or an unmount) won: this session is already stale.
+        if (cancelled) {
+          session.close();
+          return;
+        }
+        sessionRef.current = session;
+        setState('live');
+      })
+      .catch(fail);
+
+    return () => {
+      cancelled = true;
+      stop();
+    };
+  }, [isNetwork, url, attempt, stop, videoRef]);
+
+  return {
+    state,
+    error,
+    // "live" means a negotiated WebRTC session, not merely a configured URL.
+    live: Boolean(isNetwork) && state === 'live',
+    retry,
   };
 }
 

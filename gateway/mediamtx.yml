@@ -1,0 +1,60 @@
+# MediaMTX gateway for the LocalSight camera spike: RTSP in, WebRTC/WHEP out.
+#
+# A browser cannot open an RTSP stream. This process sits between the apron camera (or, for
+# the demo, ffmpeg republishing a local clip) and the page:
+#
+#   camera / ffmpeg --RTSP:8554--> MediaMTX --WebRTC(WHEP):8889--> browser <video>
+#                                           --HLS:8888---------> any player (optional)
+#
+# Run it with the command in README.md. Only the keys that matter for the spike are set;
+# everything else stays on the MediaMTX defaults.
+#
+# LOCAL ONLY. No TLS, no auth, `webrtcAllowOrigins: '*'`, and a publisher is trusted by
+# whoever can reach port 8554. Do not expose this to a network you do not own. See the
+# production section of README.md.
+
+logLevel: info
+
+###############################################
+# RTSP ingest: the camera publishes here (or points MediaMTX at its RTSP URL as `source`).
+rtsp: true
+rtspAddress: :8554
+
+###############################################
+# WebRTC/WHEP egress: the browser POSTs its SDP offer to http://<host>:8889/cam/whep.
+webrtc: true
+webrtcAddress: :8889
+webrtcEncryption: false
+# The demo page may be served from another origin (Vite on :5173, the test server on a random
+# port, GitHub Pages on https). A wildcard is acceptable only because this listener is meant
+# for localhost; production pins the exact origin.
+webrtcAllowOrigins: ['*']
+# ICE for a same-machine demo: advertise the loopback host explicitly so a page opened on
+# http://127.0.0.1 does not depend on which interface MediaMTX picks first.
+webrtcLocalUDPAddress: :8189
+webrtcIPsFromInterfaces: true
+webrtcAdditionalHosts: [127.0.0.1]
+
+###############################################
+# HLS is optional; it exists so a viewer without WebRTC can still check the ingest.
+#    http://127.0.0.1:8888/cam/index.m3u8
+hls: true
+hlsAddress: :8888
+hlsAllowOrigins: ['*']
+
+###############################################
+# Not needed for this path, and every listener is another door: keep them closed.
+rtmp: false
+srt: false
+moq: false
+api: false
+metrics: false
+pprof: false
+
+paths:
+  # `source: publisher` means MediaMTX waits for something to publish to `cam`
+  # (`gateway/publish-demo.sh`, or a real camera pushing to rtsp://<gateway>:8554/cam).
+  # To pull a camera that only serves RTSP, replace it with its URL instead:
+  #   source: rtsp://user:pass@10.0.0.21:554/stream1
+  cam:
+    source: publisher
