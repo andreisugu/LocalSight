@@ -2,6 +2,7 @@
 // the overlay prints; the pixels go straight from the worker's ImageBitmap to the canvas.
 import { useEffect, useRef, useState } from 'react';
 import { readEngineSettings, resolveWasmThreads } from '../utils/engineSettings.js';
+import { sourceStallNote } from './playback.js';
 
 const INITIAL_STATS = {
   fps: 0,
@@ -45,6 +46,11 @@ const LOOP_EVENTS = ['loadstart', 'loadedmetadata', 'loadeddata', 'canplay', 'pl
 // Some browsers stay quiet after a device swap or a track mute: one cheap check keeps the
 // loop alive without polling frames.
 const LOOP_WATCHDOG_MS = 1000;
+// A `play()` rejection is a permission answer, not a transient failure: the browser will
+// only start the element again on a new user gesture, so that is what the engine waits
+// for instead of hammering `play()` (which Firefox answers with the same warning every
+// time). A gesture only ever retries while the element is stopped.
+const GESTURE_EVENTS = ['pointerdown', 'keydown'];
 // A WebGPU session that is still "loading" after this long is treated as wedged, not slow:
 // the worker is terminated (it may be blocked synchronously) and rebuilt on wasm.
 const ENGINE_STALL_MS = 30_000;
@@ -194,6 +200,79 @@ export function useEngine({
       bitmap.close();
     };
 
+    // A stopped element presents no further frame, so the pump above goes quiet and the
+    // worker looks wedged while it is perfectly healthy. Nothing in the frame loop can
+    // detect that, because no frame ever arrives: the playback state is the only evidence.
+    // `playErrorName` keeps the browser's own answer (`NotAllowedError` = autoplay policy)
+    // so the UI says why instead of blaming the model or the isolation headers.
+    let playErrorName = null;
+    let playPending = false;
+
+    // The numbers on screen must never say "the model is loading" while the element is
+    // simply not playing. `pausedSince` keeps the message from flashing during the ordinary
+    // moment between a gesture and the first played frame, and `stallNote` remembers exactly
+    // which sentence this hook printed so withdrawing it can never wipe a real engine error.
+    let pausedSince = video.paused ? performance.now() : 0;
+    let stallNote = null;
+    const setStallNote = (note) => {
+      if (disposed || note === stallNote) return;
+      const previous = stallNote;
+      stallNote = note;
+      setStats((current) => {
+        if (note) return { ...current, status: 'error', message: note };
+        // Only this hook's own sentence is withdrawn; a worker error stays on screen.
+        if (current.status !== 'error' || current.message !== previous) return current;
+        return { ...current, status: 'loading', message: 'se așteaptă primele cadre' };
+      });
+    };
+    // While the note holds it outranks the worker's progress lines: the model may well be
+    // loading, but "primele cadre sosesc în câteva secunde" is a promise a stopped source
+    // cannot keep. A real worker error is more specific than the note, so it wins.
+    const withStallNote = (next) => {
+      if (!stallNote || next.status === 'error') return next;
+      return { ...next, status: 'error', message: stallNote };
+    };
+
+    const resumeSource = () => {
+      if (disposed || !video.paused || playPending) return;
+      playPending = true;
+      let played;
+      try {
+        // Older engines throw synchronously; a MediaStream element that is already playing
+        // never reaches here (`video.paused` is false).
+        played = video.play();
+      } catch (error) {
+        playPending = false;
+        playErrorName = error?.name || 'Error';
+        return;
+      }
+      if (!played || typeof played.then !== 'function') {
+        playPending = false;
+        return;
+      }
+      played.then(
+        () => {
+          playPending = false;
+          playErrorName = null;
+          // The source is advancing again: withdraw the policy sentence at once rather
+          // than leaving it under the stage until the next watchdog tick.
+          setStallNote(null);
+        },
+        (error) => {
+          // The refusal is kept: the message under the stage names the policy, and the
+          // gesture listener below retries once the operator touches the page again.
+          playPending = false;
+          playErrorName = error?.name || 'Error';
+        },
+      );
+    };
+
+    // A refusal is a permission answer, not a transient failure: the browser starts the
+    // element again only on a new user gesture, so that is where the retry happens (asking
+    // on a timer would just print the same policy warning every second).
+    const onGesture = () => resumeSource();
+    GESTURE_EVENTS.forEach((name) => window.addEventListener(name, onGesture, true));
+
     worker.onmessage = (event) => {
       if (disposed) return;
       const message = event.data || {};
@@ -235,7 +314,7 @@ export function useEngine({
           return;
         }
         lastStatsRef.current = now;
-        setStats((previous) => ({
+        setStats((previous) => withStallNote({
           ...previous,
           fps: message.fps,
           persons: message.persons,
@@ -266,12 +345,26 @@ export function useEngine({
         if (readyTimer) clearTimeout(readyTimer);
         if (!stallTimer) {
           stallTimer = setTimeout(() => {
-            if (disposed || receivedFrame || effectiveProvider === 'wasm') return;
+            if (disposed || receivedFrame) return;
+            // A stopped element explains the silence by itself; rebuilding the worker on
+            // another provider would only hide the reason.
+            if (video.paused) {
+              setStallNote(
+                sourceStallNote({
+                  paused: true,
+                  playErrorName,
+                  pausedMs: ENGINE_STALL_MS,
+                  readyState: video.readyState,
+                }),
+              );
+              return;
+            }
+            if (effectiveProvider === 'wasm') return;
             console.warn('[engine] ready but no frame after 30 s; restarting on wasm');
             setForcedProvider('wasm');
           }, ENGINE_STALL_MS);
         }
-        setStats((previous) => ({
+        setStats((previous) => withStallNote({
           ...previous,
           status: 'loading',
           providers: message.providers || [],
@@ -281,7 +374,9 @@ export function useEngine({
         return;
       }
       if (message.type === 'status') {
-        setStats((previous) => ({ ...previous, status: 'loading', message: message.stage }));
+        setStats((previous) =>
+          withStallNote({ ...previous, status: 'loading', message: message.stage })
+        );
         return;
       }
       if (message.type === 'error') {
@@ -354,9 +449,19 @@ export function useEngine({
       }
     };
 
+    // A stopped element presents no further frame, so the pump above goes quiet and the
+    // worker looks wedged while it is perfectly healthy. Nothing in the frame loop can
+    // detect that, because no frame ever arrives: the playback state is the only evidence.
+    // `playErrorName` keeps the browser's own answer (`NotAllowedError` = autoplay policy)
+    // so the UI says why instead of blaming the model or the isolation headers.
     const startLoop = () => {
       if (disposed || loopActive) return;
       loopActive = true;
+      // The pump is paced by the element itself, so a stopped source is the one failure the
+      // engine can fix on its own most of the time. Firefox for Android refuses the demo
+      // clip's automatic playback (its autoplay policy blocks muted media too) while a
+      // MediaStream camera is exempt; asking here is what makes the clip path work there.
+      resumeSource();
       schedule();
     };
 
@@ -392,8 +497,11 @@ export function useEngine({
     };
 
     const onLoopHint = () => startLoop();
+
     const onSourceReset = () => {
       stopLoop();
+      pausedSince = 0;
+      setStallNote(null);
       resetCounters();
     };
 
@@ -402,7 +510,22 @@ export function useEngine({
     video.addEventListener('emptied', onSourceReset);
 
     const watchdog = setInterval(() => {
-      if (disposed || loopActive) return;
+      if (disposed) return;
+      if (video.paused) {
+        if (!pausedSince) pausedSince = performance.now();
+        setStallNote(
+          sourceStallNote({
+            paused: true,
+            playErrorName,
+            pausedMs: performance.now() - pausedSince,
+            readyState: video.readyState,
+          }),
+        );
+        return;
+      }
+      pausedSince = 0;
+      setStallNote(null);
+      if (loopActive) return;
       if (video.videoWidth && video.readyState >= 2) startLoop();
     }, LOOP_WATCHDOG_MS);
 
@@ -459,6 +582,7 @@ export function useEngine({
       LOOP_EVENTS.forEach((name) => video.removeEventListener(name, onLoopHint));
       video.removeEventListener('loadstart', resetCounters);
       video.removeEventListener('emptied', onSourceReset);
+      GESTURE_EVENTS.forEach((name) => window.removeEventListener(name, onGesture, true));
       workerRef.current = null;
       worker.terminate();
       // Do not let a remount (or a source switch that disables the engine) inherit numbers

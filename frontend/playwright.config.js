@@ -23,7 +23,9 @@ export default defineConfig({
   testDir: './e2e',
   // The Pages-shape suite lives under e2e/pages and has its own config + server: this
   // run keeps the default base `/` and must stay exactly the five smoke tests.
-  testIgnore: '**/pages/**',
+  // e2e/firefox-mobile belongs to playwright.firefox.config.js for the same reason: it
+  // needs Firefox and the Android autoplay policy, neither of which exists here.
+  testIgnore: ['**/pages/**', '**/firefox-mobile/**'],
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   // A smoke test that flakes is worse than no smoke test: no retries, so a real

@@ -14,6 +14,7 @@
     "e2e:serve": "node scripts/serve-test.mjs --base /LocalSight/",
     "e2e:smoke": "playwright test",
     "e2e:pages": "playwright test --config=playwright.pages.config.js",
+    "e2e:firefox": "playwright test --config=playwright.firefox.config.js",
     "e2e:persistence": "playwright test --config=playwright.persistence.config.js",
     "verify:fast": "npm run test:unit && npm run build",
     "verify": "node scripts/verify.mjs",
