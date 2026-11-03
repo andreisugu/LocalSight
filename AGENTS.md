@@ -118,7 +118,8 @@ bash scripts/prepare-demo-media.sh           # scrie în frontend/public/media/
   demo” — licența urmează greutățile. Detalii: `THIRD_PARTY.md` și
   `docs/legal/model-provenance.md`.
 - **Dependențe runtime doar permissive.** Nu adăuga runtime GPL/AGPL/LGPL; orice dependență
-  de producție nouă cere actualizarea `frontend/public/LICENSES.txt` și a
+  de producție nouă cere actualizarea `frontend/public/LICENSES.txt`, a
+  `frontend/public/THIRD_PARTY_NOTICES.txt` (pentru bundle-uri third-party, ex. ORT WASM) și a
   `THIRD_PARTY.md`. `check-base.mjs` refuză build-ul fără notice-uri.
 - **Drepturile contribuitorilor se documentează, nu se presupun.** Codul curent a fost
   rescris integral pe 3 noiembrie 2026 (0 linii de la colegi); docs/design-ul rămâne creditat

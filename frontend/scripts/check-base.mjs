@@ -19,6 +19,7 @@ const REQUIRED_MODELS = ['efficientdet_lite0.onnx', 'efficientdet_lite2.onnx', '
 const REQUIRED_NOTICES = [
   'NOTICE',
   'LICENSES.txt',
+  'THIRD_PARTY_NOTICES.txt',
   'models/LICENSE-APACHE-2.0.txt',
   'models/LICENSE-CC-BY-3.0.txt',
 ];

@@ -78,6 +78,10 @@ unresolved clips were removed from the current tree; they remain in git history.
 Screenshots, the GIF and the social preview are project-produced from these generated clips
 and stills. Re-check by hand that no unblurred face is visible before publishing.
 
+The Unsplash apron still may show an aircraft livery or airport signage. The Unsplash licence
+does not grant trademark rights; clear the airline/airport marks or replace the still before
+commercial use.
+
 5. Runtime libraries — MIT / ISC / BSD-3-Clause / Apache-2.0
 --------------------------------------------------------------
 React, ReactDOM, scheduler, lucide-react, ONNX Runtime Web, protobufjs, flatbuffers,
@@ -87,5 +91,11 @@ obligations are in THIRD_PARTY.md. The COOP/COEP service-worker pattern is inspi
 gzuidhof/coi-serviceworker (MIT, Copyright (c) 2021 Guido Zuidhof); the MIT notice is in
 the same file.
 
-Vite, Tailwind CSS, PostCSS, Autoprefixer, Playwright and caniuse-lite are build/test
-tools and are not part of the served artifact; they are listed in THIRD_PARTY.md.
+ONNX Runtime Web is MIT, but its WASM bundle contains third-party components. The official
+upstream ThirdPartyNotices ships as /THIRD_PARTY_NOTICES.txt (ORT 1.31.1); it lists the
+components and their licences (MLAS, protobuf, flatbuffers, XNNPACK, Eigen/MPL2, Intel MKL
+notice and others). Review the exact WASM build with counsel before commercial use.
+
+Tailwind's preflight CSS and Vite's runtime helpers are MIT and ship inside dist; their
+notices are in /LICENSES.txt. PostCSS, Autoprefixer, Playwright and caniuse-lite are
+build/test tools and are not part of the served artifact; they are listed in THIRD_PARTY.md.

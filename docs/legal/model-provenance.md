@@ -27,6 +27,7 @@ file listed here is served to every visitor and is a distribution of that artefa
 | `models/LICENSE-CC-BY-3.0.txt` | — | full CC BY 3.0 legal code + attribution | notice file |
 | `NOTICE` | — | visitor-facing summary, linked from the sidebar | notice file |
 | `LICENSES.txt` | — | full runtime MIT/ISC/BSD/Apache notices, linked from `NOTICE` | notice file |
+| `THIRD_PARTY_NOTICES.txt` | — | official ONNX Runtime Web third-party notice (WASM deps) | notice file |
 | `media/stand12.mp4`, `taxiway-b.mp4` | — | generated pan/zoom from the Unsplash apron still | Unsplash License |
 | `media/baggage-area.mp4` | — | generated pan/zoom from the CC0 baggage still | CC0 |
 | `media/stills/zone-*.jpg` | — | frames from the generated clips | project-generated from Unsplash/CC0 |
@@ -167,18 +168,22 @@ has no GPL/AGPL/LGPL dependency (audited from `frontend/package-lock.json`):
 |---|---|---|
 | UI | react, react-dom, scheduler | MIT |
 | Icons | lucide-react | ISC |
-| Inference | onnxruntime-web, onnxruntime-common | MIT |
+| Inference | onnxruntime-web, onnxruntime-common | MIT; WASM bundles third-party code, official notice in `THIRD_PARTY_NOTICES.txt` (MLAS, protobuf, flatbuffers, XNNPACK, Eigen/MPL2, Intel MKL notice) |
 | Serialization | protobufjs, @protobufjs/* | BSD-3-Clause |
 | Helpers | flatbuffers, long | Apache-2.0 |
+| Build output | tailwindcss preflight CSS, vite runtime helpers | MIT (notices in `LICENSES.txt`) |
 | Small helpers | platform, js-tokens, loose-envify, undici-types, @types/node | MIT |
 | Other | guid-typescript | ISC |
 
 The full copyright lines and licence texts ship in `frontend/public/LICENSES.txt`
-(`dist/LICENSES.txt`), linked from `NOTICE`; the build guard checks the file. The COOP/COEP
+(`dist/LICENSES.txt`), linked from `NOTICE`; the build guard checks the file. ONNX Runtime
+Web's WASM bundles third-party components; the official upstream notice ships as
+`frontend/public/THIRD_PARTY_NOTICES.txt` (`dist/THIRD_PARTY_NOTICES.txt`). The COOP/COEP
 service-worker pattern is inspired by gzuidhof/coi-serviceworker (MIT, Copyright (c) 2021
 Guido Zuidhof); the implementation is ours and the MIT notice ships in `LICENSES.txt`.
-Build-time-only packages (Vite, Tailwind, PostCSS, Playwright, caniuse-lite) are not in the
-served artifact; their versions and licences are in `THIRD_PARTY.md`.
+Most build-time packages (PostCSS, Autoprefixer, Playwright, caniuse-lite) are not in the
+served artifact. Tailwind's preflight CSS and Vite's small runtime helpers do ship; their
+MIT notices are in `LICENSES.txt`.
 
 The current demo clips are generated from the Unsplash/CC0 stills and are distributed under
 the still licences/project authorship; the old unresolved clips are no longer in the current
@@ -196,6 +201,11 @@ The **old** 4K clips and the web cuts derived from them were removed from the cu
 build; they remain in git history and in the shared Drive. Do not reuse them without recording
 source, licence, camera operator and consent. A new repository without the old history removes
 those blobs. See §5.
+
+**Trademark note.** The Unsplash apron still may show an aircraft livery or airport signage.
+The Unsplash licence covers copyright only and does not grant trademark rights. Clear the
+airline/airport marks or replace the still before commercial use; the generated clips,
+screenshots, GIF and social preview inherit the same issue.
 
 ### Footage checklist for any future clip
 
@@ -250,9 +260,10 @@ Model licensing is done; the remaining work is footage and paperwork.
       no code path may load a YOLO/Ultralytics graph. Do not reintroduce YOLO weights,
       including fine-tuned exports — the licence follows the weights.
 - [ ] **Model and runtime notices present in `dist/`.** `NOTICE`, `LICENSES.txt`,
-      `models/LICENSE-APACHE-2.0.txt`, `models/LICENSE-CC-BY-3.0.txt`. The sidebar
-      "Licențe" link opens `NOTICE`; `NOTICE` links the runtime texts. The build guard
-      checks all four files and rejects a `yolo26n.onnx` in `dist/models/`.
+      `THIRD_PARTY_NOTICES.txt`, `models/LICENSE-APACHE-2.0.txt`,
+      `models/LICENSE-CC-BY-3.0.txt`. The sidebar "Licențe" link opens `NOTICE`; `NOTICE`
+      links the runtime texts. The build guard checks all files and rejects a
+      `yolo26n.onnx` in `dist/models/`.
 - [ ] **Attribution intact.** The Apache-2.0 line (Google, 2020) and the CC BY 3.0 line
       (Namas Bhandari, licence URL) both survive any copy edit of `NOTICE`.
 - [ ] **Model files unmodified, hashes match.** If they are re-exported or re-quantised, the
@@ -274,7 +285,9 @@ Model licensing is done; the remaining work is footage and paperwork.
 | Item | State |
 |---|---|
 | Person detector licence | **Resolved** — Apache-2.0 weights, CC BY 3.0 conversion, both attributed |
-| Runtime JS/WASM notices | **Resolved** — permissive; full texts in `LICENSES.txt`; no GPL/AGPL |
+| Runtime JS/WASM notices | **Resolved for direct deps** — MIT/ISC/BSD/Apache texts in `LICENSES.txt`; Tailwind/Vite incl. |
+| ONNX Runtime WASM third-party | **Requires review** — official `THIRD_PARTY_NOTICES.txt` ships; generic notice includes Eigen/MPL2, Intel MKL etc.; confirm exact WASM manifest with counsel |
+| Unsplash apron trademarks | **Requires action for commercial use** — Unsplash licence does not grant airline/airport trademark rights (§4) |
 | Code contributor rights | **Resolved in the current tree** — 535 teammate lines rewritten on 2026-11-03; provenance 0; docs/design still credited (§3.1) |
 | Face detector licence | **Resolved** — YuNet, MIT |
 | Runtime and build tooling | **Resolved** — MIT / ISC / Apache-2.0, notices shipped |

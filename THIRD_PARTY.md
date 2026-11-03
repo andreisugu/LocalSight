@@ -33,9 +33,12 @@ instead of trusting us.
    were removed from the current tree and build; they remain in git history — a new repository
    removes them. See [Remaining gaps](#remaining-gaps).
 4. Everything else — the React frontend, ONNX Runtime Web, the Vite/Tailwind build tooling,
-   the YuNet face model — is permissive (MIT / BSD / Apache-2.0 / ISC). The runtime notices
-   ship in `frontend/public/LICENSES.txt` (served as `dist/LICENSES.txt`), linked from
-   `NOTICE`, and the build guard refuses a bundle without it.
+   the YuNet face model — is permissive at the direct-dependency level (MIT / BSD /
+   Apache-2.0 / ISC). The runtime notices ship in `frontend/public/LICENSES.txt` (served as
+   `dist/LICENSES.txt`), linked from `NOTICE`, and the build guard refuses a bundle without
+   it. **Caveat:** the ONNX Runtime Web WASM bundles third-party components; the official
+   `THIRD_PARTY_NOTICES.txt` is shipped, and its generic text includes Eigen/MPL2 and Intel
+   MKL notices. Confirm the exact WASM manifest with counsel before commercial use.
 5. **The upstream repository had no LICENSE, and this fork asserts BSL 1.1 with a single
    Licensor.** On 2026-11-03 the current tree's 535 teammate code lines were rewritten and
    `provenance.py` now reports **0 lines from other authors**. The docs/design and upstream
@@ -77,10 +80,10 @@ The two EfficientDet rows describe the current build; the detector swap removed
 | **Frontend (`frontend/package.json`)** | | | |
 | `react` / `react-dom` | 18.3.1 / 18.3.1 | MIT | OK |
 | `lucide-react` | 0.344.0 | ISC | OK |
-| `onnxruntime-web` | 1.31.1 | MIT | OK — its WASM/WebGPU artifacts are shipped in `dist/`, keep the notice |
-| `vite` | 5.4.21 | MIT | OK — build-time only |
+| `onnxruntime-web` | 1.31.1 | MIT (bundles third-party WASM code) | **requires action** — ship `THIRD_PARTY_NOTICES.txt`; it lists MLAS, protobuf, flatbuffers, XNNPACK, Eigen/MPL2, an Intel MKL notice and others; review the exact WASM build |
+| `vite` | 5.4.21 | MIT | OK — small runtime helpers ship; MIT notice in `LICENSES.txt` |
 | `@vitejs/plugin-react` | 4.7.0 | MIT | OK — build-time only |
-| `tailwindcss` | 3.4.19 | MIT | OK — build-time only |
+| `tailwindcss` | 3.4.19 | MIT | OK — preflight CSS ships; MIT notice in `LICENSES.txt` |
 | `postcss` / `autoprefixer` | 8.5.32 / 10.6.2 | MIT | OK — build-time only |
 | `@playwright/test` | 1.64.1 | Apache-2.0 | OK — test-time only |
 | `caniuse-lite` | 1.0.30001820 | CC-BY-4.0 | OK — attribution required; build-time only, not in `dist/` |
@@ -91,16 +94,19 @@ The two EfficientDet rows describe the current build; the detector swap removed
 | **Assets** | | | |
 | `docs/assets/*.png` (5 UI screenshots, including the model selector) | — | project-produced | OK — re-check that no unblurred face is visible; they show the generated clips/stills, not the removed footage |
 | `frontend/public/media/*.mp4` (3 generated clips) | — | project-generated pan/zoom from `apron-stand.jpg` (Unsplash) and `baggage-hall.jpg` (CC0) | OK — permissive stills; no third-party airport video; the old unresolved cuts are gone from the tree |
-| `frontend/public/media/stills/apron-stand.jpg` | — | Unsplash License (https://unsplash.com/license) | OK — no attribution required; credit Unsplash in the demo |
+| `frontend/public/media/stills/apron-stand.jpg` | — | Unsplash License (https://unsplash.com/license) | OK copyright-wise; **trademark note** — may show airline livery/airport signage; clear or replace before commercial use |
 | `frontend/public/media/stills/baggage-hall.jpg` | — | CC0 (djedj, Pixabay); https://creativecommons.org/publicdomain/zero/1.0/ | OK |
 | `frontend/public/media/stills/zone-*.jpg` (3) | — | frames from the generated clips | OK — project-generated from the Unsplash/CC0 stills |
 
 The served runtime notices are in `frontend/public/LICENSES.txt` (`dist/LICENSES.txt`):
 MIT for React/ReactDOM/scheduler, ONNX Runtime Web/Common, platform, js-tokens, loose-envify,
-undici-types and @types/node; ISC for lucide-react and guid-typescript; BSD-3-Clause for
-protobufjs and the @protobufjs/* packages; Apache-2.0 for flatbuffers and long. The
-COOP/COEP service-worker pattern is inspired by gzuidhof/coi-serviceworker (MIT,
-Copyright (c) 2021 Guido Zuidhof); the implementation is ours and the MIT notice ships there.
+undici-types, @types/node, Tailwind (preflight CSS) and Vite (runtime helpers); ISC for
+lucide-react and guid-typescript; BSD-3-Clause for protobufjs and the @protobufjs/* packages;
+Apache-2.0 for flatbuffers and long. ONNX Runtime Web's WASM bundles third-party code; the
+official upstream notice is shipped as `frontend/public/THIRD_PARTY_NOTICES.txt`
+(`dist/THIRD_PARTY_NOTICES.txt`). The COOP/COEP service-worker pattern is inspired by
+gzuidhof/coi-serviceworker (MIT, Copyright (c) 2021 Guido Zuidhof); the implementation is ours
+and the MIT notice ships there.
 
 Not in the table because they are not model weights: `frontend/public/models/README.md`,
 `LICENSE-APACHE-2.0.txt` and `LICENSE-CC-BY-3.0.txt` are documentation/notice files served
@@ -272,7 +278,9 @@ not covered by the BSL or by the model licences.
 
 The three stock stills used by the app are licensed:
 - `frontend/public/media/stills/apron-stand.jpg` — Unsplash License
-  (https://unsplash.com/license); source of the CAM-01/CAM-02 clips.
+  (https://unsplash.com/license); source of the CAM-01/CAM-02 clips. **Trademark note:**
+  the photo may show an aircraft livery/airport signage; Unsplash does not grant trademark
+  rights. Clear or replace before commercial use.
 - `frontend/public/media/stills/baggage-hall.jpg` — CC0 (djedj, Pixabay);
   https://creativecommons.org/publicdomain/zero/1.0/; source of the CAM-03 clip.
 
@@ -295,10 +303,11 @@ The three stock stills used by the app are licensed:
    CC BY 3.0 material, which need no sublicense because they are already permissive.
 4. **Ship the notices with every distribution.** `dist/NOTICE` must contain: the
    EfficientDet-Lite Apache-2.0 attribution, the Namas Bhandari CC BY 3.0 attribution with
-   the licence URL, the YuNet MIT notice, the ONNX Runtime Web MIT notice, and the Unsplash/
+   the licence URL, the YuNet MIT notice, the ONNX Runtime Web MIT notice, the Unsplash/
    CC0 attribution for the generated-clip stills. `dist/LICENSES.txt` must carry the runtime
-   MIT/ISC/BSD/Apache notices. If you reuse the model files outside this repository, carry
-   the two licence texts with them. The build guard checks both files.
+   MIT/ISC/BSD/Apache notices, and `dist/THIRD_PARTY_NOTICES.txt` must carry the official
+   ORT third-party notice. If you reuse the model files outside this repository, carry the
+   two licence texts with them. The build guard checks all files.
 5. **Decide the history question** (new repo with filtered history vs new repo from the
    current tree vs in-place rewrite) before calling a repository "clean". See
    [Remaining gaps](#remaining-gaps) §2.

@@ -152,9 +152,9 @@ Scenariul de prezentare, pas cu pas: [`demo/run_sheet_browser.md`](demo/run_shee
 | EfficientDet-Lite0/Lite2 (weights) | **Apache 2.0** | © Google; uz comercial cu notice |
 | Conversia ONNX | **CC BY 3.0** | Namas Bhandari; atribuire obligatorie |
 | YuNet | MIT | © Shiqi Yu / OpenCV Zoo |
-| ONNX Runtime Web | MIT | © Microsoft |
-| Runtime JS/WASM: React, lucide, protobuf, flatbuffers | MIT / ISC / BSD-3 / Apache-2.0 | texte complete în [`frontend/public/LICENSES.txt`](frontend/public/LICENSES.txt) |
-| Still-uri stock: apron / baggage | Unsplash / CC0 | atribuite în [`frontend/public/NOTICE`](frontend/public/NOTICE); clipurile demo sunt derivate din ele |
+| ONNX Runtime Web | MIT + third-party WASM notices | © Microsoft; [`THIRD_PARTY_NOTICES.txt`](frontend/public/THIRD_PARTY_NOTICES.txt) |
+| Runtime JS/WASM: React, lucide, protobuf, flatbuffers, Tailwind/Vite output | MIT / ISC / BSD-3 / Apache-2.0 | texte complete în [`frontend/public/LICENSES.txt`](frontend/public/LICENSES.txt) |
+| Still-uri stock: apron / baggage | Unsplash / CC0 | atribuite în [`frontend/public/NOTICE`](frontend/public/NOTICE); clipurile demo sunt derivate din ele. Apron poate conține livery/airport marks — trademark separat, de curățat pentru uz comercial |
 | Contribuții upstream | **cod: 100% al nostru** | ultimele 535 de linii au fost rescrise pe 3 nov; docs/design rămân creditate |
 | Clipuri demo generate + zone stills | proiect (din Unsplash/CC0) | fără footage necunoscut în build; clipurile vechi rămân doar în istoricul git |
 
@@ -167,6 +167,11 @@ Scenariul de prezentare, pas cu pas: [`demo/run_sheet_browser.md`](demo/run_shee
 > raportează 0 linii de la colegi. Docs/design-ul rămâne creditat; pentru licențiere
 > comercială, confirmă acordul pentru docs/design sau rescrie-le; template în
 > [`docs/legal/contributor-assignment-template.md`](docs/legal/contributor-assignment-template.md).
+>
+> **ONNX Runtime WASM:** bundle-ul include componente third-party; notice-ul oficial e servit
+> ca [`THIRD_PARTY_NOTICES.txt`](frontend/public/THIRD_PARTY_NOTICES.txt). Fișierul generic
+> menționează Eigen/MPL2 și un notice Intel MKL; confirmă manifestul exact al build-ului WASM
+> cu avocatul înainte de un contract comercial.
 
 Nu este consultanță juridică. Auditul complet, lanțul de proveniență, SHA-256-urile și
 checklist-ul comercial sunt în [`THIRD_PARTY.md`](THIRD_PARTY.md) și

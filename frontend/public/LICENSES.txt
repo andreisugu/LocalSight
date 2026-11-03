@@ -3,8 +3,10 @@ LocalSight — runtime third-party licenses
 
 This file ships in the static build as /LICENSES.txt and is linked from /NOTICE.
 It covers the production JavaScript/WASM code that may be present in `dist/assets/`.
-Build-time-only packages (Vite, Tailwind, PostCSS, Playwright, caniuse-lite) are not
-part of the served artifact; their versions and licenses are in THIRD_PARTY.md.
+Most build-time packages are not part of the served artifact; their versions and licenses
+are in THIRD_PARTY.md. Two exceptions are covered here because their output ships: Tailwind's
+preflight CSS and Vite's small runtime helpers. ONNX Runtime Web's WASM bundles third-party
+components; the official upstream notice ships as /THIRD_PARTY_NOTICES.txt.
 
 The model files have their own texts: models/LICENSE-APACHE-2.0.txt and
 models/LICENSE-CC-BY-3.0.txt. YuNet's MIT notice is in /NOTICE.
@@ -12,7 +14,8 @@ models/LICENSE-CC-BY-3.0.txt. YuNet's MIT notice is in /NOTICE.
 Runtime components and licence families
 ---------------------------------------
 MIT: react, react-dom, scheduler, onnxruntime-web, onnxruntime-common, platform,
-     js-tokens, loose-envify, undici-types, @types/node
+     js-tokens, loose-envify, undici-types, @types/node, tailwindcss (preflight CSS),
+     vite (small runtime helpers)
 ISC: lucide-react, guid-typescript
 BSD-3-Clause: protobufjs and the @protobufjs/* packages
 Apache-2.0: flatbuffers, long
