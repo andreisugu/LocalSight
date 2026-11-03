@@ -4,6 +4,7 @@ import { SecurityProvider, useSecurity as useSecurityContext } from './context/S
 import StatusToast from './components/common/Toast';
 import AppHeader from './components/layout/Header';
 import AppSidebar from './components/layout/Sidebar';
+import ArchiveScreen from './components/views/ArchiveView';
 import BenchScreen from './components/views/BenchView';
 import IncidentDetailScreen from './components/views/IncidentDetailView';
 import IncidentsListScreen from './components/views/IncidentsListView';
@@ -19,6 +20,7 @@ const SCREENS = new Map([
   ['incident_detail', IncidentDetailScreen],
   ['zones', ZoneEditorScreen],
   ['reports', ReportsScreen],
+  ['archive', ArchiveScreen],
   ['settings', SettingsScreen],
   ['lab', LabScreen],
   ['bench', BenchScreen],

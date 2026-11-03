@@ -48,6 +48,20 @@ test('unknown and empty addresses fall back to Live', () => {
   assert.deepEqual(routeFromPath('/incidents/'), { view: 'incidents', eventId: null });
 });
 
+test('the archive screen has its own address below the deploy base', () => {
+  assert.deepEqual(routeFromPath('/archive'), { view: 'archive', eventId: null });
+  assert.deepEqual(routeFromPath('/LocalSight/archive', '/LocalSight'), {
+    view: 'archive',
+    eventId: null,
+  });
+  assert.deepEqual(routeFromPath('/LocalSight/archive/', '/LocalSight'), {
+    view: 'archive',
+    eventId: null,
+  });
+  assert.equal(pathFor('archive'), '/archive');
+  assert.equal(pathFor('archive', null, '/LocalSight'), '/LocalSight/archive');
+});
+
 test('pathFor writes the base prefix exactly once', () => {
   assert.equal(pathFor('incidents'), '/incidents');
   assert.equal(pathFor('incidents', null, '/LocalSight'), '/LocalSight/incidents');
