@@ -89,7 +89,8 @@ Vezi secțiunea 4.
 
 Total: 741 cadre măsurate cu Lite0 și 394 cu Lite2 (1 135). Toate cele 1 135 au avut
 `aligned=true`; zero erori de consolă/pagină în afara avertismentelor ONNX cunoscute pentru
-YuNet. Fps-ul absolut e sub cifrele din `docs/browser-engine.md` (8,8 / 4,8) pentru că gazda
+YuNet. Singurul warning este `No available adapters.` de la proba WebGPU, așteptat pe un host
+fără GPU. Fps-ul absolut e sub cifrele din `docs/browser-engine.md` (8,8 / 4,8) pentru că gazda
 avea load 9–13; raportul dintre detectoare rămâne vizibil: Lite2 e la ~0,42–0,69 din fps-ul
 Lite0 pe aceleași camere (median ~0,53).
 
