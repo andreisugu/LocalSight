@@ -9,7 +9,7 @@
 
 [Build public](https://andreisugu.github.io/LocalSight/) · [Documentație](docs/README.md) · [Proveniența modelului](docs/legal/model-provenance.md)
 
-![LocalSight: EfficientDet-Lite0 rulează în browser, cu zone, PPE și coada de triaj](docs/assets/localsight-demo.gif)
+![LocalSight: EfficientDet-Lite0 rulează în browser pe un clip demo generat, cu zonă și coadă de triaj](docs/assets/localsight-demo.gif)
 
 LocalSight duce pipeline-ul de siguranță al proiectului SafeSight în browser: în loc de un
 edge box care trimite evenimente unui backend, tot traseul devine cod de frontend. Pipeline-ul — detecție, tracking, zone, reguli, blur pe fețe, PPE, incidente —
@@ -83,17 +83,17 @@ Toate rutele sunt client-side, definite în `VIEW_PATHS` din
 
 ## Capturi
 
-![Live: motorul EfficientDet-Lite0, zonele pe sol și coada de triaj](docs/assets/localsight-live.png)
-*Live: motorul din browser pe CAM-01, zonele pe sol, coada de triaj și un incident real; fixture-urile demo sunt oprite.*
+![Live: motorul EfficientDet-Lite0 pe CAM-03, zona restricționată și coada de triaj](docs/assets/localsight-live.png)
+*Live: motorul din browser pe CAM-03 (clip demo generat din still licențiat), zona restricționată, coada de triaj și un incident real; fixture-urile demo sunt oprite.*
 
 ![Setări: alegerea modelului EfficientDet-Lite0 sau Lite2](docs/assets/localsight-model.png)
 *Setări: EfficientDet-Lite0 implicit, Lite2 pentru acuratețe; ambele Apache-2.0, fără AGPL.*
 
 ![Incidente: lista completă, cu severitate, status și dovada foto](docs/assets/localsight-incidents.png)
-*Incidente: doar detecția reală, cu severitate, status și dovadă; datele demo sunt ascunse implicit.*
+*Incidente: doar detecția reală de pe clipul generat, cu severitate, status și dovadă; datele demo sunt ascunse implicit.*
 
 ![Configurare zone: poligonul pe canvas și parametrii regulii](docs/assets/localsight-zones.png)
-*Configurare zone: poligonul pe canvas și parametrii regulii.*
+*Configurare zone: poligonul pe canvas și parametrii regulii, pe cadrul de referință generat.*
 
 ![Rapoarte: acoperirea camerei în sesiunea curentă](docs/assets/localsight-coverage.png)
 *Rapoarte: acoperirea se calculează din eșantioanele motorului din acest tab — segmente live, tab ascuns și pauze; fără eșantioane afișează „fără date”.*
