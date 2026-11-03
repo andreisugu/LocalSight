@@ -14,7 +14,7 @@ const WEBHOOK_ORIGIN = process.env.VITE_WEBHOOK_ORIGIN || '';
 const webhookCspPlugin = {
   name: 'webhook-csp',
   transformIndexHtml(html) {
-    return html.replaceAll('%VITE_WEBHOOK_ORIGIN%', WEBHOOK_ORIGIN);
+    return html.replaceAll('__WEBHOOK_ORIGIN__', WEBHOOK_ORIGIN);
   },
 };
 // 4. server: 5173 is the port the demo run sheet and the e2e helper expect, and `host`
