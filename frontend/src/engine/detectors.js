@@ -191,7 +191,14 @@ const WEBGPU_SESSION_TIMEOUT_MS = 12_000;
 
 async function createSession(ort, url, providers) {
   const bytes = await fetchModelBytes(url);
-  const options = { executionProviders: providers, graphOptimizationLevel: 'all' };
+  // YuNet is fed dynamic sizes, so ORT emits a `VerifyOutputSizes` warning for every frame
+  // about its stale shape metadata even though the outputs are correct. Level 3 keeps real
+  // errors (and the fail-closed frame) while dropping that per-frame warning noise.
+  const options = {
+    executionProviders: providers,
+    graphOptimizationLevel: 'all',
+    logSeverityLevel: 3,
+  };
   if (providers[0] !== 'webgpu') {
     const session = await ort.InferenceSession.create(bytes, options);
     return { session, provider: providers[0], fallback: false };
