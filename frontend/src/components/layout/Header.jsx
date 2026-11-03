@@ -292,23 +292,21 @@ function NameEntry({ ruleColor, draft, onDraftChange, onCommit, onDismiss }) {
   );
 }
 
+/** One mock-event row: label on the left, severity badge on the right. */
+function SimulatedEvent({ entry, onPick }) {
+  return <button type="button" role="menuitem" onClick={() => onPick(entry.type, entry.severity)} className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left font-bold ${entry.itemClass}`}>
+    <span>{entry.label}</span>
+    <Pill tone={entry.tone} shape="tag">
+      {entry.badge}
+    </Pill>
+  </button>;
+}
+
 /** Mock-only event list and its menu; the static build has no ingest path. */
 function SimulationMenu({ menu, surface, onToggle, onPick }) {
   const items = SIMULATED_EVENTS.map((entry) => (
-    <button
-      key={entry.type}
-      type="button"
-      role="menuitem"
-      onClick={() => onPick(entry.type, entry.severity)}
-      className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left font-bold ${entry.itemClass}`}
-    >
-      <span>{entry.label}</span>
-      <Pill tone={entry.tone} shape="tag">
-        {entry.badge}
-      </Pill>
-    </button>
+    <SimulatedEvent key={entry.type} entry={entry} onPick={onPick} />
   ));
-
   const panel = menu.open ? (
     <Panel
       role="menu"
@@ -317,29 +315,24 @@ function SimulationMenu({ menu, surface, onToggle, onPick }) {
       size="menu"
       titleClassName={MENU_HEADING}
       style={surface}
-      className="absolute right-0 z-50 mt-2 w-64 max-w-[calc(100vw-1rem)] shadow-2xl"
-    >
+      className="absolute right-0 z-50 mt-2 w-64 max-w-[calc(100vw-1rem)] shadow-2xl">
       {items}
     </Panel>
   ) : null;
-
-  return (
-    <div className="relative" ref={menu.anchorRef} onKeyDown={menu.handleKeyDown}>
-      <MenuTrigger
-        expanded={menu.open}
-        title="Generează evenimente de test (doar în modul mock)"
-        skin={`flex items-center gap-1.5 rounded-xl border px-2 py-1.5 text-xs font-bold shadow-sm transition-colors sm:px-3 ${CONTROL_SKIN}`}
-        onClick={onToggle}
-        icon={<Zap size={14} className="fill-[#FFEB33] text-[#1F1F1F] dark:text-[#FFEB33]" />}
-        label="Simulare"
-      >
-        <ChevronDown size={12} aria-hidden="true" className="opacity-80" />
-      </MenuTrigger>
-      {panel}
-    </div>
-  );
+  return <div className="relative" ref={menu.anchorRef} onKeyDown={menu.handleKeyDown}>
+    <MenuTrigger
+      expanded={menu.open}
+      title="Generează evenimente de test (doar în modul mock)"
+      skin={`flex items-center gap-1.5 rounded-xl border px-2 py-1.5 text-xs font-bold shadow-sm transition-colors sm:px-3 ${CONTROL_SKIN}`}
+      onClick={onToggle}
+      icon={<Zap size={14} className="fill-[#FFEB33] text-[#1F1F1F] dark:text-[#FFEB33]" />}
+      label="Simulare"
+    >
+      <ChevronDown size={12} aria-hidden="true" className="opacity-80" />
+    </MenuTrigger>
+    {panel}
+  </div>;
 }
-
 /** Theme switch: the icon and the pressed state both reflect the current theme. */
 function ThemeSwitch({ dark, palette, onToggle }) {
   const skin = {
@@ -383,7 +376,6 @@ function OperatorMenu({
     backgroundColor: dark ? '#D73833' : '#7EDEED',
     color: dark ? '#FFFFFF' : '#1F1F1F',
   };
-
   const roles = roster.map((person) => (
     <RoleChoice
       key={person.id}
@@ -394,7 +386,13 @@ function OperatorMenu({
       onPick={() => onPick(person.id)}
     />
   ));
-
+  const nameField = {
+    ruleColor: surface.borderColor,
+    draft,
+    onDraftChange,
+    onCommit,
+    onDismiss: () => menu.setOpen(false),
+  };
   const panel = menu.open && roster ? (
     <Panel
       role="menu"
@@ -406,13 +404,7 @@ function OperatorMenu({
       className="absolute right-0 z-50 mt-2 w-64 max-w-[calc(100vw-1rem)] shadow-2xl"
     >
       {roles}
-      <NameEntry
-        ruleColor={surface.borderColor}
-        draft={draft}
-        onDraftChange={onDraftChange}
-        onCommit={onCommit}
-        onDismiss={() => menu.setOpen(false)}
-      />
+      <NameEntry {...nameField} />
     </Panel>
   ) : null;
 
@@ -450,14 +442,10 @@ function OperatorMenu({
 
 /** The right-hand cluster: mock trigger, theme switch and operator picker. */
 function HeaderActions({ children }) {
-  return (
-    <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2 md:gap-3">
-      {children}
-    </div>
-  );
+  return <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2 md:gap-3">{children}</div>;
 }
 
-function Header() {
+const Header = () => {
   const { isDarkMode: dark, toggleTheme, themeStyles: palette } = useTheme();
   const {
     activeOperator: currentOperator,
@@ -524,8 +512,7 @@ function Header() {
     operator.setOpen(false);
   };
 
-  return (
-    <header
+  return <header
       style={{
         backgroundColor: palette.navBg,
         borderColor: palette.navBorder,
@@ -585,8 +572,7 @@ function Header() {
           onPick={pickOperator}
         />
       </HeaderActions>
-    </header>
-  );
-}
+    </header>;
+};
 
 export default Header;

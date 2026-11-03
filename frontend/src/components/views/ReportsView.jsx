@@ -61,7 +61,6 @@ function SectionHeading({ glyph: Glyph, label, aside = null, ink = HEADING_INK }
     </div>
   );
 }
-
 /**
  * The two export buttons. Printing the report is the deliverable, so it stays the
  * primary filled action; the CSV is the secondary export. The old pair was two equal
@@ -126,7 +125,6 @@ function ReportMasthead({ report, hasEvents, onCsv, onPdf }) {
     </div>{hasEvents ? <ExportActions onCsv={onCsv} onPdf={onPdf} /> : null}
   </header>;
 }
-
 /** Shift selector; disabled in the mock build, which has exactly one shift. */
 function ShiftSelect({ value, options, onChange }) {
   const { themeStyles } = useTheme();
@@ -158,7 +156,6 @@ function ShiftSelect({ value, options, onChange }) {
         {choices}</select></div>
   );
 }
-
 /** Non-mock branch: the date picker and the same Romanian-formatted value beside it. */
 function DatePickerField() {
   const { selectedDate, setSelectedDate } = useSecurity();
@@ -271,7 +268,6 @@ function MetricCard({ caption, figure, tone = 'neutral', testId, note }) {
     </dd>
   </div>;
 }
-
 function MetricGrid({ kpi }) {
   return (
     <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -358,7 +354,6 @@ function ExecutiveSummary({ report }) {
     </Panel>
   );
 }
-
 /** One alert type: label, count, share and its bar. */
 function TypeRow({ entry, total }) {
   const share = Math.round(sharePercent(entry.count, total));
@@ -371,11 +366,8 @@ function TypeRow({ entry, total }) {
         <span className="flex items-baseline gap-1 whitespace-nowrap font-mono font-bold">
           <span data-testid={`report-type-count-${entry.type}`}>{entry.count}</span>
           <span className="font-normal opacity-75">· {share}%</span>
-        </span>
-      </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10" aria-hidden="true">
-        <div className="h-full rounded-full bg-[#D73833]" style={{ width: `${sharePercent(entry.count, total)}%` }} />
-      </div>
+        </span></div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-white/10" aria-hidden="true"><div className="h-full rounded-full bg-[#D73833]" style={{ width: `${sharePercent(entry.count, total)}%` }} /></div>
     </li>
   );
 }
@@ -397,7 +389,6 @@ function TypeBreakdown({ report }) {
     </Panel>
   );
 }
-
 /** One hour of the histogram: count on top, bar, clock label underneath. */
 function HourColumn({ hour, peak }) {
   const barHeight = { height: `${sharePercent(hour.events, peak)}%` };
@@ -412,14 +403,11 @@ function HourColumn({ hour, peak }) {
 function HourHistogram({ report }) {
   const { themeStyles } = useTheme();
   const peak = maxHourEvents(report.by_hour);
+  const columns = report.by_hour.map((hour) => <HourColumn key={hour.hour} hour={hour} peak={peak} />);
   return (
     <Panel as="section" size="card" className="flex flex-col">
       <SectionHeading glyph={TrendingUp} label="Grafic Incidente pe Ore (by_hour)" />
-      <div className="flex h-36 items-end justify-between gap-3 border-b border-slate-200 px-2 pb-1 pt-4 dark:border-white/10">
-        {report.by_hour.map((hour) => (
-          <HourColumn key={hour.hour} hour={hour} peak={peak} />
-        ))}
-      </div>
+      <div className="flex h-36 items-end justify-between gap-3 border-b border-slate-200 px-2 pb-1 pt-4 dark:border-white/10">{columns}</div>
       <p className="mt-3 font-mono text-[11px]" style={{ color: themeStyles.textMuted }}>
         Maxim {peak} incidente într-o oră (axă 0–{peak}); orele cu evenimente, în ordine
         cronologică (Europe/Bucharest).
@@ -427,7 +415,6 @@ function HourHistogram({ report }) {
     </Panel>
   );
 }
-
 // Column labels for the zone table; the last one is right-aligned like its cells.
 const ZONE_COLUMNS = [
   { key: 'zone', label: 'Zonă / Sector', ink: '' },
@@ -464,8 +451,7 @@ function ZoneAckTable({ rows }) {
         <thead><tr className="border-b border-slate-200 opacity-80 dark:border-white/10">
           {columns}</tr></thead>
         <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-          {body}
-        </tbody>
+          {body}</tbody>
       </table></div>
     </Panel>
   );
@@ -569,7 +555,7 @@ function CoverageReceipt({ samples, events, cameras, now }) {
   );
 }
 
-export default function ReportsView() {
+const ReportsView = () => {
   const {
     events,
     selectedShift,
@@ -644,10 +630,11 @@ export default function ReportsView() {
           <>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <TypeBreakdown report={report} />
-              <HourHistogram report={report} />
-            </div>
+              <HourHistogram report={report} /></div>
             <ZoneAckTable rows={report.by_zone} />
           </>
         )}
       </div></div>;
-}
+};
+
+export default ReportsView;

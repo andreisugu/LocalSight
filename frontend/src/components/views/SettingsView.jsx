@@ -9,7 +9,7 @@ import { useSecurity as useSecurityContext } from '../../context/SecurityContext
 import { useTheme } from '../../context/ThemeContext';
 import { BACKGROUND_MAX_CAMERAS, BACKGROUND_MIN_CORES } from '../../context/useBackgroundCameras';
 import { PERSON_DETECTOR_LABELS } from '../../engine/detectorFlag';
-import { TYPE_LABELS } from '../../services/api';
+import { TYPE_LABELS as EVENT_TYPE_LABELS } from '../../services/api';
 import {
   DETECTOR_CHOICES,
   readEngineSettings,
@@ -28,7 +28,6 @@ import {
   sourceSummary,
 } from '../../utils/systemView';
 import { WEBCAM_CAMERA_ID } from '../live/liveMedia';
-
 const INCIDENT_VIEW = 'incident_detail';
 // Glyph per summary tile; a tile without one falls back to the CPU mark.
 const TILE_GLYPHS = {
@@ -529,7 +528,7 @@ function useBackgroundStatus(enabled, getStatus) {
   return status;
 }
 
-export default function SettingsView() {
+const SettingsView = () => {
   const { themeStyles } = useTheme();
   const {
     cameras,
@@ -594,19 +593,16 @@ export default function SettingsView() {
   }), [isMock, health, cameras, zones, latestModel, engine.settings.detector]);
   const cameraRows = useMemo(() => buildCameraRows(cameras, { isMock, zones }), [cameras, isMock, zones]);
   const sources = useMemo(() => sourceSummary(cameras, { isMock }), [cameras, isMock]);
-  const auditRows = useMemo(
-    () => buildAuditRows(events, { typeLabels: TYPE_LABELS, isMock, limit: AUDIT_LIMIT }),
-    [events, isMock]
-  );
+  const auditRows = useMemo(() => buildAuditRows(events, { typeLabels: EVENT_TYPE_LABELS, isMock, limit: AUDIT_LIMIT }), [events, isMock]);
   const muted = mutedInk(themeStyles);
   const clipPhrase = `${sources.clips} ${sources.clips === 1 ? 'clip demo' : 'clipuri demo'}`;
   const demoVisible = isMock && showDemoData;
 
-  const showIncident = (id) => {
+  function showIncident(id) {
     if (!id) return;
     setSelectedEventId(id);
     setCurrentView(INCIDENT_VIEW);
-  };
+  }
   const cameraIntro = isMock
     ? `${clipPhrase}${sources.local > 0 ? ' plus camera locală din browser' : ''}; niciun feed de rețea nu e conectat. Camera locală cere permisiunea browserului când o deschizi în Live.`
     : `${cameraRows.length} camere configurate; motorul fiecăreia se pornește din Live.`;
@@ -1039,4 +1035,6 @@ export default function SettingsView() {
             <span className="text-slate-500 dark:text-slate-400">Deschide un rând pentru incident.</span></p>
         </TableCard>
       </div></div>;
-}
+};
+
+export default SettingsView;
