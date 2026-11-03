@@ -865,7 +865,8 @@ const SettingsView = () => {
   const privacyBullets = isMock ? (
     <>
       <PrivacyBullet>
-        Cadrele video trăiesc în memoria tabului: sunt desenate pe canvas și nu se încarcă nicăieri.
+        Cadrele video sunt desenate pe canvas și nu se încarcă nicăieri. Incidentele, snapshot-urile
+        blurate și confirmările rămân în IndexedDB-ul acestui browser; arhiva JSON e copia explicită.
       </PrivacyBullet>
       <PrivacyBullet>
         Cu motorul pornit, fețele sunt{' '}
